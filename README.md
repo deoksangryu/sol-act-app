@@ -1,20 +1,12 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# MUSE Academy
 
-# Run and deploy your AI Studio app
+연기 학원 통합 관리 플랫폼 — 수업, 과제, 출결, 평가, 식단, 소통을 하나의 앱에서 관리합니다.
 
-This contains everything you need to run your app locally.
+## 실행 방법
 
-View your app in AI Studio: https://ai.studio/apps/temp/2
+```bash
+npm install
+npm run dev
+```
 
-## Run Locally
-
-**Prerequisites:**  Node.js
-
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+`.env.local`에 `GEMINI_API_KEY`를 설정한 후 실행하세요.
