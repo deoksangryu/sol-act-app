@@ -1,0 +1,8 @@
+{
+  "name": "Muse Academy",
+  "description": "A fresh and mobile-optimized management platform for acting students and teachers, featuring assignment tracking, diet management, and AI feedback.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}

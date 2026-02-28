@@ -1,0 +1,18 @@
+version: 2
+# authtoken은 별도로 설정: ngrok config add-authtoken YOUR_TOKEN
+# 또는 환경 변수 사용 가능
+
+tunnels:
+  frontend:
+    proto: http
+    addr: 3001
+    domain: sol-manager.ngrok.app
+    inspect: true
+    # Vite dev server를 외부에 노출 (포트 3001)
+
+  backend:
+    proto: http
+    addr: 8000
+    domain: sol-backend.ngrok.dev
+    inspect: true
+    # FastAPI server를 외부에 노출
