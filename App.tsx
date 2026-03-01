@@ -12,7 +12,8 @@ import { Growth } from './components/Growth';
 import { Community } from './components/Community';
 import { AcademyManagement } from './components/AcademyManagement';
 import { Notifications } from './components/Notifications';
-import { Toaster } from 'react-hot-toast'; 
+import { InstallPrompt } from './components/InstallPrompt';
+import { Toaster } from 'react-hot-toast';
 
 // Mock Users
 const MOCK_STUDENT: User = {
@@ -303,6 +304,9 @@ const App: React.FC = () => {
         </nav>
       </main>
       
+      {/* PWA Install Prompt */}
+      <InstallPrompt />
+
       {/* Global Toast Container */}
       <Toaster 
         position="top-center"
