@@ -221,7 +221,12 @@ const App: React.FC = () => {
   };
 
   if (!user) {
-    return <Login onLogin={handleLogin} />;
+    return (
+      <>
+        <Login onLogin={handleLogin} />
+        <InstallPrompt />
+      </>
+    );
   }
 
   // Define views that need full height (App-like behavior) vs scrolling views (Page-like behavior)
