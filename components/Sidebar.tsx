@@ -36,8 +36,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, use
   return (
     <div className="flex flex-col h-full">
       <div className="p-8 pb-4">
-         <h2 className="text-3xl font-extrabold text-orange-500 tracking-tighter">MUSE</h2>
-         <p className="text-xs font-semibold text-slate-400">Academy Platform</p>
+         <h2 className="text-3xl font-extrabold text-yellow-400 tracking-tighter">SOL-ACT</h2>
+         <p className="text-xs font-semibold text-slate-400">연기 학원 플랫폼</p>
       </div>
 
       <div className="px-6 mb-8 flex items-center gap-3">

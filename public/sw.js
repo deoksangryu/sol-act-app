@@ -1,4 +1,4 @@
-const CACHE_NAME = 'muse-academy-v1';
+const CACHE_NAME = 'sol-act-v1';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

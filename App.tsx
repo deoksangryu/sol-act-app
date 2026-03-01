@@ -249,8 +249,7 @@ const App: React.FC = () => {
         {/* Mobile Header */}
         <header className="md:hidden min-h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-20 shrink-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
           <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-orange-500 tracking-tighter">MUSE</span>
-            <span className="text-xs font-medium text-slate-400">Academy</span>
+            <span className="text-xl font-bold text-yellow-400 tracking-tighter">SOL-ACT</span>
           </div>
           <div className="flex items-center gap-3">
              {/* Notification Bell (Mobile) */}

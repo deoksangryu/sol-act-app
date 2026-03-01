@@ -1,11 +1,11 @@
 {
-  "name": "MUSE Academy",
-  "short_name": "MUSE",
-  "description": "연기 학원 통합 관리 플랫폼",
+  "name": "SOL-ACT",
+  "short_name": "SOL-ACT",
+  "description": "SOL-ACT 연기 학원 통합 관리 플랫폼",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F8FAFC",
-  "theme_color": "#F97316",
+  "theme_color": "#FBBF24",
   "orientation": "portrait",
   "icons": [
     {

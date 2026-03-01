@@ -55,9 +55,9 @@ export const InstallPrompt: React.FC = () => {
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
       </button>
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-10 h-10 bg-orange-500 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0">M</div>
+        <div className="w-10 h-10 bg-yellow-400 rounded-xl flex items-center justify-center text-white font-black text-lg shrink-0">S</div>
         <div>
-          <p className="font-bold text-slate-800 text-sm">MUSE Academy 앱 설치</p>
+          <p className="font-bold text-slate-800 text-sm">SOL-ACT 앱 설치</p>
           <p className="text-xs text-slate-500">홈 화면에 추가하여 빠르게 접속하세요</p>
         </div>
       </div>
@@ -76,7 +76,7 @@ export const InstallPrompt: React.FC = () => {
       ) : (
         <button
           onClick={handleInstall}
-          className="w-full bg-orange-500 text-white font-semibold text-sm py-2.5 rounded-xl hover:bg-orange-600 active:scale-[0.98] transition-all"
+          className="w-full bg-yellow-400 text-white font-semibold text-sm py-2.5 rounded-xl hover:bg-yellow-500 active:scale-[0.98] transition-all"
         >
           앱 설치하기
         </button>

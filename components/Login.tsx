@@ -52,7 +52,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         
         {/* Header - Always visible */}
         <div className="text-center mb-10 transition-all">
-          <h1 className="text-4xl font-extrabold text-orange-500 mb-2 tracking-tighter">MUSE</h1>
+          <h1 className="text-4xl font-extrabold text-yellow-400 mb-2 tracking-tighter">SOL-ACT</h1>
           <p className="text-slate-500 font-medium">연기 입시의 새로운 기준</p>
         </div>
 
@@ -61,14 +61,14 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div className="space-y-3 animate-fade-in">
             <button
               onClick={() => handleRoleSelect(UserRole.STUDENT)}
-              className="w-full group relative flex items-center justify-center p-4 rounded-2xl bg-white border-2 border-orange-100 hover:border-orange-500 hover:shadow-lg transition-all duration-300"
+              className="w-full group relative flex items-center justify-center p-4 rounded-2xl bg-white border-2 border-yellow-200 hover:border-yellow-400 hover:shadow-lg transition-all duration-300"
             >
               <div className="text-left w-full pl-4">
-                <p className="text-xs text-orange-500 font-bold uppercase tracking-wide mb-1">Student</p>
-                <p className="text-lg font-bold text-slate-800 group-hover:text-orange-600">수강생 로그인</p>
+                <p className="text-xs text-yellow-500 font-bold uppercase tracking-wide mb-1">Student</p>
+                <p className="text-lg font-bold text-slate-800 group-hover:text-yellow-600">수강생 로그인</p>
               </div>
-              <div className="absolute right-6 w-8 h-8 rounded-full bg-orange-50 flex items-center justify-center group-hover:bg-orange-500 transition-colors">
-                <svg className="w-4 h-4 text-orange-500 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+              <div className="absolute right-6 w-8 h-8 rounded-full bg-yellow-50 flex items-center justify-center group-hover:bg-yellow-400 transition-colors">
+                <svg className="w-4 h-4 text-yellow-500 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
               </div>
             </button>
 
