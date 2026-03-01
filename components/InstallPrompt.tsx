@@ -13,8 +13,9 @@ export const InstallPrompt: React.FC = () => {
   useEffect(() => {
     // Already installed as PWA
     if (window.matchMedia('(display-mode: standalone)').matches) return;
-    // Already dismissed this session
-    if (sessionStorage.getItem('pwa_dismissed')) return;
+    // Show again after 24 hours
+    const dismissedAt = localStorage.getItem('pwa_dismissed_at');
+    if (dismissedAt && Date.now() - Number(dismissedAt) < 24 * 60 * 60 * 1000) return;
 
     const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
     const isSafari = /safari/i.test(navigator.userAgent) && !/chrome|crios|fxios/i.test(navigator.userAgent);
@@ -43,7 +44,7 @@ export const InstallPrompt: React.FC = () => {
     setDismissed(true);
     setDeferredPrompt(null);
     setShowIosBanner(false);
-    sessionStorage.setItem('pwa_dismissed', '1');
+    localStorage.setItem('pwa_dismissed_at', String(Date.now()));
   };
 
   if (dismissed) return null;
