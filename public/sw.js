@@ -2,7 +2,7 @@ const CACHE_NAME = 'muse-academy-v1';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/sol-act-app/']))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(['/']))
   );
   self.skipWaiting();
 });
