@@ -126,7 +126,9 @@ export const demoJournalApi = {
   async list(params?: any) { await delay(100); let result = [...demoJournals]; if (params?.lessonId) result = result.filter(j => j.lessonId === params.lessonId); if (params?.authorId) result = result.filter(j => j.authorId === params.authorId); return result; },
   async create(data: any) { await delay(); return { id: genId('jrn'), ...data, authorName: currentUser?.name || '', date: new Date().toISOString() } as any; },
   async update(id: string, data: any) { await delay(); return { id, ...data } as any; },
+  async get(id: string) { await delay(100); return demoJournals.find(j => j.id === id) || {} as any; },
   async getAiFeedback(id: string) { await delay(500); return { aiFeedback: '수업 내용이 체계적으로 잘 정리되어 있습니다. 다음 시간에는 감정 표현에 더 집중해보세요.' }; },
+  async delete(id: string) { await delay(); const i = demoJournals.findIndex(j => j.id === id); if (i >= 0) demoJournals.splice(i, 1); },
 };
 
 export const demoAttendanceApi = {

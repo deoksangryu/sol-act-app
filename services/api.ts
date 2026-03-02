@@ -228,6 +228,12 @@ export const lessonApi = {
   delete(id: string): Promise<void> {
     return apiRequest(`/api/lessons/${id}`, { method: 'DELETE' });
   },
+  createBulk(data: any): Promise<Lesson[]> {
+    return apiRequest('/api/lessons/bulk', {
+      method: 'POST',
+      body: JSON.stringify(toSnake(data)),
+    });
+  },
 };
 
 // --- Attendance API ---
@@ -260,6 +266,15 @@ export const attendanceApi = {
       body: JSON.stringify(toSnake(data)),
     });
   },
+  getStats(params?: { studentId?: string; classId?: string; dateFrom?: string; dateTo?: string }): Promise<any[]> {
+    const q = new URLSearchParams();
+    if (params?.studentId) q.set('student_id', params.studentId);
+    if (params?.classId) q.set('class_id', params.classId);
+    if (params?.dateFrom) q.set('date_from', params.dateFrom);
+    if (params?.dateTo) q.set('date_to', params.dateTo);
+    const qs = q.toString();
+    return apiRequest(`/api/attendance/stats${qs ? '?' + qs : ''}`);
+  },
 };
 
 // --- Journal API ---
@@ -283,8 +298,14 @@ export const journalApi = {
       body: JSON.stringify(toSnake(data)),
     });
   },
+  get(id: string): Promise<LessonJournal> {
+    return apiRequest(`/api/journals/${id}`);
+  },
   getAiFeedback(id: string): Promise<{ aiFeedback: string }> {
     return apiRequest(`/api/journals/${id}/ai-feedback`, { method: 'POST' });
+  },
+  delete(id: string): Promise<void> {
+    return apiRequest(`/api/journals/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -396,6 +417,9 @@ export const evaluationApi = {
   },
   delete(id: string): Promise<void> {
     return apiRequest(`/api/evaluations/${id}`, { method: 'DELETE' });
+  },
+  getAiSummary(id: string): Promise<{ aiSummary: string }> {
+    return apiRequest(`/api/evaluations/${id}/ai-summary`, { method: 'POST' });
   },
 };
 
