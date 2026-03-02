@@ -1,7 +1,9 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Lesson, LessonJournal, AttendanceRecord, ClassInfo, Subject, SUBJECT_LABELS, PrivateLessonRequest } from '../types';
 import toast from 'react-hot-toast';
+import { lessonApi, journalApi, attendanceApi, privateLessonApi, API_URL, getToken } from '../services/api';
+import { useDataRefresh } from '../services/useWebSocket';
 
 interface LessonsProps {
   user: User;
@@ -9,63 +11,27 @@ interface LessonsProps {
   allUsers: User[];
 }
 
-const today = new Date().toISOString().split('T')[0];
-const dayMs = 86400000;
-const dateOffset = (offset: number) => new Date(Date.now() + dayMs * offset).toISOString().split('T')[0];
+// Helper: determine media type from URL extension
+function getMediaType(url: string): 'video' | 'audio' | 'other' {
+  const lower = url.toLowerCase();
+  if (/\.(mp4|mov|webm)$/.test(lower)) return 'video';
+  if (/\.(mp3|wav|m4a|ogg)$/.test(lower)) return 'audio';
+  // .webm without video context — check if it looks like audio (heuristic: already handled above as video)
+  return 'other';
+}
 
-const MOCK_LESSONS: Lesson[] = [
-  // Group lessons
-  { id: 'l1', classId: 'c1', className: '입시 A반', date: today, startTime: '18:00', endTime: '20:00', location: '301호', status: 'scheduled', subject: Subject.ACTING, teacherId: 't1', teacherName: '박선생', isPrivate: false },
-  { id: 'l2', classId: 'c2', className: '입시 B반', date: today, startTime: '14:00', endTime: '16:00', location: '302호', status: 'scheduled', subject: Subject.ACTING, teacherId: 't1', teacherName: '박선생', isPrivate: false },
-  { id: 'l3', classId: 'c1', className: '입시 A반', date: dateOffset(-2), startTime: '18:00', endTime: '20:00', location: '301호', status: 'completed', subject: Subject.ACTING, teacherId: 't1', teacherName: '박선생', isPrivate: false },
-  { id: 'l4', classId: 'c1', className: '입시 A반', date: dateOffset(-4), startTime: '18:00', endTime: '20:00', location: '301호', status: 'completed', subject: Subject.MUSICAL, teacherId: 't1', teacherName: '박선생', isPrivate: false },
-  { id: 'l5', classId: 'c2', className: '입시 B반', date: dateOffset(-7), startTime: '14:00', endTime: '16:00', location: '302호', status: 'completed', subject: Subject.DANCE, teacherId: 't2', teacherName: '김무용', isPrivate: false },
-  { id: 'l6', classId: 'c1', className: '입시 A반', date: dateOffset(2), startTime: '18:00', endTime: '20:00', location: '301호', status: 'scheduled', subject: Subject.DANCE, teacherId: 't2', teacherName: '김무용', isPrivate: false },
-  { id: 'l7', classId: 'c3', className: '기초반', date: dateOffset(4), startTime: '14:00', endTime: '16:00', location: '201호', status: 'scheduled', subject: Subject.ACTING, teacherId: 't1', teacherName: '박선생', isPrivate: false },
-  { id: 'l8', classId: 'c3', className: '기초반', date: dateOffset(7), startTime: '14:00', endTime: '16:00', location: '201호', status: 'scheduled', subject: Subject.MUSICAL, teacherId: 't2', teacherName: '김무용', isPrivate: false },
-  // Private lessons
-  { id: 'l9', classId: 'c1', className: '입시 A반', date: dateOffset(1), startTime: '10:00', endTime: '11:00', location: '개인연습실', status: 'scheduled', subject: Subject.ACTING, teacherId: 't1', teacherName: '박선생', isPrivate: true, privateStudentIds: ['s1'], requestId: 'pr1' },
-  { id: 'l10', classId: 'c2', className: '입시 B반', date: dateOffset(3), startTime: '11:00', endTime: '12:00', location: '개인연습실', status: 'scheduled', subject: Subject.DANCE, teacherId: 't2', teacherName: '김무용', isPrivate: true, privateStudentIds: ['s3'], requestId: 'pr3' },
-];
-
-const MOCK_JOURNALS: LessonJournal[] = [
-  { id: 'j1', lessonId: 'l3', authorId: 't1', authorName: '박선생', journalType: 'teacher', content: '즉흥 연기 훈련 진행. 학생들의 순발력이 향상되고 있음. 감정 전환 연습에서 김배우 학생이 큰 발전을 보임.', objectives: '감정 전환 및 즉흥 반응 훈련', nextPlan: '다음 수업에서 2인 장면 연기 시작 예정', date: new Date(Date.now() - dayMs * 2).toISOString() },
-  { id: 'j2', lessonId: 'l3', authorId: 's1', authorName: '김배우', journalType: 'student', content: '오늘 즉흥 연기가 처음에는 어려웠지만 점점 자연스러워진 것 같아요. 감정 전환이 아직 어색하지만 계속 연습해보겠습니다!', date: new Date(Date.now() - dayMs * 2).toISOString() },
-  { id: 'j3', lessonId: 'l4', authorId: 't1', authorName: '박선생', journalType: 'teacher', content: '호흡 훈련과 발성 기초. 복식호흡 이해도 확인. 전반적으로 양호하나 이연기 학생은 추가 지도 필요.', objectives: '발성 기초 및 호흡법', nextPlan: '발성 심화 + 대사 전달력 훈련', date: new Date(Date.now() - dayMs * 4).toISOString() },
-];
-
-const MOCK_ATTENDANCE: AttendanceRecord[] = [
-  { id: 'at1', lessonId: 'l3', studentId: 's1', studentName: '김배우', status: 'present' },
-  { id: 'at2', lessonId: 'l3', studentId: 's2', studentName: '이연기', status: 'present' },
-  { id: 'at3', lessonId: 'l4', studentId: 's1', studentName: '김배우', status: 'present' },
-  { id: 'at4', lessonId: 'l4', studentId: 's2', studentName: '이연기', status: 'late', note: '교통 사정으로 10분 지각' },
-  { id: 'at5', lessonId: 'l5', studentId: 's3', studentName: '최무대', status: 'present' },
-  { id: 'at6', lessonId: 'l5', studentId: 's4', studentName: '박감정', status: 'absent' },
-];
-
-const MOCK_PRIVATE_REQUESTS: PrivateLessonRequest[] = [
-  { id: 'pr1', studentId: 's1', studentName: '김배우', teacherId: 't1', teacherName: '박선생', subject: Subject.ACTING, preferredDate: dateOffset(1), preferredStartTime: '10:00', preferredEndTime: '11:00', reason: '독백 준비를 위해 개인 지도를 받고 싶습니다.', status: 'approved', responseNote: '좋습니다. 개인연습실에서 만나요.', createdAt: new Date(Date.now() - dayMs * 3).toISOString(), respondedAt: new Date(Date.now() - dayMs * 2).toISOString() },
-  { id: 'pr2', studentId: 's2', studentName: '이연기', teacherId: 't1', teacherName: '박선생', subject: Subject.MUSICAL, preferredDate: dateOffset(5), preferredStartTime: '15:00', preferredEndTime: '16:00', reason: '뮤지컬 넘버 개인 연습이 필요합니다.', status: 'pending', createdAt: new Date(Date.now() - dayMs * 1).toISOString() },
-  { id: 'pr3', studentId: 's3', studentName: '최무대', teacherId: 't2', teacherName: '김무용', subject: Subject.DANCE, preferredDate: dateOffset(3), preferredStartTime: '11:00', preferredEndTime: '12:00', reason: '안무 동작이 어려워서 추가 지도 부탁드립니다.', status: 'approved', responseNote: '그날 시간 괜찮습니다.', createdAt: new Date(Date.now() - dayMs * 5).toISOString(), respondedAt: new Date(Date.now() - dayMs * 4).toISOString() },
-];
+// Helper: get a friendly filename from URL
+function getFileName(url: string): string {
+  const parts = url.split('/');
+  return decodeURIComponent(parts[parts.length - 1] || 'file');
+}
 
 export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => {
-  const [lessons, setLessons] = useState<Lesson[]>(() => {
-    const saved = localStorage.getItem('muse_lessons');
-    return saved ? JSON.parse(saved) : MOCK_LESSONS;
-  });
-  const [journals, setJournals] = useState<LessonJournal[]>(() => {
-    const saved = localStorage.getItem('muse_journals');
-    return saved ? JSON.parse(saved) : MOCK_JOURNALS;
-  });
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>(() => {
-    const saved = localStorage.getItem('muse_attendance');
-    return saved ? JSON.parse(saved) : MOCK_ATTENDANCE;
-  });
-  const [privateRequests, setPrivateRequests] = useState<PrivateLessonRequest[]>(() => {
-    const saved = localStorage.getItem('muse_private_requests');
-    return saved ? JSON.parse(saved) : MOCK_PRIVATE_REQUESTS;
-  });
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [journals, setJournals] = useState<LessonJournal[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [privateRequests, setPrivateRequests] = useState<PrivateLessonRequest[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<'journal' | 'attendance'>('journal');
@@ -77,6 +43,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   const [journalContent, setJournalContent] = useState('');
   const [journalObjectives, setJournalObjectives] = useState('');
   const [journalNextPlan, setJournalNextPlan] = useState('');
+  const [journalMediaUrls, setJournalMediaUrls] = useState<string[]>([]);
+  const [isJournalUploading, setIsJournalUploading] = useState(false);
+  const journalFileInputRef = useRef<HTMLInputElement>(null);
 
   // Create lesson form
   const [newClassId, setNewClassId] = useState('');
@@ -103,10 +72,32 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   const isStudent = user.role === UserRole.STUDENT;
   const isStaff = !isStudent;
 
-  useEffect(() => { localStorage.setItem('muse_lessons', JSON.stringify(lessons)); }, [lessons]);
-  useEffect(() => { localStorage.setItem('muse_journals', JSON.stringify(journals)); }, [journals]);
-  useEffect(() => { localStorage.setItem('muse_attendance', JSON.stringify(attendance)); }, [attendance]);
-  useEffect(() => { localStorage.setItem('muse_private_requests', JSON.stringify(privateRequests)); }, [privateRequests]);
+  // Fetch lessons and private requests
+  const loadData = useCallback(async () => {
+    try {
+      const [lessonsData, requestsData] = await Promise.all([
+        lessonApi.list(),
+        privateLessonApi.list(),
+      ]);
+      setLessons(lessonsData);
+      setPrivateRequests(requestsData);
+    } catch (err) {
+      console.error('Failed to load lessons:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData().finally(() => setLoading(false));
+  }, []);
+
+  useDataRefresh(['lessons', 'private_lessons', 'attendance', 'journals'], loadData);
+
+  // Fetch journals and attendance when a lesson is selected
+  useEffect(() => {
+    if (!selectedLessonId) return;
+    journalApi.list({ lessonId: selectedLessonId }).then(setJournals).catch(console.error);
+    attendanceApi.list({ lessonId: selectedLessonId }).then(setAttendance).catch(console.error);
+  }, [selectedLessonId]);
 
   const selectedLesson = lessons.find(l => l.id === selectedLessonId);
   const lessonJournals = journals.filter(j => j.lessonId === selectedLessonId);
@@ -183,9 +174,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
         <div
           key={d}
           onClick={() => { setSelectedDate(dateStr === selectedDate ? null : dateStr); setSelectedLessonId(null); }}
-          className={`h-14 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-orange-50 ring-1 ring-orange-200 z-10' : 'bg-white'}`}
+          className={`h-14 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-brand-50 ring-1 ring-brand-200 z-10' : 'bg-white'}`}
         >
-          <div className={`text-[10px] md:text-xs font-bold mb-1 ${isToday ? 'text-white bg-orange-500 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center' : isSelected ? 'text-orange-600' : 'text-slate-700'}`}>
+          <div className={`text-[10px] md:text-xs font-bold mb-1 ${isToday ? 'text-white bg-brand-500 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center' : isSelected ? 'text-brand-600' : 'text-slate-700'}`}>
             {d}
           </div>
           <div className="flex flex-wrap gap-0.5 content-start">
@@ -195,7 +186,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${
                   l.isPrivate ? 'bg-violet-400' :
                   l.status === 'completed' ? 'bg-green-500' :
-                  l.status === 'cancelled' ? 'bg-red-400' : 'bg-orange-400'
+                  l.status === 'cancelled' ? 'bg-red-400' : 'bg-brand-400'
                 }`}
                 title={`${l.className} ${l.startTime}${l.isPrivate ? ' (개인)' : ''}`}
               />
@@ -212,7 +203,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
     : myLessons.sort((a, b) => a.date.localeCompare(b.date));
 
   // Handlers
-  const handleCreateLesson = () => {
+  const handleCreateLesson = async () => {
     if (!newClassId || !newDate || !newSubject) return;
     const cls = classes.find(c => c.id === newClassId);
     if (!cls) return;
@@ -220,137 +211,203 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
     const teacherId = autoTeacherId;
     const teacherName = autoTeacherName || user.name;
 
-    const newLesson: Lesson = {
-      id: Date.now().toString(),
-      classId: newClassId,
-      className: cls.name,
-      date: newDate,
-      startTime: newStartTime || '18:00',
-      endTime: newEndTime || '20:00',
-      location: newLocation || '미정',
-      status: 'scheduled',
-      subject: newSubject as Subject,
-      teacherId: teacherId || user.id,
-      teacherName,
-      isPrivate: false,
-    };
+    try {
+      const newLesson = await lessonApi.create({
+        classId: newClassId,
+        className: cls.name,
+        date: newDate,
+        startTime: newStartTime || '18:00',
+        endTime: newEndTime || '20:00',
+        location: newLocation || '미정',
+        status: 'scheduled',
+        subject: newSubject as Subject,
+        teacherId: teacherId || user.id,
+        teacherName,
+        isPrivate: false,
+      });
 
-    setLessons([...lessons, newLesson]);
-    setIsCreateModalOpen(false);
-    setNewClassId(''); setNewDate(''); setNewStartTime(''); setNewEndTime(''); setNewLocation(''); setNewSubject('');
-    toast.success('수업이 등록되었습니다.');
+      setLessons(prev => [...prev, newLesson]);
+      setIsCreateModalOpen(false);
+      setNewClassId(''); setNewDate(''); setNewStartTime(''); setNewEndTime(''); setNewLocation(''); setNewSubject('');
+      toast.success('수업이 등록되었습니다.');
+    } catch (err) {
+      console.error('Failed to create lesson:', err);
+      toast.error('수업 등록에 실패했습니다.');
+    }
   };
 
-  const handleCompleteLesson = (id: string) => {
-    setLessons(prev => prev.map(l => l.id === id ? { ...l, status: 'completed' } : l));
-    toast.success('수업이 완료 처리되었습니다.');
+  const handleCompleteLesson = async (id: string) => {
+    try {
+      const updated = await lessonApi.complete(id);
+      setLessons(prev => prev.map(l => l.id === id ? updated : l));
+      toast.success('수업이 완료 처리되었습니다.');
+    } catch (err) {
+      console.error('Failed to complete lesson:', err);
+      toast.error('수업 완료 처리에 실패했습니다.');
+    }
   };
 
-  const handleCancelLesson = (id: string) => {
-    setLessons(prev => prev.map(l => l.id === id ? { ...l, status: 'cancelled' } : l));
-    toast.success('수업이 취소되었습니다.');
+  const handleCancelLesson = async (id: string) => {
+    try {
+      const updated = await lessonApi.cancel(id);
+      setLessons(prev => prev.map(l => l.id === id ? updated : l));
+      toast.success('수업이 취소되었습니다.');
+    } catch (err) {
+      console.error('Failed to cancel lesson:', err);
+      toast.error('수업 취소에 실패했습니다.');
+    }
   };
 
-  const handleAddJournal = () => {
+  // Journal media upload handler
+  const handleJournalFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsJournalUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const token = getToken();
+      const response = await fetch(`${API_URL}/api/upload?subfolder=journals`, {
+        method: 'POST',
+        headers: {
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ detail: 'Upload failed' }));
+        throw new Error(err.detail || 'Upload failed');
+      }
+
+      const result = await response.json();
+      // The backend returns { url: "/uploads/journals/filename", filename: "..." }
+      const url = result.url;
+      setJournalMediaUrls(prev => [...prev, url]);
+      toast.success('파일이 첨부되었습니다.');
+    } catch (err) {
+      console.error('Failed to upload journal media:', err);
+      toast.error('파일 업로드에 실패했습니다.');
+    } finally {
+      setIsJournalUploading(false);
+      // Reset file input so the same file can be selected again
+      if (journalFileInputRef.current) {
+        journalFileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveJournalMedia = (index: number) => {
+    setJournalMediaUrls(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleAddJournal = async () => {
     if (!journalContent.trim() || !selectedLessonId) return;
-    const newJ: LessonJournal = {
-      id: Date.now().toString(),
-      lessonId: selectedLessonId,
-      authorId: user.id,
-      authorName: user.name,
-      journalType: isStaff ? 'teacher' : 'student',
-      content: journalContent,
-      objectives: isStaff ? journalObjectives : undefined,
-      nextPlan: isStaff ? journalNextPlan : undefined,
-      date: new Date().toISOString(),
-    };
-    setJournals([...journals, newJ]);
-    setJournalContent(''); setJournalObjectives(''); setJournalNextPlan('');
-    toast.success('수업일지가 등록되었습니다.');
+    try {
+      const newJ = await journalApi.create({
+        lessonId: selectedLessonId,
+        authorId: user.id,
+        authorName: user.name,
+        journalType: isStaff ? 'teacher' : 'student',
+        content: journalContent,
+        objectives: isStaff ? journalObjectives : undefined,
+        nextPlan: isStaff ? journalNextPlan : undefined,
+        mediaUrls: journalMediaUrls.length > 0 ? journalMediaUrls : undefined,
+        date: new Date().toISOString(),
+      });
+      setJournals(prev => [...prev, newJ]);
+      setJournalContent(''); setJournalObjectives(''); setJournalNextPlan('');
+      setJournalMediaUrls([]);
+      toast.success('수업일지가 등록되었습니다.');
+    } catch (err) {
+      console.error('Failed to create journal:', err);
+      toast.error('수업일지 등록에 실패했습니다.');
+    }
   };
 
-  const handleAttendance = (studentId: string, studentName: string, status: AttendanceRecord['status']) => {
+  const handleAttendance = async (studentId: string, studentName: string, status: AttendanceRecord['status']) => {
     if (!selectedLessonId) return;
     const existing = attendance.find(a => a.lessonId === selectedLessonId && a.studentId === studentId);
-    if (existing) {
-      setAttendance(prev => prev.map(a => a.id === existing.id ? { ...a, status } : a));
-    } else {
-      const newA: AttendanceRecord = {
-        id: Date.now().toString(),
-        lessonId: selectedLessonId,
-        studentId,
-        studentName,
-        status,
-      };
-      setAttendance([...attendance, newA]);
+    try {
+      if (existing) {
+        const updated = await attendanceApi.update(existing.id, { status });
+        setAttendance(prev => prev.map(a => a.id === existing.id ? updated : a));
+      } else {
+        const newA = await attendanceApi.create({
+          lessonId: selectedLessonId,
+          studentId,
+          studentName,
+          status,
+        });
+        setAttendance(prev => [...prev, newA]);
+      }
+      toast.success('출석이 기록되었습니다.');
+    } catch (err) {
+      console.error('Failed to update attendance:', err);
+      toast.error('출석 기록에 실패했습니다.');
     }
-    toast.success('출석이 기록되었습니다.');
   };
 
   // Private lesson request handlers
-  const handleSubmitRequest = () => {
+  const handleSubmitRequest = async () => {
     if (!reqTeacherId || !reqSubject || !reqDate || !reqReason.trim()) return;
     const teacher = allUsers.find(u => u.id === reqTeacherId);
     if (!teacher) return;
 
-    const newReq: PrivateLessonRequest = {
-      id: Date.now().toString(),
-      studentId: user.id,
-      studentName: user.name,
-      teacherId: reqTeacherId,
-      teacherName: teacher.name,
-      subject: reqSubject as Subject,
-      preferredDate: reqDate,
-      preferredStartTime: reqStartTime || '10:00',
-      preferredEndTime: reqEndTime || '11:00',
-      reason: reqReason,
-      status: 'pending',
-      createdAt: new Date().toISOString(),
-    };
-    setPrivateRequests([...privateRequests, newReq]);
-    setIsRequestModalOpen(false);
-    setReqTeacherId(''); setReqSubject(''); setReqDate(''); setReqStartTime(''); setReqEndTime(''); setReqReason('');
-    toast.success('개인 레슨 신청이 완료되었습니다.');
+    try {
+      const newReq = await privateLessonApi.create({
+        studentId: user.id,
+        studentName: user.name,
+        teacherId: reqTeacherId,
+        teacherName: teacher.name,
+        subject: reqSubject as Subject,
+        preferredDate: reqDate,
+        preferredStartTime: reqStartTime || '10:00',
+        preferredEndTime: reqEndTime || '11:00',
+        reason: reqReason,
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      });
+      setPrivateRequests(prev => [...prev, newReq]);
+      setIsRequestModalOpen(false);
+      setReqTeacherId(''); setReqSubject(''); setReqDate(''); setReqStartTime(''); setReqEndTime(''); setReqReason('');
+      toast.success('개인 레슨 신청이 완료되었습니다.');
+    } catch (err) {
+      console.error('Failed to create private lesson request:', err);
+      toast.error('개인 레슨 신청에 실패했습니다.');
+    }
   };
 
-  const handleApproveRequest = (req: PrivateLessonRequest) => {
-    // Find a class that has this student and this teacher+subject
-    const cls = classes.find(c =>
-      c.studentIds.includes(req.studentId) &&
-      c.subjectTeachers[req.subject] === req.teacherId
-    );
+  const handleApproveRequest = async (req: PrivateLessonRequest) => {
+    try {
+      const updatedReq = await privateLessonApi.respond(req.id, { status: 'approved' });
+      setPrivateRequests(prev => prev.map(r => r.id === req.id ? updatedReq : r));
 
-    const newLesson: Lesson = {
-      id: Date.now().toString(),
-      classId: cls?.id || 'c1',
-      className: cls?.name || '개인 레슨',
-      date: req.preferredDate,
-      startTime: req.preferredStartTime,
-      endTime: req.preferredEndTime,
-      location: '개인연습실',
-      status: 'scheduled',
-      subject: req.subject,
-      teacherId: req.teacherId,
-      teacherName: req.teacherName,
-      isPrivate: true,
-      privateStudentIds: [req.studentId],
-      requestId: req.id,
-    };
+      // Refresh lessons to get the newly created private lesson
+      const updatedLessons = await lessonApi.list();
+      setLessons(updatedLessons);
 
-    setLessons(prev => [...prev, newLesson]);
-    setPrivateRequests(prev => prev.map(r =>
-      r.id === req.id ? { ...r, status: 'approved' as const, respondedAt: new Date().toISOString() } : r
-    ));
-    toast.success(`${req.studentName} 학생의 개인 레슨을 승인했습니다.`);
+      toast.success(`${req.studentName} 학생의 개인 레슨을 승인했습니다.`);
+    } catch (err) {
+      console.error('Failed to approve request:', err);
+      toast.error('개인 레슨 승인에 실패했습니다.');
+    }
   };
 
-  const handleRejectRequest = (reqId: string) => {
-    setPrivateRequests(prev => prev.map(r =>
-      r.id === reqId ? { ...r, status: 'rejected' as const, responseNote: rejectNote, respondedAt: new Date().toISOString() } : r
-    ));
-    setRejectingId(null);
-    setRejectNote('');
-    toast.success('개인 레슨 신청을 거절했습니다.');
+  const handleRejectRequest = async (reqId: string) => {
+    try {
+      const updatedReq = await privateLessonApi.respond(reqId, { status: 'rejected', responseNote: rejectNote });
+      setPrivateRequests(prev => prev.map(r => r.id === reqId ? updatedReq : r));
+      setRejectingId(null);
+      setRejectNote('');
+      toast.success('개인 레슨 신청을 거절했습니다.');
+    } catch (err) {
+      console.error('Failed to reject request:', err);
+      toast.error('개인 레슨 거절에 실패했습니다.');
+    }
   };
 
   const statusLabel = (s: AttendanceRecord['status']) => {
@@ -388,6 +445,10 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   // Get available teachers for student request
   const availableTeachers = allUsers.filter(u => u.role === UserRole.TEACHER);
 
+  if (loading) {
+    return <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 border-slate-300 border-t-brand-400 rounded-full animate-spin"></div></div>;
+  }
+
   return (
     <div className="grid md:grid-cols-3 gap-6 h-full min-h-0">
       {/* Left Column: Calendar + Lesson List */}
@@ -420,7 +481,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
             {isStaff && (
               <button
                 onClick={() => setIsCreateModalOpen(true)}
-                className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-orange-50 hover:text-orange-500 hover:border-orange-200 transition-colors shadow-sm"
+                className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-brand-50 hover:text-brand-500 hover:border-brand-200 transition-colors shadow-sm"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 <span className="font-bold">수업 등록</span>
@@ -438,7 +499,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               </button>
               <div className="text-center cursor-pointer hover:bg-slate-50 px-3 py-1 rounded-lg" onClick={handleToday}>
                 <h3 className="text-sm font-bold text-slate-800">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
-                {selectedDate && <p className="text-[10px] text-orange-500">선택됨: {selectedDate}</p>}
+                {selectedDate && <p className="text-[10px] text-brand-500">선택됨: {selectedDate}</p>}
               </div>
               <button onClick={handleNextMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -457,13 +518,13 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
             <div className="mt-3 px-2 flex justify-between items-center text-[10px] text-slate-400">
               <div className="flex gap-2 flex-wrap">
-                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-orange-400"></div>예정</span>
+                <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-brand-400"></div>예정</span>
                 <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div>완료</span>
                 <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-400"></div>취소</span>
                 <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-violet-400"></div>개인</span>
               </div>
               {selectedDate && (
-                <button onClick={() => setSelectedDate(null)} className="text-slate-500 hover:text-orange-500 underline">
+                <button onClick={() => setSelectedDate(null)} className="text-slate-500 hover:text-brand-500 underline">
                   전체 보기
                 </button>
               )}
@@ -503,7 +564,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 onClick={() => setSelectedLessonId(l.id)}
                 className={`p-3 rounded-xl cursor-pointer transition-all border ${
                   selectedLessonId === l.id
-                    ? 'bg-orange-50 border-orange-200 ring-1 ring-orange-200'
+                    ? 'bg-brand-50 border-brand-200 ring-1 ring-brand-200'
                     : 'bg-white border-transparent hover:bg-slate-50 shadow-sm'
                 }`}
               >
@@ -512,7 +573,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                       l.status === 'completed' ? 'bg-green-100 text-green-600' :
                       l.status === 'cancelled' ? 'bg-red-100 text-red-600' :
-                      'bg-orange-100 text-orange-600'
+                      'bg-brand-100 text-brand-600'
                     }`}>
                       {l.status === 'completed' ? '완료' : l.status === 'cancelled' ? '취소' : '예정'}
                     </span>
@@ -533,7 +594,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               </div>
             )) : (
               <div className="p-8 text-center text-slate-400 text-xs">
-                해당 날짜에 수업이 없습니다.
+                {myLessons.length === 0 && isStudent
+                  ? '등록된 수업이 없습니다. 선생님에게 반 배정을 요청해주세요.'
+                  : '해당 날짜에 수업이 없습니다.'}
               </div>
             )}
           </div>
@@ -588,7 +651,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                       selectedLesson.status === 'completed' ? 'bg-green-100 text-green-600' :
                       selectedLesson.status === 'cancelled' ? 'bg-red-100 text-red-600' :
-                      'bg-orange-100 text-orange-600'
+                      'bg-brand-100 text-brand-600'
                     }`}>
                       {selectedLesson.status === 'completed' ? '완료' : selectedLesson.status === 'cancelled' ? '취소' : '예정'}
                     </span>
@@ -606,13 +669,13 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
             <div className="flex border-b border-slate-100 shrink-0">
               <button
                 onClick={() => setDetailTab('journal')}
-                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${detailTab === 'journal' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${detailTab === 'journal' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               >
                 수업일지 ({lessonJournals.length})
               </button>
               <button
                 onClick={() => setDetailTab('attendance')}
-                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${detailTab === 'attendance' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                className={`flex-1 py-3 text-sm font-bold border-b-2 transition-colors ${detailTab === 'attendance' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               >
                 출석 ({lessonAttendance.length})
               </button>
@@ -635,6 +698,49 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                         </div>
                       </div>
                       <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{j.content}</p>
+
+                      {/* Media Attachments Display */}
+                      {j.mediaUrls && j.mediaUrls.length > 0 && (
+                        <div className="mt-3 space-y-2">
+                          {j.mediaUrls.map((url, idx) => {
+                            const mediaType = getMediaType(url);
+                            if (mediaType === 'video') {
+                              return (
+                                <video
+                                  key={idx}
+                                  controls
+                                  className="w-full rounded-lg mt-2"
+                                  src={API_URL + url}
+                                />
+                              );
+                            }
+                            if (mediaType === 'audio') {
+                              return (
+                                <audio
+                                  key={idx}
+                                  controls
+                                  className="w-full mt-2"
+                                  src={API_URL + url}
+                                />
+                              );
+                            }
+                            // Other file types: download link
+                            return (
+                              <a
+                                key={idx}
+                                href={API_URL + url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-2 mt-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 hover:text-brand-500 transition-colors"
+                              >
+                                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <span className="truncate">{getFileName(url)}</span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      )}
+
                       {j.objectives && (
                         <div className="mt-3 pt-3 border-t border-blue-100">
                           <p className="text-xs text-blue-600"><span className="font-bold">수업 목표:</span> {j.objectives}</p>
@@ -657,27 +763,100 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                       <input
                         value={journalObjectives}
                         onChange={e => setJournalObjectives(e.target.value)}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-orange-500"
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-brand-500"
                         placeholder="수업 목표 (선택)"
                       />
                     )}
                     <textarea
                       value={journalContent}
                       onChange={e => setJournalContent(e.target.value)}
-                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-orange-500 resize-none h-24"
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500 resize-none h-24"
                       placeholder={isStaff ? "오늘 수업 내용과 학생 피드백을 작성하세요..." : "오늘 수업에서 배운 점이나 느낀 점을 기록하세요..."}
                     />
                     {isStaff && (
                       <input
                         value={journalNextPlan}
                         onChange={e => setJournalNextPlan(e.target.value)}
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-orange-500"
+                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-brand-500"
                         placeholder="다음 수업 계획 (선택)"
                       />
                     )}
+
+                    {/* Media Upload Section */}
+                    <div className="space-y-2">
+                      {/* Hidden file input */}
+                      <input
+                        ref={journalFileInputRef}
+                        type="file"
+                        accept="video/*,audio/*,.pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        onChange={handleJournalFileSelect}
+                        className="hidden"
+                      />
+
+                      {/* Attach button */}
+                      <button
+                        type="button"
+                        onClick={() => journalFileInputRef.current?.click()}
+                        disabled={isJournalUploading}
+                        className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-brand-500 hover:border-brand-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isJournalUploading ? (
+                          <>
+                            <div className="w-4 h-4 border-2 border-slate-300 border-t-brand-400 rounded-full animate-spin"></div>
+                            <span>업로드 중...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                            </svg>
+                            <svg className="w-4 h-4 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <span className="font-bold">녹음/녹화 첨부</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Attached media preview chips */}
+                      {journalMediaUrls.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {journalMediaUrls.map((url, idx) => {
+                            const mediaType = getMediaType(url);
+                            const fileName = getFileName(url);
+                            return (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-1.5 px-2.5 py-1.5 bg-brand-50 border border-brand-200 rounded-lg text-xs text-brand-700"
+                              >
+                                {mediaType === 'video' && (
+                                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                )}
+                                {mediaType === 'audio' && (
+                                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                                )}
+                                {mediaType === 'other' && (
+                                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                                )}
+                                <span className="truncate max-w-[120px]">{fileName}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveJournalMedia(idx)}
+                                  className="ml-0.5 text-brand-400 hover:text-red-500 transition-colors"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       onClick={handleAddJournal}
-                      className="w-full bg-orange-500 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-orange-600 transition-colors shadow-md shadow-orange-200"
+                      disabled={isJournalUploading}
+                      className="w-full bg-brand-500 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors shadow-md shadow-brand-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       일지 등록
                     </button>
@@ -786,7 +965,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 <select
                   value={newClassId}
                   onChange={e => { setNewClassId(e.target.value); setNewSubject(''); }}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-orange-500"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500"
                 >
                   <option value="">클래스 선택</option>
                   {classes.filter(c => {
@@ -803,7 +982,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 <select
                   value={newSubject}
                   onChange={e => setNewSubject(e.target.value as Subject | '')}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-orange-500"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500"
                 >
                   <option value="">과목 선택</option>
                   {newClassId && (() => {
@@ -822,25 +1001,25 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               )}
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">날짜</label>
-                <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-orange-500" />
+                <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">시작 시간</label>
-                  <input type="time" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-orange-500" />
+                  <input type="time" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-500 mb-1">종료 시간</label>
-                  <input type="time" value={newEndTime} onChange={e => setNewEndTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-orange-500" />
+                  <input type="time" value={newEndTime} onChange={e => setNewEndTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
                 </div>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">장소</label>
-                <input value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-orange-500" placeholder="예: 301호" />
+                <input value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" placeholder="예: 301호" />
               </div>
               <button
                 onClick={handleCreateLesson}
-                className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 transition-colors shadow-lg shadow-orange-200 mt-2"
+                className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200 mt-2"
               >
                 등록하기
               </button>

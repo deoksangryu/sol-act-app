@@ -6,6 +6,7 @@ from app.models.notice import Notice
 from app.models.user import User, UserRole
 from app.schemas.notice import NoticeCreate, NoticeUpdate, NoticeResponse
 from app.utils.auth import get_current_user
+from app.services.notification_service import notify_users, get_all_student_ids, emit_data_changed
 import uuid
 
 router = APIRouter()
@@ -25,7 +26,7 @@ def get_notice(notice_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=NoticeResponse, status_code=status.HTTP_201_CREATED)
-def create_notice(
+async def create_notice(
     data: NoticeCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -43,11 +44,20 @@ def create_notice(
     db.add(notice)
     db.commit()
     db.refresh(notice)
+
+    student_ids = get_all_student_ids(db)
+    if student_ids:
+        await notify_users(
+            db, student_ids,
+            f"새 공지사항: {data.title}",
+            entity="notices",
+        )
+
     return notice
 
 
 @router.put("/{notice_id}", response_model=NoticeResponse)
-def update_notice(
+async def update_notice(
     notice_id: str,
     update_data: NoticeUpdate,
     db: Session = Depends(get_db),
@@ -65,11 +75,16 @@ def update_notice(
 
     db.commit()
     db.refresh(notice)
+
+    student_ids = get_all_student_ids(db)
+    if student_ids:
+        await emit_data_changed(student_ids, "notices")
+
     return notice
 
 
 @router.delete("/{notice_id}")
-def delete_notice(
+async def delete_notice(
     notice_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -81,6 +96,12 @@ def delete_notice(
     if not notice:
         raise HTTPException(status_code=404, detail="Notice not found")
 
+    student_ids = get_all_student_ids(db)
+
     db.delete(notice)
     db.commit()
+
+    if student_ids:
+        await emit_data_changed(student_ids, "notices")
+
     return {"message": "Notice deleted"}

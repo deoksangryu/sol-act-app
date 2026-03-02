@@ -1,149 +1,238 @@
 
 import React, { useState } from 'react';
-import { UserRole } from '../types';
+import { User, UserRole } from '../types';
+import { authApi, DEMO_MODE } from '../services/api';
 
 interface LoginProps {
-  onLogin: (role: UserRole) => void;
+  onLogin: (user: User) => void;
 }
 
 export const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
-  const [id, setId] = useState('');
+  const [mode, setMode] = useState<'login' | 'register'>('login');
+
+  // Login state
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleRoleSelect = (role: UserRole) => {
-    setSelectedRole(role);
-    setId('');
-    setPassword('');
-  };
+  // Register state
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regConfirm, setRegConfirm] = useState('');
+  const [regRole, setRegRole] = useState<'student' | 'teacher'>('student');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedRole && id && password) {
-      // Mock Logic: If logging in as Teacher with id 'director', grant DIRECTOR role.
-      // In a real app, the backend would return the user's role in the auth token.
-      if (selectedRole === UserRole.TEACHER && id === 'director') {
-        onLogin(UserRole.DIRECTOR);
-      } else {
-        onLogin(selectedRole);
-      }
+    if (!email || !password) return;
+    setError('');
+    setLoading(true);
+    try {
+      const res = await authApi.login(email, password);
+      onLogin(res.user);
+    } catch (err: any) {
+      setError(err.message || '로그인에 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getRoleName = (role: UserRole) => {
-    switch (role) {
-        case UserRole.STUDENT: return 'Student';
-        case UserRole.TEACHER: return 'Teacher';
-        default: return '';
+  const pwRules = {
+    length: regPassword.length >= 8,
+    letter: /[A-Za-z]/.test(regPassword),
+    digit: /\d/.test(regPassword),
+    special: /[!@#$%^&*(),.?":{}|<>]/.test(regPassword),
+  };
+  const pwValid = pwRules.length && pwRules.letter && pwRules.digit && pwRules.special;
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regName.trim() || !regEmail || !regPassword) { setError('모든 필드를 입력해주세요.'); return; }
+    if (!pwValid) { setError('비밀번호 규칙을 확인해주세요.'); return; }
+    if (regPassword !== regConfirm) { setError('비밀번호가 일치하지 않습니다.'); return; }
+    setError('');
+    setLoading(true);
+    try {
+      await authApi.register({ name: regName, email: regEmail, password: regPassword, role: regRole as UserRole });
+      // Auto-login after registration
+      const res = await authApi.login(regEmail, regPassword);
+      onLogin(res.user);
+    } catch (err: any) {
+      setError(err.message || '회원가입에 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const getRoleDisplayName = (role: UserRole) => {
-      switch (role) {
-          case UserRole.STUDENT: return '수강생 로그인';
-          case UserRole.TEACHER: return '선생님 로그인';
-          default: return '';
-      }
+  const switchMode = (m: 'login' | 'register') => {
+    setMode(m);
+    setError('');
   };
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-4">
       <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-slate-100 relative overflow-hidden">
-        
-        {/* Header - Always visible */}
-        <div className="text-center mb-10 transition-all">
+
+        {/* Header */}
+        <div className="text-center mb-8">
           <h1 className="text-4xl font-extrabold text-yellow-400 mb-2 tracking-tighter">SOL-ACT</h1>
           <p className="text-slate-500 font-medium">연기 입시의 새로운 기준</p>
         </div>
 
-        {/* Step 1: Role Selection View */}
-        {!selectedRole && (
-          <div className="space-y-3 animate-fade-in">
-            <button
-              onClick={() => handleRoleSelect(UserRole.STUDENT)}
-              className="w-full group relative flex items-center justify-center p-4 rounded-2xl bg-white border-2 border-yellow-200 hover:border-yellow-400 hover:shadow-lg transition-all duration-300"
-            >
-              <div className="text-left w-full pl-4">
-                <p className="text-xs text-yellow-500 font-bold uppercase tracking-wide mb-1">Student</p>
-                <p className="text-lg font-bold text-slate-800 group-hover:text-yellow-600">수강생 로그인</p>
-              </div>
-              <div className="absolute right-6 w-8 h-8 rounded-full bg-yellow-50 flex items-center justify-center group-hover:bg-yellow-400 transition-colors">
-                <svg className="w-4 h-4 text-yellow-500 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-              </div>
-            </button>
+        {/* Tab Toggle */}
+        <div className="flex bg-slate-100 rounded-xl p-1 mb-6">
+          <button
+            onClick={() => switchMode('login')}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'login' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            로그인
+          </button>
+          <button
+            onClick={() => switchMode('register')}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-bold transition-all ${mode === 'register' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+          >
+            회원가입
+          </button>
+        </div>
 
-            <button
-              onClick={() => handleRoleSelect(UserRole.TEACHER)}
-              className="w-full group relative flex items-center justify-center p-4 rounded-2xl bg-white border-2 border-slate-100 hover:border-slate-800 hover:shadow-lg transition-all duration-300"
-            >
-              <div className="text-left w-full pl-4">
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wide mb-1">Teacher</p>
-                <p className="text-lg font-bold text-slate-800">선생님 로그인</p>
-              </div>
-              <div className="absolute right-6 w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-slate-800 transition-colors">
-                <svg className="w-4 h-4 text-slate-400 group-hover:text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-              </div>
-            </button>
+        {error && (
+          <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-sm text-center mb-4">
+            {error}
           </div>
         )}
 
-        {/* Step 2: Login Form View */}
-        {selectedRole && (
-          <form onSubmit={handleSubmit} className="space-y-6 animate-fade-in">
-             <div className="text-center mb-6">
-                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide mb-2 ${
-                    selectedRole === UserRole.STUDENT ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-600'
-                }`}>
-                    {getRoleName(selectedRole)} Login
-                </span>
-                <h2 className="text-xl font-bold text-slate-800">{getRoleDisplayName(selectedRole)}</h2>
-             </div>
-
-             <div className="space-y-4">
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">아이디</label>
-                    <input 
-                        type="text" 
-                        value={id}
-                        onChange={(e) => setId(e.target.value)}
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-orange-500 focus:bg-white outline-none transition-colors"
-                        placeholder={selectedRole === UserRole.TEACHER ? "ID (원장님은 director 입력)" : "ID를 입력하세요"}
-                        required
-                    />
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">비밀번호</label>
-                    <input 
-                        type="password" 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-orange-500 focus:bg-white outline-none transition-colors"
-                        placeholder="비밀번호를 입력하세요"
-                        required
-                    />
-                </div>
-             </div>
-
-             <div className="flex flex-col gap-3 pt-2">
-                <button 
-                    type="submit"
-                    className="w-full bg-slate-800 text-white p-4 rounded-xl font-bold hover:bg-slate-700 transition-colors shadow-lg shadow-slate-200"
+        {mode === 'login' ? (
+          <form onSubmit={handleLogin} className="space-y-4 animate-fade-in">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">이메일</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:bg-white outline-none transition-colors"
+                placeholder="이메일을 입력하세요"
+                required
+                autoComplete="email"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">비밀번호</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:bg-white outline-none transition-colors"
+                placeholder="비밀번호를 입력하세요"
+                required
+                autoComplete="current-password"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-brand-600 text-white p-4 rounded-xl font-bold hover:bg-brand-700 transition-colors shadow-lg shadow-brand-200 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            >
+              {loading ? '로그인 중...' : '로그인'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleRegister} className="space-y-4 animate-fade-in">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">이름 <span className="text-red-400">*</span></label>
+              <input
+                value={regName}
+                onChange={(e) => setRegName(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:bg-white outline-none transition-colors"
+                placeholder="이름을 입력하세요"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">이메일 <span className="text-red-400">*</span></label>
+              <input
+                type="email"
+                value={regEmail}
+                onChange={(e) => setRegEmail(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:bg-white outline-none transition-colors"
+                placeholder="이메일을 입력하세요"
+                required
+                autoComplete="email"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">역할</label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRegRole('student')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${regRole === 'student' ? 'bg-yellow-50 border-yellow-300 text-yellow-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
                 >
-                    로그인
+                  수강생
                 </button>
-                <button 
-                    type="button"
-                    onClick={() => setSelectedRole(null)}
-                    className="w-full text-slate-400 text-sm font-medium hover:text-slate-600 p-2"
+                <button
+                  type="button"
+                  onClick={() => setRegRole('teacher')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold border transition-colors ${regRole === 'teacher' ? 'bg-blue-50 border-blue-300 text-blue-700' : 'bg-slate-50 border-slate-200 text-slate-400'}`}
                 >
-                    이전으로 돌아가기
+                  선생님
                 </button>
-             </div>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">비밀번호 <span className="text-red-400">*</span></label>
+              <input
+                type="password"
+                value={regPassword}
+                onChange={(e) => setRegPassword(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:bg-white outline-none transition-colors"
+                placeholder="8자 이상, 영문+숫자+특수문자"
+                required
+                autoComplete="new-password"
+              />
+              {regPassword && (
+                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5">
+                  <span className={`text-[10px] ${pwRules.length ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.length ? '\u2713' : '\u2022'} 8자 이상</span>
+                  <span className={`text-[10px] ${pwRules.letter ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.letter ? '\u2713' : '\u2022'} 영문</span>
+                  <span className={`text-[10px] ${pwRules.digit ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.digit ? '\u2713' : '\u2022'} 숫자</span>
+                  <span className={`text-[10px] ${pwRules.special ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.special ? '\u2713' : '\u2022'} 특수문자</span>
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1 ml-1">비밀번호 확인 <span className="text-red-400">*</span></label>
+              <input
+                type="password"
+                value={regConfirm}
+                onChange={(e) => setRegConfirm(e.target.value)}
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:border-brand-400 focus:bg-white outline-none transition-colors"
+                placeholder="비밀번호를 다시 입력하세요"
+                required
+                autoComplete="new-password"
+              />
+              {regConfirm && regPassword !== regConfirm && (
+                <p className="text-[10px] text-red-500 mt-1">비밀번호가 일치하지 않습니다.</p>
+              )}
+            </div>
+            <button
+              type="submit"
+              disabled={loading || !pwValid || regPassword !== regConfirm}
+              className="w-full bg-yellow-400 text-slate-800 p-4 rounded-xl font-bold hover:bg-yellow-500 transition-colors shadow-lg shadow-yellow-100 disabled:opacity-50 disabled:cursor-not-allowed mt-2"
+            >
+              {loading ? '가입 중...' : '회원가입'}
+            </button>
           </form>
         )}
 
-        <p className="mt-8 text-center text-xs text-slate-300">
-          Muse Academy System v1.2
+        {DEMO_MODE && (
+          <div className="mt-4 p-3 rounded-xl bg-brand-50 border border-brand-200 text-xs text-brand-700 text-center">
+            <p className="font-bold mb-1">Demo Mode</p>
+            <p>student@muse.com / teacher@muse.com / director@muse.com</p>
+            <p className="text-brand-500">비밀번호: demo</p>
+          </div>
+        )}
+        <p className="mt-4 text-center text-xs text-slate-300">
+          SOL-ACT Academy System v2.0
         </p>
       </div>
     </div>

@@ -11,6 +11,7 @@ from app.schemas.attendance import (
     AttendanceResponse, AttendanceStats
 )
 from app.utils.auth import get_current_user
+from app.services.notification_service import notify_user, emit_data_changed
 import uuid
 
 router = APIRouter()
@@ -89,7 +90,7 @@ def get_attendance_stats(
 
 
 @router.post("/bulk", response_model=List[AttendanceResponse], status_code=status.HTTP_201_CREATED)
-def bulk_create_attendance(
+async def bulk_create_attendance(
     data: AttendanceBulkCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -132,11 +133,21 @@ def bulk_create_attendance(
         db.refresh(att)
         a = db.query(Attendance).options(joinedload(Attendance.student)).filter(Attendance.id == att.id).first()
         result.append(attendance_to_response(a))
+
+    status_map = {"present": "출석", "late": "지각", "absent": "결석", "excused": "공결"}
+    for record in data.records:
+        status_text = status_map.get(record.status.value, record.status.value)
+        await notify_user(
+            db, record.student_id,
+            f"출결이 기록되었습니다: {status_text}",
+            entity="attendance",
+        )
+
     return result
 
 
 @router.post("/", response_model=AttendanceResponse, status_code=status.HTTP_201_CREATED)
-def create_attendance(
+async def create_attendance(
     data: AttendanceCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -156,11 +167,14 @@ def create_attendance(
     db.commit()
     db.refresh(att)
     a = db.query(Attendance).options(joinedload(Attendance.student)).filter(Attendance.id == att.id).first()
+
+    await emit_data_changed([data.student_id], "attendance")
+
     return attendance_to_response(a)
 
 
 @router.put("/{attendance_id}", response_model=AttendanceResponse)
-def update_attendance(
+async def update_attendance(
     attendance_id: str,
     update_data: AttendanceUpdate,
     db: Session = Depends(get_db),
@@ -179,4 +193,7 @@ def update_attendance(
 
     db.commit()
     db.refresh(a)
+
+    await emit_data_changed([a.student_id], "attendance")
+
     return attendance_to_response(a)

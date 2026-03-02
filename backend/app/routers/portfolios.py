@@ -10,6 +10,7 @@ from app.schemas.portfolio import (
 )
 from app.utils.auth import get_current_user
 from app.services.ai import analyze_portfolio
+from app.services.notification_service import notify_user, emit_data_changed, get_teacher_ids_for_student
 import uuid
 
 router = APIRouter()
@@ -26,18 +27,44 @@ def portfolio_to_response(p: Portfolio) -> dict:
         "category": p.category,
         "tags": p.tags,
         "ai_feedback": p.ai_feedback,
+        "practice_group": p.practice_group,
+        "video_duration": p.video_duration,
         "comments": [
             {
                 "id": c.id,
                 "author_id": c.author_id,
                 "author_name": c.author.name if c.author else "",
                 "content": c.content,
+                "timestamp_sec": c.timestamp_sec,
                 "created_at": c.created_at,
             }
             for c in p.comments
         ],
         "created_at": p.created_at,
     }
+
+
+@router.get("/practice-groups")
+def list_practice_groups(
+    student_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db)
+):
+    """Get portfolios grouped by practice_group for timeline view."""
+    query = db.query(Portfolio).options(
+        joinedload(Portfolio.student),
+        joinedload(Portfolio.comments).joinedload(PortfolioComment.author)
+    ).filter(Portfolio.practice_group.isnot(None))
+    if student_id:
+        query = query.filter(Portfolio.student_id == student_id)
+    portfolios = query.order_by(Portfolio.created_at.asc()).all()
+
+    groups = {}
+    for p in portfolios:
+        key = p.practice_group
+        if key not in groups:
+            groups[key] = {"group_name": key, "items": []}
+        groups[key]["items"].append(portfolio_to_response(p))
+    return list(groups.values())
 
 
 @router.get("/", response_model=List[PortfolioResponse])
@@ -92,6 +119,8 @@ def create_portfolio(
         video_url=data.video_url,
         category=data.category,
         tags=data.tags,
+        practice_group=data.practice_group,
+        video_duration=data.video_duration,
     )
     db.add(portfolio)
     db.commit()
@@ -109,7 +138,7 @@ def create_portfolio(
 
 
 @router.put("/{portfolio_id}", response_model=PortfolioResponse)
-def update_portfolio(
+async def update_portfolio(
     portfolio_id: str,
     update_data: PortfolioUpdate,
     db: Session = Depends(get_db),
@@ -135,6 +164,14 @@ def update_portfolio(
 
     db.commit()
     db.refresh(p)
+
+    if current_user.id == p.student_id:
+        teacher_ids = get_teacher_ids_for_student(db, p.student_id)
+        if teacher_ids:
+            await emit_data_changed(teacher_ids, "portfolios")
+    else:
+        await emit_data_changed([p.student_id], "portfolios")
+
     return portfolio_to_response(p)
 
 
@@ -155,7 +192,7 @@ def request_ai_feedback(
 
 
 @router.post("/{portfolio_id}/comments", response_model=PortfolioCommentResponse, status_code=status.HTTP_201_CREATED)
-def add_comment(
+async def add_comment(
     portfolio_id: str,
     data: PortfolioCommentCreate,
     db: Session = Depends(get_db),
@@ -169,11 +206,19 @@ def add_comment(
         id=f"pcmt{uuid.uuid4().hex[:7]}",
         portfolio_id=portfolio_id,
         author_id=current_user.id,
+        timestamp_sec=data.timestamp_sec,
         content=data.content,
     )
     db.add(comment)
     db.commit()
     db.refresh(comment)
+
+    if p.student_id != current_user.id:
+        await notify_user(
+            db, p.student_id,
+            f"{current_user.name}님이 포트폴리오 '{p.title}'에 댓글을 남겼습니다.",
+            entity="portfolios",
+        )
 
     c = db.query(PortfolioComment).options(joinedload(PortfolioComment.author)).filter(PortfolioComment.id == comment.id).first()
     return {
@@ -181,12 +226,13 @@ def add_comment(
         "author_id": c.author_id,
         "author_name": c.author.name if c.author else "",
         "content": c.content,
+        "timestamp_sec": c.timestamp_sec,
         "created_at": c.created_at,
     }
 
 
 @router.delete("/{portfolio_id}/comments/{comment_id}")
-def delete_comment(
+async def delete_comment(
     portfolio_id: str,
     comment_id: str,
     db: Session = Depends(get_db),
@@ -202,13 +248,18 @@ def delete_comment(
     if current_user.id != c.author_id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     db.delete(c)
     db.commit()
+
+    if p:
+        await emit_data_changed([p.student_id], "portfolios")
+
     return {"message": "Comment deleted"}
 
 
 @router.delete("/{portfolio_id}")
-def delete_portfolio(
+async def delete_portfolio(
     portfolio_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -220,6 +271,10 @@ def delete_portfolio(
     if current_user.id != p.student_id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    student_id = p.student_id
     db.delete(p)
     db.commit()
+
+    await emit_data_changed([student_id], "portfolios")
+
     return {"message": "Portfolio deleted"}

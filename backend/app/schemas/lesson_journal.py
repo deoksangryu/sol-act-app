@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import date, datetime
 from app.models.lesson_journal import JournalType
 
@@ -10,6 +10,7 @@ class LessonJournalCreate(BaseModel):
     content: str
     objectives: Optional[str] = None
     next_plan: Optional[str] = None
+    media_urls: Optional[List[str]] = None
 
 
 class LessonJournalUpdate(BaseModel):
@@ -17,6 +18,7 @@ class LessonJournalUpdate(BaseModel):
     objectives: Optional[str] = None
     next_plan: Optional[str] = None
     ai_feedback: Optional[str] = None
+    media_urls: Optional[List[str]] = None
 
 
 class LessonJournalResponse(BaseModel):
@@ -29,6 +31,7 @@ class LessonJournalResponse(BaseModel):
     objectives: Optional[str] = None
     next_plan: Optional[str] = None
     ai_feedback: Optional[str] = None
+    media_urls: Optional[List[str]] = None
     lesson_date: date
     created_at: datetime
     updated_at: datetime

@@ -5,13 +5,14 @@ from app.database import get_db
 from app.models.user import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
 from app.utils.auth import verify_password, get_password_hash, create_access_token
+from app.services.notification_service import emit_data_changed, get_all_user_ids
 import uuid
 
 router = APIRouter()
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register(user_data: UserCreate, db: Session = Depends(get_db)):
+async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
@@ -19,7 +20,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered"
         )
-    
+
     # Create new user
     hashed_password = get_password_hash(user_data.password)
     new_user = User(
@@ -30,11 +31,15 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         hashed_password=hashed_password,
         avatar=user_data.avatar or f"https://picsum.photos/seed/{uuid.uuid4().hex[:8]}/200"
     )
-    
+
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
+
+    all_ids = get_all_user_ids(db)
+    if all_ids:
+        await emit_data_changed(all_ids, "users")
+
     return new_user
 
 

@@ -16,3 +16,11 @@ class ChatMessage(Base):
     # Relationships
     sender = relationship("User", back_populates="sent_messages")
     class_info = relationship("ClassInfo", back_populates="messages")
+
+
+class ChatReadStatus(Base):
+    __tablename__ = "chat_read_status"
+
+    user_id = Column(String, ForeignKey("users.id"), primary_key=True)
+    class_id = Column(String, ForeignKey("classes.id"), primary_key=True)
+    last_read_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -7,6 +7,7 @@ from app.models.class_info import ClassInfo, class_students
 from app.models.user import User, UserRole
 from app.schemas.class_info import ClassInfoCreate, ClassInfoUpdate, ClassInfoResponse
 from app.utils.auth import get_current_user
+from app.services.notification_service import emit_data_changed
 import uuid
 
 router = APIRouter()
@@ -17,7 +18,7 @@ def class_to_response(cls: ClassInfo) -> dict:
         "id": cls.id,
         "name": cls.name,
         "description": cls.description,
-        "teacher_id": cls.teacher_id,
+        "subject_teachers": cls.subject_teachers or {},
         "schedule": cls.schedule,
         "student_ids": [s.id for s in cls.students],
     }
@@ -30,11 +31,11 @@ def list_classes(
     db: Session = Depends(get_db)
 ):
     query = db.query(ClassInfo)
-    if teacher_id:
-        query = query.filter(ClassInfo.teacher_id == teacher_id)
     if student_id:
         query = query.filter(ClassInfo.students.any(User.id == student_id))
     classes = query.all()
+    if teacher_id:
+        classes = [c for c in classes if teacher_id in (c.subject_teachers or {}).values()]
     return [class_to_response(c) for c in classes]
 
 
@@ -59,7 +60,7 @@ def create_class(
         id=f"cls{uuid.uuid4().hex[:7]}",
         name=data.name,
         description=data.description,
-        teacher_id=data.teacher_id,
+        subject_teachers=data.subject_teachers,
         schedule=data.schedule,
     )
     if data.student_ids:
@@ -73,7 +74,7 @@ def create_class(
 
 
 @router.put("/{class_id}", response_model=ClassInfoResponse)
-def update_class(
+async def update_class(
     class_id: str,
     update_data: ClassInfoUpdate,
     db: Session = Depends(get_db),
@@ -98,11 +99,18 @@ def update_class(
 
     db.commit()
     db.refresh(cls)
+
+    member_ids = [s.id for s in cls.students]
+    if cls.subject_teachers:
+        member_ids.extend([tid for tid in cls.subject_teachers.values() if tid])
+    if member_ids:
+        await emit_data_changed(list(set(member_ids)), "classes")
+
     return class_to_response(cls)
 
 
 @router.delete("/{class_id}")
-def delete_class(
+async def delete_class(
     class_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -114,8 +122,16 @@ def delete_class(
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
 
+    member_ids = [s.id for s in cls.students]
+    if cls.subject_teachers:
+        member_ids.extend([tid for tid in cls.subject_teachers.values() if tid])
+
     db.delete(cls)
     db.commit()
+
+    if member_ids:
+        await emit_data_changed(list(set(member_ids)), "classes")
+
     return {"message": "Class deleted"}
 
 
@@ -124,7 +140,7 @@ class AddStudentRequest(BaseModel):
 
 
 @router.post("/{class_id}/students", response_model=ClassInfoResponse)
-def add_student(
+async def add_student(
     class_id: str,
     data: AddStudentRequest,
     db: Session = Depends(get_db),
@@ -145,12 +161,16 @@ def add_student(
         cls.students.append(student)
         db.commit()
         db.refresh(cls)
+        member_ids = [s.id for s in cls.students]
+        if cls.subject_teachers:
+            member_ids.extend([tid for tid in cls.subject_teachers.values() if tid])
+        await emit_data_changed(list(set(member_ids)), "classes")
 
     return class_to_response(cls)
 
 
 @router.delete("/{class_id}/students/{student_id}", response_model=ClassInfoResponse)
-def remove_student(
+async def remove_student(
     class_id: str,
     student_id: str,
     db: Session = Depends(get_db),
@@ -168,5 +188,9 @@ def remove_student(
         cls.students.remove(student)
         db.commit()
         db.refresh(cls)
+        member_ids = [s.id for s in cls.students] + [student_id]
+        if cls.subject_teachers:
+            member_ids.extend([tid for tid in cls.subject_teachers.values() if tid])
+        await emit_data_changed(list(set(member_ids)), "classes")
 
     return class_to_response(cls)

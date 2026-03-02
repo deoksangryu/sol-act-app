@@ -1,6 +1,7 @@
-from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Text, Integer, DateTime, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.database import Base
+from app.models.lesson import Subject
 from datetime import datetime
 
 
@@ -11,12 +12,13 @@ class Evaluation(Base):
     student_id = Column(String, ForeignKey("users.id"), nullable=False)
     evaluator_id = Column(String, ForeignKey("users.id"), nullable=False)
     class_id = Column(String, ForeignKey("classes.id"), nullable=False)
-    period = Column(String, nullable=False)  # e.g. "2025-01", "2025-1학기"
-    acting_skill = Column(Integer, nullable=False)  # 1-5
-    expressiveness = Column(Integer, nullable=False)  # 1-5
-    teamwork = Column(Integer, nullable=False)  # 1-5
-    effort = Column(Integer, nullable=False)  # 1-5
-    attendance_score = Column(Integer, nullable=False)  # 1-5
+    subject = Column(SQLEnum(Subject), default=Subject.ACTING, nullable=False)
+    period = Column(String, nullable=False)
+    acting_skill = Column(Integer, nullable=False)  # 연기력 1-5
+    expressiveness = Column(Integer, nullable=False)  # 표현력 1-5
+    creativity = Column(Integer, nullable=False)  # 창의성 1-5
+    teamwork = Column(Integer, nullable=False)  # 협동심 1-5
+    effort = Column(Integer, nullable=False)  # 성실도 1-5
     comment = Column(Text, nullable=True)
     ai_summary = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

@@ -13,6 +13,9 @@ from .attendance import (
     AttendanceResponse, AttendanceStats
 )
 from .evaluation import EvaluationCreate, EvaluationUpdate, EvaluationResponse
+from .private_lesson import (
+    PrivateLessonRequestCreate, PrivateLessonRequestRespond, PrivateLessonRequestResponse
+)
 from .portfolio import (
     PortfolioCreate, PortfolioUpdate, PortfolioResponse,
     PortfolioCommentCreate, PortfolioCommentResponse

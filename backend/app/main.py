@@ -1,12 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from app.config import settings
 from app.database import engine, Base
 
 # Import routers
 from app.routers import (
     auth, users, assignments, diet, classes, chat, qna, notices, notifications,
-    lessons, journals, attendance, evaluations, portfolios, auditions
+    lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
+    ws, upload
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -55,23 +57,30 @@ app.include_router(attendance.router, prefix="/api/attendance", tags=["Attendanc
 app.include_router(evaluations.router, prefix="/api/evaluations", tags=["Evaluations"])
 app.include_router(portfolios.router, prefix="/api/portfolios", tags=["Portfolios"])
 app.include_router(auditions.router, prefix="/api/auditions", tags=["Auditions"])
+app.include_router(private_lessons.router, prefix="/api/private-lessons", tags=["Private Lessons"])
+app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])
+app.include_router(upload.router, prefix="/api", tags=["Upload"])
+
+# Static file serving for uploads
+import os
+os.makedirs("backend/uploads", exist_ok=True)
+app.mount("/uploads", StaticFiles(directory="backend/uploads"), name="uploads")
 
 
 # Root endpoint
 @app.get("/")
 def root():
     return {
-        "message": "Muse Academy API",
+        "message": "SOL-ACT API",
         "version": settings.VERSION,
-        "docs": "https://sol-backend.ngrok.dev/docs",
-        "frontend": "https://sol-manager.ngrok.app"
+        "docs": "/docs",
     }
 
 
 # Health check endpoint
 @app.get("/health")
 def health_check():
-    return {"status": "healthy", "service": "muse-academy-backend"}
+    return {"status": "healthy", "service": "sol-act-backend"}
 
 
 # API 정보

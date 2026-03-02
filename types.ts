@@ -5,7 +5,7 @@ export enum UserRole {
   DIRECTOR = 'director' // 학원주/원장
 }
 
-export type ViewState = 'dashboard' | 'lessons' | 'assignments' | 'growth' | 'diet' | 'community' | 'academy';
+export type ViewState = 'dashboard' | 'lessons' | 'assignments' | 'growth' | 'diet' | 'community' | 'academy' | 'profile';
 
 export enum Subject {
   ACTING = 'acting',
@@ -140,6 +140,7 @@ export interface LessonJournal {
   content: string;
   objectives?: string;
   nextPlan?: string;
+  mediaUrls?: string[];
   date: string;
 }
 
@@ -197,6 +198,7 @@ export interface PortfolioComment {
   authorId: string;
   authorName: string;
   content: string;
+  timestampSec?: number;
   date: string;
 }
 
@@ -207,8 +209,10 @@ export interface PortfolioItem {
   title: string;
   description: string;
   videoUrl: string;
-  category: string; // 예: 독백, 장면연기, 뮤지컬
+  category: string;
   tags: string[];
+  practiceGroup?: string;
+  videoDuration?: number;
   comments: PortfolioComment[];
   date: string;
 }
