@@ -118,6 +118,9 @@ async def create_lesson(
     elif data.private_student_ids:
         await emit_data_changed(data.private_student_ids, "lessons")
 
+    # Notify actor (teacher/director) so their own view refreshes
+    await emit_data_changed([current_user.id], "lessons")
+
     l = db.query(Lesson).options(
         joinedload(Lesson.class_info),
         joinedload(Lesson.teacher)

@@ -106,7 +106,7 @@ def get_portfolio(portfolio_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=PortfolioResponse, status_code=status.HTTP_201_CREATED)
-def create_portfolio(
+async def create_portfolio(
     data: PortfolioCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -134,6 +134,11 @@ def create_portfolio(
         .filter(Portfolio.id == portfolio.id)
         .first()
     )
+
+    teacher_ids = get_teacher_ids_for_student(db, current_user.id)
+    if teacher_ids:
+        await emit_data_changed(teacher_ids, "portfolios")
+
     return portfolio_to_response(p)
 
 

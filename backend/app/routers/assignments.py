@@ -98,6 +98,7 @@ async def create_assignment(
         f"새 과제가 등록되었습니다: '{data.title}'",
         entity="assignments",
     )
+    await emit_data_changed([current_user.id], "assignments")
 
     a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment.id).first()
     return assignment_to_response(a)

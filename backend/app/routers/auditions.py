@@ -114,6 +114,8 @@ async def create_audition(
                 entity="auditions",
             )
 
+    await emit_data_changed([current_user.id], "auditions")
+
     a = (
         db.query(Audition)
         .options(joinedload(Audition.creator), joinedload(Audition.checklists))

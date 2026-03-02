@@ -48,7 +48,7 @@ def get_class(class_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=ClassInfoResponse, status_code=status.HTTP_201_CREATED)
-def create_class(
+async def create_class(
     data: ClassInfoCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -70,6 +70,9 @@ def create_class(
     db.add(new_class)
     db.commit()
     db.refresh(new_class)
+
+    await emit_data_changed([current_user.id], "classes")
+
     return class_to_response(new_class)
 
 

@@ -6,7 +6,7 @@ from app.models.notice import Notice
 from app.models.user import User, UserRole
 from app.schemas.notice import NoticeCreate, NoticeUpdate, NoticeResponse
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_users, get_all_student_ids, emit_data_changed
+from app.services.notification_service import notify_users, get_all_student_ids, get_class_student_ids, emit_data_changed
 import uuid
 
 router = APIRouter()
@@ -57,13 +57,17 @@ async def create_notice(
     db.commit()
     db.refresh(notice)
 
-    student_ids = get_all_student_ids(db)
+    if notice.class_id:
+        student_ids = get_class_student_ids(db, notice.class_id)
+    else:
+        student_ids = get_all_student_ids(db)
     if student_ids:
         await notify_users(
             db, student_ids,
             f"새 공지사항: {data.title}",
             entity="notices",
         )
+    await emit_data_changed([current_user.id], "notices")
 
     return notice
 
