@@ -11,6 +11,7 @@ class NoticeBase(BaseModel):
 
 class NoticeCreate(NoticeBase):
     author: str
+    class_id: Optional[str] = None
 
 
 class NoticeUpdate(BaseModel):
@@ -22,6 +23,7 @@ class NoticeUpdate(BaseModel):
 class NoticeResponse(NoticeBase):
     id: str
     author: str
+    class_id: Optional[str] = None
     created_at: datetime
 
     class Config:

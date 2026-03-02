@@ -182,13 +182,13 @@ class TestNoticeHasCreatedAt:
     the frontend must map created_at -> date.
     """
 
-    def test_notice_has_created_at(self, client, teacher_headers):
+    def test_notice_has_created_at(self, client, director_headers):
         resp = client.post("/api/notices/", json={
             "title": "알림 테스트",
             "content": "내용",
-            "author": "박선생",
+            "author": "최원장",
             "important": False,
-        }, headers=teacher_headers)
+        }, headers=director_headers)
         assert resp.status_code == 201
         data = resp.json()
         # Backend sends "created_at", NOT "date"
@@ -274,7 +274,7 @@ class TestAllResponsesSnakeCase:
     Verify a sample of endpoints have zero camelCase keys.
     """
 
-    def test_all_responses_snake_case(self, client, seed_class, seed_lesson, teacher_headers, student_headers):
+    def test_all_responses_snake_case(self, client, seed_class, seed_lesson, teacher_headers, student_headers, director_headers):
         # 1. Lesson
         lesson_resp = client.get("/api/lessons/lsn001")
         assert lesson_resp.status_code == 200
@@ -306,9 +306,9 @@ class TestAllResponsesSnakeCase:
         notice_resp = client.post("/api/notices/", json={
             "title": "공지",
             "content": "내용",
-            "author": "박선생",
+            "author": "최원장",
             "important": False,
-        }, headers=teacher_headers)
+        }, headers=director_headers)
         assert notice_resp.status_code == 201
         assert not _has_camel_case_key(notice_resp.json()), \
             f"Notice response contains camelCase keys: {notice_resp.json()}"

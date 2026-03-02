@@ -34,6 +34,7 @@ export interface Notice {
   date: string;
   author: string;
   important: boolean;
+  classId?: string;
 }
 
 export interface Assignment {

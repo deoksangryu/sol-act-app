@@ -62,7 +62,7 @@ export const Community: React.FC<CommunityProps> = ({ user, classes, setClasses,
 
         {activeTab === 'notices' && (
           <div className="h-full overflow-y-auto p-4">
-            <Notices user={user} />
+            <Notices user={user} classes={classes} />
           </div>
         )}
       </div>

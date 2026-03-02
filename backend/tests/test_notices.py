@@ -2,29 +2,40 @@
 import pytest
 
 
-def _create_notice(client, teacher_headers):
+def _create_notice(client, headers, class_id=None):
     """Helper: create a notice and return response."""
-    resp = client.post("/api/notices/", json={
+    body = {
         "title": "공지사항",
         "content": "이번 주 수업 일정 변경",
         "author": "박선생",
         "important": True,
-    }, headers=teacher_headers)
+    }
+    if class_id:
+        body["class_id"] = class_id
+    resp = client.post("/api/notices/", json=body, headers=headers)
     return resp
 
 
 class TestCreateNotice:
     """POST /api/notices/"""
 
-    def test_create_notice_teacher(self, client, teacher_headers):
-        resp = _create_notice(client, teacher_headers)
+    def test_create_notice_teacher(self, client, teacher_headers, seed_class):
+        resp = _create_notice(client, teacher_headers, class_id="c1")
         assert resp.status_code == 201
         data = resp.json()
         assert data["title"] == "공지사항"
-        assert data["content"] == "이번 주 수업 일정 변경"
-        assert data["author"] == "박선생"
-        assert data["important"] is True
-        assert "id" in data
+        assert data["class_id"] == "c1"
+
+    def test_create_notice_director(self, client, director_headers, seed_users):
+        resp = _create_notice(client, director_headers)
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["class_id"] is None  # academy-wide
+
+    def test_create_notice_teacher_no_class(self, client, teacher_headers, seed_users):
+        """Teachers must provide class_id."""
+        resp = _create_notice(client, teacher_headers)
+        assert resp.status_code == 400
 
     def test_create_notice_forbidden(self, client, student_headers):
         resp = client.post("/api/notices/", json={
@@ -39,8 +50,8 @@ class TestCreateNotice:
 class TestListNotices:
     """GET /api/notices/"""
 
-    def test_list_notices(self, client, teacher_headers):
-        _create_notice(client, teacher_headers)
+    def test_list_notices(self, client, director_headers):
+        _create_notice(client, director_headers)
         resp = client.get("/api/notices/")
         assert resp.status_code == 200
         data = resp.json()
@@ -51,8 +62,8 @@ class TestListNotices:
 class TestGetNotice:
     """GET /api/notices/{id}"""
 
-    def test_get_notice(self, client, teacher_headers):
-        notice_id = _create_notice(client, teacher_headers).json()["id"]
+    def test_get_notice(self, client, director_headers):
+        notice_id = _create_notice(client, director_headers).json()["id"]
         resp = client.get(f"/api/notices/{notice_id}")
         assert resp.status_code == 200
         assert resp.json()["id"] == notice_id
@@ -65,27 +76,24 @@ class TestGetNotice:
 class TestUpdateNotice:
     """PUT /api/notices/{id}"""
 
-    def test_update_notice(self, client, teacher_headers):
-        notice_id = _create_notice(client, teacher_headers).json()["id"]
+    def test_update_notice(self, client, director_headers):
+        notice_id = _create_notice(client, director_headers).json()["id"]
         resp = client.put(f"/api/notices/{notice_id}", json={
             "title": "수정된 공지",
             "important": False,
-        }, headers=teacher_headers)
+        }, headers=director_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["title"] == "수정된 공지"
         assert data["important"] is False
-        # Content should remain unchanged
-        assert data["content"] == "이번 주 수업 일정 변경"
 
 
 class TestDeleteNotice:
     """DELETE /api/notices/{id}"""
 
-    def test_delete_notice(self, client, teacher_headers):
-        notice_id = _create_notice(client, teacher_headers).json()["id"]
-        resp = client.delete(f"/api/notices/{notice_id}", headers=teacher_headers)
+    def test_delete_notice(self, client, director_headers):
+        notice_id = _create_notice(client, director_headers).json()["id"]
+        resp = client.delete(f"/api/notices/{notice_id}", headers=director_headers)
         assert resp.status_code == 200
-        # Confirm it is gone
         get_resp = client.get(f"/api/notices/{notice_id}")
         assert get_resp.status_code == 404

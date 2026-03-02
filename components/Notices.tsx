@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, UserRole } from '../types';
+import { User, UserRole, ClassInfo } from '../types';
 import { noticeApi } from '../services/api';
 import { Notice } from '../types';
 import { useDataRefresh } from '../services/useWebSocket';
@@ -9,15 +9,17 @@ import toast from 'react-hot-toast';
 
 interface NoticesProps {
   user: User;
+  classes?: ClassInfo[];
 }
 
-export const Notices: React.FC<NoticesProps> = ({ user }) => {
+export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newImportant, setNewImportant] = useState(false);
+  const [newClassId, setNewClassId] = useState('');
   const [deleteNoticeId, setDeleteNoticeId] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
@@ -37,16 +39,22 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
     }
 
     try {
+      // Teachers must select a class
+      if (user.role === UserRole.TEACHER && !newClassId) {
+        toast.error('클래스를 선택해주세요.');
+        return;
+      }
       await noticeApi.create({
         title: newTitle,
         content: newContent,
         isImportant: newImportant,
         authorId: user.id,
         authorName: user.name,
+        classId: newClassId || undefined,
       });
       toast.success('공지사항이 작성되었습니다.');
       setIsCreateOpen(false);
-      setNewTitle('');
+      setNewTitle(''); setNewClassId('');
       setNewContent('');
       setNewImportant(false);
       await loadData();
@@ -74,7 +82,7 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold text-slate-800">공지사항</h2>
-        {user.role === UserRole.DIRECTOR && (
+        {user.role !== UserRole.STUDENT && (
           <button
             onClick={() => setIsCreateOpen(true)}
             className="px-4 py-2 bg-brand-500 text-white text-sm font-bold rounded-lg hover:bg-brand-600 transition-colors"
@@ -89,16 +97,21 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
         ) : notices.length > 0 ? notices.map((notice) => (
           <div key={notice.id} className="p-6 hover:bg-slate-50 transition-colors cursor-pointer group flex justify-between items-start gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex justify-between items-start mb-2">
+              <div className="flex flex-wrap gap-1.5 items-center mb-2">
                  {notice.important && (
                    <span className="bg-brand-100 text-brand-600 text-[10px] font-bold px-2 py-0.5 rounded-full">중요</span>
                  )}
-                 <span className="text-xs text-slate-400">{formatDateKo(notice.date)}</span>
+                 {notice.classId && (
+                   <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                     {classes.find(c => c.id === notice.classId)?.name || notice.classId}
+                   </span>
+                 )}
+                 <span className="text-xs text-slate-400 ml-auto">{formatDateKo(notice.date)}</span>
               </div>
               <h3 className="text-lg font-bold text-slate-800 group-hover:text-brand-500 transition-colors truncate">{notice.title}</h3>
               <p className="text-slate-500 text-sm mt-2 line-clamp-2">{notice.content}</p>
             </div>
-            {user.role === UserRole.DIRECTOR && (
+            {user.role !== UserRole.STUDENT && (
               <button
                 onClick={() => setDeleteNoticeId(notice.id)}
                 className="text-red-500 hover:text-red-700 transition-colors font-bold text-lg leading-none mt-1 shrink-0"
@@ -114,7 +127,7 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
       </div>
 
       {/* Create Notice Modal */}
-      {isCreateOpen && user.role === UserRole.DIRECTOR && (
+      {isCreateOpen && user.role !== UserRole.STUDENT && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
             <h3 className="text-xl font-bold text-slate-800 mb-4">공지사항 작성</h3>
@@ -140,6 +153,18 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
                   placeholder="공지사항 내용을 입력하세요"
                   rows={5}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-2">대상</label>
+                <select
+                  value={newClassId}
+                  onChange={(e) => setNewClassId(e.target.value)}
+                  className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-brand-500"
+                >
+                  {user.role === UserRole.DIRECTOR && <option value="">전체 공지 (학원)</option>}
+                  {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
               </div>
 
               <div className="flex items-center gap-2">
