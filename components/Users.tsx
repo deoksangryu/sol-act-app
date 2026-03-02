@@ -65,13 +65,10 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers }) => {
               </div>
               <p className="text-xs text-slate-400 truncate">{u.email}</p>
               
-              <div className="mt-3 flex gap-2">
-                 <button className="text-[10px] bg-slate-50 text-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 font-medium">
-                     {activeTab === 'students' || !isDirector ? '상담일지' : '담당 클래스'}
-                 </button>
-                 <button className="text-[10px] bg-slate-50 text-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-100 font-medium">
-                     {activeTab === 'students' || !isDirector ? '성적표' : '프로필 수정'}
-                 </button>
+              <div className="mt-2">
+                <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${u.role === UserRole.STUDENT ? 'bg-brand-50 text-brand-600' : u.role === UserRole.TEACHER ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
+                  {u.role === UserRole.STUDENT ? '수강생' : u.role === UserRole.TEACHER ? '선생님' : '원장'}
+                </span>
               </div>
             </div>
           </div>

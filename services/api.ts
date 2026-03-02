@@ -459,6 +459,9 @@ export const qnaApi = {
   deleteQuestion(id: string): Promise<void> {
     return apiRequest(`/api/qna/questions/${id}`, { method: 'DELETE' });
   },
+  deleteAnswer(answerId: string): Promise<void> {
+    return apiRequest(`/api/qna/answers/${answerId}`, { method: 'DELETE' });
+  },
 };
 
 // --- Notice API ---

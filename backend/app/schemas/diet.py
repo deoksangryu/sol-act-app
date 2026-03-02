@@ -20,6 +20,7 @@ class DietLogUpdate(BaseModel):
     description: Optional[str] = None
     calories: Optional[int] = None
     ai_advice: Optional[str] = None
+    teacher_comment: Optional[str] = None
     image_url: Optional[str] = None
 
 
@@ -29,6 +30,7 @@ class DietLogResponse(DietLogBase):
     student_name: str
     calories: Optional[int] = None
     ai_advice: Optional[str] = None
+    teacher_comment: Optional[str] = None
     image_url: Optional[str] = None
     created_at: datetime
 

@@ -27,6 +27,10 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   const [newMealType, setNewMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('lunch');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Comment State
+  const [commentingLogId, setCommentingLogId] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState('');
+
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
 
   // Load diet logs from API
@@ -158,6 +162,18 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
     setNewMeal('');
     setSelectedImage(null);
     setIsModalOpen(true);
+  };
+
+  const handleSaveComment = async (logId: string) => {
+    try {
+      await dietApi.update(logId, { teacherComment: commentText });
+      setLogs(logs.map(l => l.id === logId ? { ...l, teacherComment: commentText } : l));
+      setCommentingLogId(null);
+      setCommentText('');
+      toast.success('코멘트가 저장되었습니다.');
+    } catch {
+      toast.error('코멘트 저장에 실패했습니다.');
+    }
   };
 
   if (loading) {
@@ -327,9 +343,46 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                             </div>
 
                             {isStaff && (
-                            <div className="mt-4 pt-4 border-t border-slate-50 flex justify-between items-center">
+                            <div className="mt-4 pt-4 border-t border-slate-50">
+                              <div className="flex justify-between items-center">
                                 <span className="text-xs font-bold text-slate-400">{log.studentName}</span>
-                                <button className="text-xs text-brand-500 font-bold hover:underline">코멘트 남기기</button>
+                                <button onClick={() => {
+                                  if (commentingLogId === log.id) {
+                                    setCommentingLogId(null);
+                                  } else {
+                                    setCommentingLogId(log.id);
+                                    setCommentText(log.teacherComment || '');
+                                  }
+                                }} className="text-xs text-brand-500 font-bold hover:underline">
+                                  {log.teacherComment ? '코멘트 수정' : '코멘트 남기기'}
+                                </button>
+                              </div>
+
+                              {/* Show existing comment */}
+                              {log.teacherComment && commentingLogId !== log.id && (
+                                <div className="mt-2 bg-blue-50 border border-blue-100 p-3 rounded-lg">
+                                  <p className="text-xs text-blue-600"><span className="font-bold">선생님 코멘트:</span> {log.teacherComment}</p>
+                                </div>
+                              )}
+
+                              {/* Inline edit */}
+                              {commentingLogId === log.id && (
+                                <div className="mt-2 space-y-2">
+                                  <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} className="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg resize-none h-16 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" placeholder="코멘트를 입력하세요..." />
+                                  <div className="flex gap-2 justify-end">
+                                    <button onClick={() => setCommentingLogId(null)} className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">취소</button>
+                                    <button onClick={() => handleSaveComment(log.id)} className="text-xs px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium">저장</button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                            )}
+
+                            {!isStaff && log.teacherComment && (
+                            <div className="mt-4 pt-4 border-t border-slate-50">
+                              <div className="mt-2 bg-blue-50 border border-blue-100 p-3 rounded-lg">
+                                <p className="text-xs text-blue-600"><span className="font-bold">선생님 코멘트:</span> {log.teacherComment}</p>
+                              </div>
                             </div>
                             )}
                         </div>

@@ -24,6 +24,7 @@ def diet_to_response(d: DietLog) -> dict:
         "description": d.description,
         "calories": d.calories,
         "ai_advice": d.ai_advice,
+        "teacher_comment": d.teacher_comment,
         "image_url": d.image_url,
         "created_at": d.created_at,
     }

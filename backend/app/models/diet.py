@@ -22,6 +22,7 @@ class DietLog(Base):
     description = Column(Text, nullable=False)
     calories = Column(Integer, nullable=True)
     ai_advice = Column(Text, nullable=True)
+    teacher_comment = Column(Text, nullable=True)
     image_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

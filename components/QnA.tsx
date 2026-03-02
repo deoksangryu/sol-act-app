@@ -250,7 +250,14 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
                         </div>
                       </div>
                       {!answer.isAi && isTeacher && (
-                        <button className="text-red-400 hover:text-red-600 text-xs">삭제</button>
+                        <button onClick={async () => {
+                          if (!confirm('이 답변을 삭제하시겠습니까?')) return;
+                          try {
+                            await qnaApi.deleteAnswer(answer.id);
+                            setQuestions(prev => prev.map(q => q.id === selectedQuestionId ? { ...q, answers: q.answers.filter(a => a.id !== answer.id) } : q));
+                            toast.success('답변이 삭제되었습니다.');
+                          } catch { toast.error('답변 삭제에 실패했습니다.'); }
+                        }} className="text-red-400 hover:text-red-600 text-xs">삭제</button>
                       )}
                     </div>
                     <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">{answer.content}</p>

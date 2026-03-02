@@ -61,6 +61,7 @@ export interface DietLog {
   description: string;
   calories?: number;
   aiAdvice?: string;
+  teacherComment?: string;
   imageUrl?: string;
 }
 
