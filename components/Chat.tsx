@@ -1,22 +1,28 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ClassInfo, ChatMessage, UserRole, Subject } from '../types';
+import { chatApi, classApi } from '../services/api';
+import { useChatWebSocket } from '../services/useWebSocket';
+import { ConfirmDialog } from './ConfirmDialog';
 import toast from 'react-hot-toast';
 
 interface ChatProps {
   user: User;
   classes: ClassInfo[];
-  messages: ChatMessage[];
-  onSendMessage: (msg: ChatMessage) => void;
   setClasses: (classes: ClassInfo[]) => void;
   allUsers: User[];
 }
 
-export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessage, setClasses, allUsers }) => {
+export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers }) => {
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
+  const [isSending, setIsSending] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isInviteOpen, setIsInviteOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [lastMessageByClass, setLastMessageByClass] = useState<Record<string, ChatMessage>>({});
+  const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
+  const [leaveConfirm, setLeaveConfirm] = useState<{ classId: string; isStaff: boolean } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Create Class State (for Directors inside Chat)
@@ -34,40 +40,71 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
       return c.studentIds.includes(user.id);
   });
 
-  // Auto-select first class if available and none selected
-  useEffect(() => {
-    if (myClasses.length > 0 && !selectedClassId) {
-      // Optional: Auto-select logic could go here
+  // WebSocket for real-time chat (single unified connection)
+  const { sendMessage: wsSendMessage } = useChatWebSocket(
+    selectedClassId,
+    (msg) => {
+      setMessages(prev => [...prev, msg]);
+      // Update last_read_at since user is actively viewing this class
+      if (msg.senderId !== user.id) {
+        chatApi.markRead(msg.classId).catch(() => {});
+      }
+    },
+    (classId, msg) => {
+      setLastMessageByClass(prev => ({ ...prev, [classId]: msg }));
+      // Increment unread if message is from someone else and not in the selected class
+      if (msg.senderId !== user.id && classId !== selectedClassId) {
+        setUnreadCounts(prev => ({ ...prev, [classId]: (prev[classId] || 0) + 1 }));
+      }
     }
-  }, [myClasses.length]); 
+  );
+
+  // Load last message previews + unread counts for all classes
+  useEffect(() => {
+    const ids = myClasses.map(c => c.id);
+    if (ids.length === 0) return;
+    chatApi.lastMessages(ids).then(map => {
+      setLastMessageByClass(prev => ({ ...prev, ...map }));
+    }).catch(() => {});
+    chatApi.unreadCounts(ids).then(counts => {
+      setUnreadCounts(prev => ({ ...prev, ...counts }));
+    }).catch(() => {});
+  }, [classes.length]);
+
+  // Fetch messages when selectedClassId changes (merge with WS messages to prevent loss)
+  useEffect(() => {
+    if (!selectedClassId) { setMessages([]); return; }
+    // Mark as read + clear unread badge
+    chatApi.markRead(selectedClassId).catch(() => {});
+    setUnreadCounts(prev => { const next = { ...prev }; delete next[selectedClassId]; return next; });
+    chatApi.list(selectedClassId).then(restMsgs => {
+      setMessages(prev => {
+        const restIds = new Set(restMsgs.map(m => m.id));
+        const wsOnly = prev.filter(m => m.classId === selectedClassId && !restIds.has(m.id));
+        return [...restMsgs, ...wsOnly];
+      });
+      if (restMsgs.length > 0) {
+        setLastMessageByClass(prev => ({ ...prev, [selectedClassId]: restMsgs[restMsgs.length - 1] }));
+      }
+    }).catch(console.error);
+  }, [selectedClassId]);
 
   // Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedClassId]);
 
-  const currentClassMessages = messages.filter(m => m.classId === selectedClassId);
+  const currentClassMessages = messages;
   const currentClass = classes.find(c => c.id === selectedClassId);
 
   const handleSend = () => {
     if (!inputText.trim() || !selectedClassId) return;
-
-    const newMsg: ChatMessage = {
-      id: Date.now().toString(),
-      classId: selectedClassId,
-      senderId: user.id,
-      senderName: user.name,
-      senderRole: user.role,
-      content: inputText,
-      timestamp: new Date().toISOString(),
-      avatar: user.avatar
-    };
-
-    onSendMessage(newMsg);
+    wsSendMessage(selectedClassId, inputText);
     setInputText('');
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.nativeEvent.isComposing) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -76,31 +113,33 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
 
   const handleLeaveClass = () => {
     if (!currentClass) return;
+    setLeaveConfirm({ classId: currentClass.id, isStaff });
+  };
 
-    if (isStaff) {
-      if (confirm('선생님이 채팅방을 나가면 클래스가 삭제됩니다. 계속하시겠습니까?')) {
-        setClasses(classes.filter(c => c.id !== currentClass.id));
-        setSelectedClassId(null);
-        setIsSettingsOpen(false);
-        toast.success('클래스 및 채팅방이 삭제되었습니다.');
-      }
+  const handleLeaveConfirm = () => {
+    if (!leaveConfirm || !currentClass) return;
+
+    if (leaveConfirm.isStaff) {
+      setClasses(classes.filter(c => c.id !== currentClass.id));
+      setSelectedClassId(null);
+      setIsSettingsOpen(false);
+      toast.success('클래스 및 채팅방이 삭제되었습니다.');
     } else {
-      if (confirm('이 채팅방(클래스)에서 나가시겠습니까?')) {
-        const updatedClass = {
-          ...currentClass,
-          studentIds: currentClass.studentIds.filter(id => id !== user.id)
-        };
-        setClasses(classes.map(c => c.id === currentClass.id ? updatedClass : c));
-        setSelectedClassId(null);
-        setIsSettingsOpen(false);
-        toast.success('채팅방에서 나갔습니다.');
-      }
+      const updatedClass = {
+        ...currentClass,
+        studentIds: currentClass.studentIds.filter(id => id !== user.id)
+      };
+      setClasses(classes.map(c => c.id === currentClass.id ? updatedClass : c));
+      setSelectedClassId(null);
+      setIsSettingsOpen(false);
+      toast.success('채팅방에서 나갔습니다.');
     }
+    setLeaveConfirm(null);
   };
 
   const handleInviteUser = (userId: string) => {
     if (!currentClass) return;
-    
+
     if (currentClass.studentIds.includes(userId)) {
       toast.error('이미 참여 중인 사용자입니다.');
       return;
@@ -115,56 +154,61 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
     toast.success('사용자를 초대했습니다.');
   };
 
-  const handleCreateClass = () => {
+  const handleCreateClass = async () => {
     if (!newClassName.trim()) return;
-
-    const newClass: ClassInfo = {
-      id: Date.now().toString(),
-      name: newClassName,
-      description: newClassDesc || '새로운 채팅방',
-      subjectTeachers: {},
-      studentIds: [],
-      schedule: '일정 미정'
-    };
-    
-    setClasses([...classes, newClass]);
-    setSelectedClassId(newClass.id);
-    setIsCreateModalOpen(false);
-    setNewClassName('');
-    setNewClassDesc('');
-    toast.success('새 채팅방이 개설되었습니다.');
+    try {
+      const newClass = await classApi.create({
+        name: newClassName,
+        description: newClassDesc || '새로운 채팅방',
+        schedule: '일정 미정',
+      });
+      setClasses([...classes, newClass]);
+      setSelectedClassId(newClass.id);
+      setIsCreateModalOpen(false);
+      setNewClassName('');
+      setNewClassDesc('');
+      toast.success('새 채팅방이 개설되었습니다.');
+    } catch { toast.error('채팅방 개설에 실패했습니다.'); }
   };
 
   return (
     <div className="flex h-full bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden min-h-0">
-      
+
       {/* Sidebar: Class List */}
       <div className={`w-full md:w-80 bg-slate-50 border-r border-slate-100 flex flex-col ${selectedClassId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 border-b border-slate-200 flex justify-between items-center shrink-0 h-16">
           <h2 className="font-bold text-slate-800">내 채팅방</h2>
           {isDirector && (
-            <button 
+            <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="p-2 bg-white rounded-full text-slate-400 hover:text-orange-500 hover:shadow-sm transition-all"
+              className="p-2 bg-white rounded-full text-slate-400 hover:text-brand-500 hover:shadow-sm transition-all"
               title="새 채팅방 만들기"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             </button>
           )}
         </div>
-        
+
         <div className="flex-1 overflow-y-auto p-2 space-y-2">
           {myClasses.length > 0 ? myClasses.map((c) => {
-            const lastMsg = messages.filter(m => m.classId === c.id).sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+            const lastMsg = lastMessageByClass[c.id];
+            const unread = unreadCounts[c.id] || 0;
             return (
-              <div 
+              <div
                 key={c.id}
                 onClick={() => { setSelectedClassId(c.id); setIsSettingsOpen(false); }}
-                className={`p-3 rounded-xl cursor-pointer transition-colors ${selectedClassId === c.id ? 'bg-white shadow-sm ring-1 ring-orange-100' : 'hover:bg-white hover:shadow-sm'}`}
+                className={`p-3 rounded-xl cursor-pointer transition-colors ${selectedClassId === c.id ? 'bg-white shadow-sm ring-1 ring-brand-100' : 'hover:bg-white hover:shadow-sm'}`}
               >
                 <div className="flex justify-between items-start mb-1">
-                  <h3 className={`font-bold text-sm ${selectedClassId === c.id ? 'text-orange-600' : 'text-slate-700'}`}>{c.name}</h3>
-                  {lastMsg && <span className="text-[10px] text-slate-400">{new Date(lastMsg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>}
+                  <h3 className={`font-bold text-sm ${selectedClassId === c.id ? 'text-brand-600' : 'text-slate-700'}`}>{c.name}</h3>
+                  <div className="flex items-center gap-1.5">
+                    {lastMsg && <span className="text-[10px] text-slate-400">{new Date(lastMsg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>}
+                    {unread > 0 && (
+                      <span className="min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-brand-500 text-white text-[10px] font-bold rounded-full">
+                        {unread > 99 ? '99+' : unread}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <p className="text-xs text-slate-500 line-clamp-1 h-4">
                   {lastMsg ? `${lastMsg.senderName}: ${lastMsg.content}` : <span className="text-slate-300">대화 내용이 없습니다.</span>}
@@ -194,7 +238,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
                    <p className="text-xs text-slate-400">{currentClass.studentIds.length}명 참여 중</p>
                  </div>
                </div>
-               <button 
+               <button
                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
                  className={`p-2 rounded-full transition-colors ${isSettingsOpen ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:bg-slate-50'}`}
                >
@@ -212,8 +256,8 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
                       <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                          {!isMe && <span className="text-[10px] text-slate-500 mb-1 ml-1">{msg.senderName}</span>}
                          <div className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
-                           isMe 
-                             ? 'bg-orange-500 text-white rounded-tr-none shadow-md shadow-orange-100' 
+                           isMe
+                             ? 'bg-brand-500 text-white rounded-tr-none shadow-md shadow-brand-100'
                              : 'bg-white text-slate-700 rounded-tl-none border border-slate-100 shadow-sm'
                          }`}>
                            {msg.content}
@@ -231,16 +275,16 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
             {/* Input Area */}
             <div className="p-4 bg-white border-t border-slate-100 shrink-0">
                <div className="flex gap-2">
-                 <input 
+                 <input
                    value={inputText}
                    onChange={(e) => setInputText(e.target.value)}
                    onKeyDown={handleKeyPress}
-                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500 transition-colors"
+                   className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-brand-500 transition-colors"
                    placeholder="메시지를 입력하세요..."
                  />
-                 <button 
+                 <button
                    onClick={handleSend}
-                   className="bg-orange-500 text-white p-3 rounded-xl hover:bg-orange-600 transition-colors shadow-lg shadow-orange-100"
+                   className="bg-brand-500 text-white p-3 rounded-xl hover:bg-brand-600 transition-colors shadow-lg shadow-brand-100"
                  >
                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9-2-9-18-9 18 9-2zm0 0v-8" /></svg>
                  </button>
@@ -256,7 +300,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                  </div>
-                 
+
                  <div className="p-5 flex-1 overflow-y-auto">
                     <div className="mb-6">
                       <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Description</h4>
@@ -267,9 +311,9 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
                        <div className="flex justify-between items-center mb-3">
                          <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Members ({currentClass.studentIds.length + 1})</h4>
                          {isStaff && (
-                           <button 
+                           <button
                              onClick={() => setIsInviteOpen(true)}
-                             className="text-[10px] font-bold text-orange-500 bg-orange-50 px-2 py-1 rounded hover:bg-orange-100"
+                             className="text-[10px] font-bold text-brand-500 bg-brand-50 px-2 py-1 rounded hover:bg-brand-100"
                            >
                              + 초대
                            </button>
@@ -302,7 +346,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
                  </div>
 
                  <div className="p-5 border-t border-slate-100 bg-slate-50/30">
-                    <button 
+                    <button
                       onClick={handleLeaveClass}
                       className="w-full py-2 border border-red-200 text-red-500 rounded-xl text-sm font-bold hover:bg-red-50 transition-colors"
                     >
@@ -332,7 +376,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
                  {allUsers
                    .filter(u => u.role === UserRole.STUDENT && currentClass && !currentClass.studentIds.includes(u.id))
                    .map(u => (
-                     <button 
+                     <button
                        key={u.id}
                        onClick={() => handleInviteUser(u.id)}
                        className="w-full flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors text-left"
@@ -355,7 +399,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
       {isCreateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
            <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 relative">
-              <button 
+              <button
                onClick={() => setIsCreateModalOpen(false)}
                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
               >
@@ -366,31 +410,44 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, messages, onSendMessa
               <div className="space-y-4">
                  <div>
                    <label className="block text-xs font-bold text-slate-500 mb-1">채팅방 이름</label>
-                   <input 
+                   <input
                      value={newClassName}
                      onChange={(e) => setNewClassName(e.target.value)}
-                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-orange-500"
+                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500"
                      placeholder="예: 뮤지컬 입시반 공지방"
                    />
                  </div>
                  <div>
                    <label className="block text-xs font-bold text-slate-500 mb-1">설명</label>
-                   <textarea 
+                   <textarea
                      value={newClassDesc}
                      onChange={(e) => setNewClassDesc(e.target.value)}
-                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-orange-500 resize-none h-20"
+                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 resize-none h-20"
                      placeholder="채팅방에 대한 설명을 입력하세요."
                    />
                  </div>
-                 <button 
+                 <button
                    onClick={handleCreateClass}
-                   className="w-full bg-orange-500 text-white py-3 rounded-xl font-bold hover:bg-orange-600 shadow-lg shadow-orange-200 mt-2"
+                   className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200 mt-2"
                  >
                    개설하기
                  </button>
               </div>
            </div>
         </div>
+      )}
+
+      {/* Leave Class Confirm Dialog */}
+      {leaveConfirm && (
+        <ConfirmDialog
+          title={leaveConfirm.isStaff ? '채팅방 삭제' : '채팅방 나가기'}
+          message={leaveConfirm.isStaff ? '선생님이 채팅방을 나가면 클래스가 삭제됩니다. 계속하시겠습니까?' : '이 채팅방(클래스)에서 나가시겠습니까?'}
+          confirmLabel="확인"
+          cancelLabel="취소"
+          variant={leaveConfirm.isStaff ? 'danger' : 'warning'}
+          onConfirm={handleLeaveConfirm}
+          onCancel={() => setLeaveConfirm(null)}
+        />
       )}
     </div>
   );

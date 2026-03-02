@@ -37,7 +37,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentView, onChangeView,
           key={item.id}
           onClick={() => onChangeView(item.id as ViewState)}
           className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-            currentView === item.id ? 'text-orange-500' : 'text-slate-400 hover:text-slate-600'
+            currentView === item.id ? 'text-brand-500' : 'text-slate-400 hover:text-slate-600'
           }`}
         >
           <svg className={`w-6 h-6 ${currentView === item.id ? 'stroke-2' : 'stroke-1.5'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={item.icon} /></svg>

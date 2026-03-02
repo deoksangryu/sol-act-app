@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date, datetime
-from app.models.lesson import LessonStatus, LessonType
+from app.models.lesson import LessonStatus, LessonType, Subject
 
 
 class LessonCreate(BaseModel):
@@ -10,18 +10,25 @@ class LessonCreate(BaseModel):
     start_time: str
     end_time: str
     lesson_type: LessonType = LessonType.REGULAR
+    subject: Subject = Subject.ACTING
+    teacher_id: Optional[str] = None
     location: Optional[str] = None
     memo: Optional[str] = None
+    is_private: bool = False
+    private_student_ids: Optional[List[str]] = None
+    request_id: Optional[str] = None
 
 
 class BulkLessonCreate(BaseModel):
     class_id: str
     start_date: date
     end_date: date
-    weekdays: List[int]  # 0=Mon, 1=Tue, ..., 6=Sun
+    weekdays: List[int]  # 0=Mon, 6=Sun
     start_time: str
     end_time: str
     lesson_type: LessonType = LessonType.REGULAR
+    subject: Subject = Subject.ACTING
+    teacher_id: Optional[str] = None
     location: Optional[str] = None
 
 
@@ -31,8 +38,12 @@ class LessonUpdate(BaseModel):
     end_time: Optional[str] = None
     status: Optional[LessonStatus] = None
     lesson_type: Optional[LessonType] = None
+    subject: Optional[Subject] = None
+    teacher_id: Optional[str] = None
     location: Optional[str] = None
     memo: Optional[str] = None
+    is_private: Optional[bool] = None
+    private_student_ids: Optional[List[str]] = None
 
 
 class LessonResponse(BaseModel):
@@ -44,8 +55,14 @@ class LessonResponse(BaseModel):
     end_time: str
     status: LessonStatus
     lesson_type: LessonType
+    subject: Subject
+    teacher_id: Optional[str] = None
+    teacher_name: Optional[str] = None
     location: Optional[str] = None
     memo: Optional[str] = None
+    is_private: bool = False
+    private_student_ids: Optional[List[str]] = None
+    request_id: Optional[str] = None
     created_at: datetime
 
     class Config:

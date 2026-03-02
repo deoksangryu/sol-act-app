@@ -10,6 +10,8 @@ class PortfolioCreate(BaseModel):
     video_url: str
     category: PortfolioCategory
     tags: Optional[str] = None
+    practice_group: Optional[str] = None
+    video_duration: Optional[int] = None
 
 
 class PortfolioUpdate(BaseModel):
@@ -22,6 +24,7 @@ class PortfolioUpdate(BaseModel):
 
 class PortfolioCommentCreate(BaseModel):
     content: str
+    timestamp_sec: Optional[int] = None
 
 
 class PortfolioCommentResponse(BaseModel):
@@ -29,6 +32,7 @@ class PortfolioCommentResponse(BaseModel):
     author_id: str
     author_name: str
     content: str
+    timestamp_sec: Optional[int] = None
     created_at: datetime
 
     class Config:
@@ -45,6 +49,8 @@ class PortfolioResponse(BaseModel):
     category: PortfolioCategory
     tags: Optional[str] = None
     ai_feedback: Optional[str] = None
+    practice_group: Optional[str] = None
+    video_duration: Optional[int] = None
     comments: List[PortfolioCommentResponse] = []
     created_at: datetime
 

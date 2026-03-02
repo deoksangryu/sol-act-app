@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
@@ -24,6 +24,8 @@ class Portfolio(Base):
     category = Column(SQLEnum(PortfolioCategory), nullable=False)
     tags = Column(String, nullable=True)  # Comma-separated
     ai_feedback = Column(Text, nullable=True)
+    practice_group = Column(String, nullable=True)  # Groups repeated practice recordings
+    video_duration = Column(Integer, nullable=True)  # Duration in seconds
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships
@@ -38,6 +40,7 @@ class PortfolioComment(Base):
     portfolio_id = Column(String, ForeignKey("portfolios.id"), nullable=False)
     author_id = Column(String, ForeignKey("users.id"), nullable=False)
     content = Column(Text, nullable=False)
+    timestamp_sec = Column(Integer, nullable=True)  # Video timestamp in seconds for time-specific comments
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

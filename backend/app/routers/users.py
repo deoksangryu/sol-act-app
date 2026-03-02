@@ -3,8 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from app.database import get_db
 from app.models.user import User, UserRole
-from app.schemas.user import UserResponse, UserUpdate
-from app.utils.auth import get_current_user
+from app.schemas.user import UserResponse, UserUpdate, PasswordChange
+from app.utils.auth import get_current_user, verify_password, get_password_hash
+from app.services.notification_service import emit_data_changed, get_all_user_ids
 
 router = APIRouter()
 
@@ -32,8 +33,22 @@ def get_user(user_id: str, db: Session = Depends(get_db)):
     return user
 
 
+@router.put("/me/password")
+def change_password(
+    data: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not verify_password(data.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="현재 비밀번호가 올바르지 않습니다.")
+
+    current_user.hashed_password = get_password_hash(data.new_password)
+    db.commit()
+    return {"message": "비밀번호가 변경되었습니다."}
+
+
 @router.put("/{user_id}", response_model=UserResponse)
-def update_user(
+async def update_user(
     user_id: str,
     update_data: UserUpdate,
     db: Session = Depends(get_db),
@@ -51,11 +66,16 @@ def update_user(
 
     db.commit()
     db.refresh(user)
+
+    all_ids = get_all_user_ids(db)
+    if all_ids:
+        await emit_data_changed(all_ids, "users")
+
     return user
 
 
 @router.delete("/{user_id}")
-def delete_user(
+async def delete_user(
     user_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -67,6 +87,12 @@ def delete_user(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
+    all_ids = get_all_user_ids(db)
     db.delete(user)
     db.commit()
+
+    remaining_ids = [uid for uid in all_ids if uid != user_id]
+    if remaining_ids:
+        await emit_data_changed(remaining_ids, "users")
+
     return {"message": "User deleted"}

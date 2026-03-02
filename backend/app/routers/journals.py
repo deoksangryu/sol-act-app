@@ -8,6 +8,7 @@ from app.models.user import User, UserRole
 from app.schemas.lesson_journal import LessonJournalCreate, LessonJournalUpdate, LessonJournalResponse
 from app.utils.auth import get_current_user
 from app.services.ai import generate_journal_feedback
+from app.services.notification_service import notify_user, emit_data_changed, get_class_student_ids
 import uuid
 
 router = APIRouter()
@@ -24,6 +25,7 @@ def journal_to_response(j: LessonJournal) -> dict:
         "objectives": j.objectives,
         "next_plan": j.next_plan,
         "ai_feedback": j.ai_feedback,
+        "media_urls": j.media_urls or [],
         "lesson_date": j.lesson.date if j.lesson else None,
         "created_at": j.created_at,
         "updated_at": j.updated_at,
@@ -68,7 +70,7 @@ def get_journal(journal_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=LessonJournalResponse, status_code=status.HTTP_201_CREATED)
-def create_journal(
+async def create_journal(
     data: LessonJournalCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -85,6 +87,7 @@ def create_journal(
         content=data.content,
         objectives=data.objectives,
         next_plan=data.next_plan,
+        media_urls=data.media_urls,
     )
     db.add(journal)
     db.commit()
@@ -95,11 +98,22 @@ def create_journal(
         .filter(LessonJournal.id == journal.id)
         .first()
     )
+
+    # Notify the lesson's teacher if a student wrote the journal, or students if teacher wrote
+    if lesson.teacher_id and lesson.teacher_id != current_user.id:
+        await emit_data_changed([lesson.teacher_id], "journals")
+    elif lesson.class_id:
+        from app.services.notification_service import get_class_student_ids
+        student_ids = get_class_student_ids(db, lesson.class_id)
+        student_ids = [sid for sid in student_ids if sid != current_user.id]
+        if student_ids:
+            await emit_data_changed(student_ids, "journals")
+
     return journal_to_response(j)
 
 
 @router.put("/{journal_id}", response_model=LessonJournalResponse)
-def update_journal(
+async def update_journal(
     journal_id: str,
     update_data: LessonJournalUpdate,
     db: Session = Depends(get_db),
@@ -122,11 +136,22 @@ def update_journal(
 
     db.commit()
     db.refresh(j)
+
+    lesson = db.query(Lesson).filter(Lesson.id == j.lesson_id).first()
+    if lesson:
+        if lesson.teacher_id and lesson.teacher_id != current_user.id:
+            await emit_data_changed([lesson.teacher_id], "journals")
+        elif lesson.class_id:
+            student_ids = get_class_student_ids(db, lesson.class_id)
+            student_ids = [sid for sid in student_ids if sid != current_user.id]
+            if student_ids:
+                await emit_data_changed(student_ids, "journals")
+
     return journal_to_response(j)
 
 
 @router.post("/{journal_id}/ai-feedback")
-def request_ai_feedback(
+async def request_ai_feedback(
     journal_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -138,11 +163,19 @@ def request_ai_feedback(
     feedback = generate_journal_feedback(j.content, j.journal_type.value)
     j.ai_feedback = feedback
     db.commit()
+
+    if j.author_id != current_user.id:
+        await notify_user(
+            db, j.author_id,
+            "수업일지에 AI 피드백이 생성되었습니다.",
+            entity="journals",
+        )
+
     return {"ai_feedback": feedback}
 
 
 @router.delete("/{journal_id}")
-def delete_journal(
+async def delete_journal(
     journal_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -154,6 +187,11 @@ def delete_journal(
     if current_user.id != j.author_id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    author_id = j.author_id
     db.delete(j)
     db.commit()
+
+    if author_id and author_id != current_user.id:
+        await emit_data_changed([author_id], "journals")
+
     return {"message": "Journal deleted"}

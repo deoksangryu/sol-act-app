@@ -1,6 +1,6 @@
 
-import React, { useState, useEffect } from 'react';
-import { User, UserRole, ViewState, ClassInfo, ChatMessage, Notification, Subject } from './types';
+import React, { useState, useEffect, useCallback } from 'react';
+import { User, UserRole, ViewState, ClassInfo, Notification } from './types';
 import { Login } from './components/Login';
 import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
@@ -11,168 +11,102 @@ import { Lessons } from './components/Lessons';
 import { Growth } from './components/Growth';
 import { Community } from './components/Community';
 import { AcademyManagement } from './components/AcademyManagement';
+import { ProfileSettings } from './components/ProfileSettings';
 import { Notifications } from './components/Notifications';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Toaster } from 'react-hot-toast';
-
-// Mock Users
-const MOCK_STUDENT: User = {
-  id: 's1',
-  name: '김배우',
-  role: UserRole.STUDENT,
-  avatar: 'https://picsum.photos/200',
-  email: 'actor@muse.com'
-};
-
-const MOCK_TEACHER: User = {
-  id: 't1',
-  name: '박선생',
-  role: UserRole.TEACHER,
-  avatar: 'https://picsum.photos/201',
-  email: 'teacher@muse.com'
-};
-
-const MOCK_DIRECTOR: User = {
-  id: 'd1',
-  name: '최원장',
-  role: UserRole.DIRECTOR,
-  avatar: 'https://picsum.photos/206',
-  email: 'director@muse.com'
-};
-
-// Global Mock Data for Users List (used in Classes component)
-export const ALL_USERS: User[] = [
-  MOCK_STUDENT,
-  MOCK_TEACHER,
-  MOCK_DIRECTOR,
-  { id: 's2', name: '이연기', role: UserRole.STUDENT, avatar: 'https://picsum.photos/202', email: 'lee@muse.com' },
-  { id: 's3', name: '최무대', role: UserRole.STUDENT, avatar: 'https://picsum.photos/203', email: 'choi@muse.com' },
-  { id: 's4', name: '박감정', role: UserRole.STUDENT, avatar: 'https://picsum.photos/204', email: 'park@muse.com' },
-  { id: 't2', name: '김무용', role: UserRole.TEACHER, avatar: 'https://picsum.photos/205', email: 'dance@muse.com' },
-];
-
-const MOCK_CLASSES: ClassInfo[] = [
-  {
-    id: 'c1',
-    name: '입시 A반',
-    description: '한예종/중앙대 목표 입시반입니다.',
-    subjectTeachers: {
-      [Subject.ACTING]: 't1',
-      [Subject.MUSICAL]: 't1',
-      [Subject.DANCE]: 't2',
-    },
-    studentIds: ['s1', 's2'],
-    schedule: '월/수/금 18:00'
-  },
-  {
-    id: 'c2',
-    name: '입시 B반',
-    description: '경희대/동국대 목표 입시반입니다.',
-    subjectTeachers: {
-      [Subject.ACTING]: 't1',
-      [Subject.DANCE]: 't2',
-    },
-    studentIds: ['s3', 's4'],
-    schedule: '화/목 17:00'
-  },
-  {
-    id: 'c3',
-    name: '기초반',
-    description: '연기 기초 과정 (취미/입문)',
-    subjectTeachers: {
-      [Subject.ACTING]: 't1',
-      [Subject.MUSICAL]: 't2',
-    },
-    studentIds: ['s1', 's3', 's4'],
-    schedule: '토 14:00'
-  }
-];
-
-const MOCK_CHATS: ChatMessage[] = [
-  {
-    id: 'm1',
-    classId: 'c1',
-    senderId: 't1',
-    senderName: '박선생',
-    senderRole: UserRole.TEACHER,
-    content: 'A반 여러분, 오늘 수업 10분 늦게 시작합니다. 강의실 302호로 오세요!',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-    avatar: MOCK_TEACHER.avatar
-  },
-  {
-    id: 'm2',
-    classId: 'c1',
-    senderId: 's1',
-    senderName: '김배우',
-    senderRole: UserRole.STUDENT,
-    content: '네 알겠습니다 선생님!',
-    timestamp: new Date(Date.now() - 1000 * 60 * 55).toISOString(),
-    avatar: MOCK_STUDENT.avatar
-  }
-];
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  { id: 'n1', type: 'info', message: '새로운 공지사항이 등록되었습니다: 10월 모의평가 안내', date: new Date().toISOString(), read: false },
-  { id: 'n2', type: 'success', message: '과제 "독백 분석" 채점이 완료되었습니다.', date: new Date(Date.now() - 86400000).toISOString(), read: true },
-];
+import { getSavedUser, clearAuth, userApi, classApi, notificationApi } from './services/api';
+import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
 
 const App: React.FC = () => {
-  // Data version reset — clear old-format data on first load
-  if (localStorage.getItem('muse_data_version') !== '2') {
-    ['muse_classes', 'muse_lessons', 'muse_journals', 'muse_attendance', 'muse_evaluations', 'muse_private_requests'].forEach(k => localStorage.removeItem(k));
-    localStorage.setItem('muse_data_version', '2');
-  }
-
   const [user, setUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
-
-  // Shared State with LocalStorage Persistence
-  const [classes, setClasses] = useState<ClassInfo[]>(() => {
-    const saved = localStorage.getItem('muse_classes');
-    return saved ? JSON.parse(saved) : MOCK_CLASSES;
-  });
-
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
-    const saved = localStorage.getItem('muse_chats');
-    return saved ? JSON.parse(saved) : MOCK_CHATS;
-  });
-
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    const saved = localStorage.getItem('muse_notifications');
-    return saved ? JSON.parse(saved) : MOCK_NOTIFICATIONS;
-  });
-  
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  // Persistence Effects
+  // Unified WebSocket connection (single connection for chat + notifications)
+  useWebSocketConnection(user?.id ?? null);
+
+  // Real-time notification push via WebSocket
+  useNotificationWebSocket((notif) => {
+    setNotifications(prev => [notif, ...prev]);
+  });
+
+  // Auto-login from saved token
   useEffect(() => {
-    localStorage.setItem('muse_classes', JSON.stringify(classes));
-  }, [classes]);
+    const savedUser = getSavedUser();
+    if (savedUser) {
+      setUser(savedUser);
+      loadAppData(savedUser);
+    } else {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('muse_chats', JSON.stringify(chatMessages));
-  }, [chatMessages]);
+  const loadClasses = useCallback(() => {
+    classApi.list().then(setClasses).catch(console.error);
+  }, []);
 
-  useEffect(() => {
-    localStorage.setItem('muse_notifications', JSON.stringify(notifications));
-  }, [notifications]);
+  const loadUsers = useCallback(() => {
+    userApi.list().then(setAllUsers).catch(console.error);
+  }, []);
 
-  // Simple simulated login
-  const handleLogin = (role: UserRole) => {
-    if (role === UserRole.STUDENT) setUser(MOCK_STUDENT);
-    else if (role === UserRole.TEACHER) setUser(MOCK_TEACHER);
-    else if (role === UserRole.DIRECTOR) setUser(MOCK_DIRECTOR);
+  useDataRefresh('classes', loadClasses);
+  useDataRefresh('users', loadUsers);
+
+  const loadAppData = async (currentUser: User) => {
+    try {
+      const [usersData, classesData] = await Promise.all([
+        userApi.list(),
+        classApi.list(),
+      ]);
+      setAllUsers(usersData);
+      setClasses(classesData);
+
+      // Load notifications
+      try {
+        const notifsData = await notificationApi.list();
+        setNotifications(notifsData);
+      } catch {
+        // Notifications API may not exist yet
+      }
+    } catch (err) {
+      console.error('Failed to load app data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLogin = (loggedInUser: User) => {
+    setUser(loggedInUser);
     setCurrentView('dashboard');
+    setLoading(true);
+    loadAppData(loggedInUser);
   };
 
   const handleLogout = () => {
+    clearAuth();
     setUser(null);
+    setAllUsers([]);
+    setClasses([]);
+    setNotifications([]);
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
-  const handleMarkAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+  const handleMarkAllRead = async () => {
+    if (user) {
+      try {
+        await notificationApi.markAllRead();
+        setNotifications(notifications.map(n => ({ ...n, read: true })));
+      } catch {
+        // Fallback: just update locally
+        setNotifications(notifications.map(n => ({ ...n, read: true })));
+      }
+    }
   };
 
   const getRoleLabel = (role: UserRole) => {
@@ -184,15 +118,20 @@ const App: React.FC = () => {
   };
 
   const renderView = () => {
+    // Redirect students away from staff-only views
+    if (currentView === 'academy' && user!.role === UserRole.STUDENT) {
+      setCurrentView('dashboard');
+      return null;
+    }
     switch (currentView) {
       case 'dashboard':
         return <Dashboard user={user!} onChangeView={setCurrentView} />;
       case 'lessons':
-        return <Lessons user={user!} classes={classes} allUsers={ALL_USERS} />;
+        return <Lessons user={user!} classes={classes} allUsers={allUsers} />;
       case 'assignments':
-        return <Assignments user={user!} />;
+        return <Assignments user={user!} allUsers={allUsers} />;
       case 'growth':
-        return <Growth user={user!} allUsers={ALL_USERS} classes={classes} />;
+        return <Growth user={user!} allUsers={allUsers} classes={classes} />;
       case 'diet':
         return <Diet user={user!} />;
       case 'community':
@@ -200,10 +139,8 @@ const App: React.FC = () => {
           <Community
             user={user!}
             classes={classes}
-            chatMessages={chatMessages}
-            onSendMessage={(msg) => setChatMessages([...chatMessages, msg])}
             setClasses={setClasses}
-            allUsers={ALL_USERS}
+            allUsers={allUsers}
           />
         );
       case 'academy':
@@ -212,13 +149,27 @@ const App: React.FC = () => {
             user={user!}
             classes={classes}
             setClasses={setClasses}
-            allUsers={ALL_USERS}
+            allUsers={allUsers}
           />
         );
+      case 'profile':
+        return <ProfileSettings user={user!} onUserUpdate={(u) => setUser(u)} />;
       default:
         return <Dashboard user={user!} onChangeView={setCurrentView} />;
     }
   };
+
+  // Show loading while checking saved token
+  if (loading && !user) {
+    return (
+      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-3xl font-extrabold text-yellow-400 mb-3 tracking-tighter">SOL-ACT</h1>
+          <div className="w-6 h-6 border-2 border-slate-300 border-t-yellow-400 rounded-full animate-spin mx-auto"></div>
+        </div>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -236,10 +187,10 @@ const App: React.FC = () => {
     <div className="flex h-[100dvh] bg-slate-50 text-slate-800 overflow-hidden">
       {/* Sidebar for Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 shadow-sm z-20">
-        <Sidebar 
-          currentView={currentView} 
-          onChangeView={setCurrentView} 
-          user={user} 
+        <Sidebar
+          currentView={currentView}
+          onChangeView={setCurrentView}
+          user={user}
           onLogout={handleLogout}
         />
       </aside>
@@ -254,19 +205,19 @@ const App: React.FC = () => {
           <div className="flex items-center gap-3">
              {/* Notification Bell (Mobile) */}
              <div className="relative">
-                <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2.5 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center">
+                <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2.5 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="알림">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                   {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                 </button>
                 {isNotifOpen && <Notifications notifications={notifications} onClose={() => setIsNotifOpen(false)} onMarkAllRead={handleMarkAllRead} />}
              </div>
-             
+
              <div className="text-right">
                 <p className="text-xs font-bold text-slate-700">{user.name}</p>
                 <p className="text-[10px] text-slate-400">{getRoleLabel(user.role)}</p>
              </div>
-             <img src={user.avatar} alt="Profile" className="w-8 h-8 rounded-full border border-slate-100" />
-             <button 
+             <img src={user.avatar} alt="Profile" className="w-8 h-8 rounded-full border border-slate-100 cursor-pointer hover:ring-2 hover:ring-brand-300" onClick={() => setCurrentView('profile')} />
+             <button
                onClick={handleLogout}
                className="ml-1 p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                aria-label="로그아웃"
@@ -276,13 +227,13 @@ const App: React.FC = () => {
           </div>
         </header>
 
-        {/* Desktop Header / Top Bar (Optional if needed, but sticking to Sidebar for desktop main nav) */}
-        {/* Adding a floating notification bell for desktop if not in sidebar */}
+        {/* Desktop notification bell */}
         <div className="hidden md:block absolute top-6 right-8 z-30">
            <div className="relative">
-              <button 
+              <button
                 onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className="bg-white p-2.5 rounded-full shadow-sm border border-slate-100 text-slate-400 hover:text-orange-500 hover:shadow-md transition-all relative"
+                className="bg-white p-2.5 rounded-full shadow-sm border border-slate-100 text-slate-400 hover:text-brand-500 hover:shadow-md transition-all relative"
+                aria-label="알림"
               >
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                  {unreadCount > 0 && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
@@ -291,11 +242,6 @@ const App: React.FC = () => {
            </div>
         </div>
 
-        {/* 
-          Content Container 
-          - App Views (Chat, Diet, etc): Hidden overflow on parent, child handles scroll. Less bottom padding.
-          - Page Views (Dashboard): Auto overflow on parent. More bottom padding for scroll space.
-        */}
         <div className={`flex-1 flex flex-col ${isAppView ? 'overflow-hidden pb-20 md:pb-8' : 'overflow-y-auto pb-48 md:pb-8'} p-4 md:p-8 scroll-smooth`}>
           <div className={`max-w-5xl mx-auto w-full flex-1 flex flex-col ${isAppView ? 'h-full min-h-0' : ''}`}>
             {renderView()}
@@ -307,12 +253,12 @@ const App: React.FC = () => {
            <MobileNav currentView={currentView} onChangeView={setCurrentView} userRole={user.role} />
         </nav>
       </main>
-      
+
       {/* PWA Install Prompt */}
       <InstallPrompt />
 
       {/* Global Toast Container */}
-      <Toaster 
+      <Toaster
         position="top-center"
         toastOptions={{
           style: {
@@ -323,7 +269,7 @@ const App: React.FC = () => {
           },
           success: {
             iconTheme: {
-              primary: '#F97316', // Orange-500
+              primary: '#F97316',
               secondary: '#fff',
             },
           },

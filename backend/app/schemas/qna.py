@@ -8,10 +8,7 @@ class AnswerBase(BaseModel):
 
 
 class AnswerCreate(AnswerBase):
-    question_id: str
-    author_name: str
-    author_role: str
-    is_ai: bool = False
+    pass
 
 
 class AnswerResponse(AnswerBase):
@@ -33,7 +30,7 @@ class QuestionBase(BaseModel):
 
 
 class QuestionCreate(QuestionBase):
-    author_id: str
+    pass
 
 
 class QuestionResponse(QuestionBase):

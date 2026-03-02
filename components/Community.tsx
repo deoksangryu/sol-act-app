@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { User, ClassInfo, ChatMessage } from '../types';
+import { User, ClassInfo } from '../types';
 import { Chat } from './Chat';
 import { QnA } from './QnA';
 import { Notices } from './Notices';
@@ -8,15 +8,13 @@ import { Notices } from './Notices';
 interface CommunityProps {
   user: User;
   classes: ClassInfo[];
-  chatMessages: ChatMessage[];
-  onSendMessage: (msg: ChatMessage) => void;
   setClasses: (classes: ClassInfo[]) => void;
   allUsers: User[];
 }
 
 type CommunityTab = 'chat' | 'qna' | 'notices';
 
-export const Community: React.FC<CommunityProps> = ({ user, classes, chatMessages, onSendMessage, setClasses, allUsers }) => {
+export const Community: React.FC<CommunityProps> = ({ user, classes, setClasses, allUsers }) => {
   const [activeTab, setActiveTab] = useState<CommunityTab>('chat');
 
   const tabs: { id: CommunityTab; label: string; icon: string }[] = [
@@ -34,7 +32,7 @@ export const Community: React.FC<CommunityProps> = ({ user, classes, chatMessage
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={`flex items-center gap-2 px-4 py-3 text-sm font-bold border-b-2 transition-colors whitespace-nowrap shrink-0 ${
-              activeTab === tab.id ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-400 hover:text-slate-600'
+              activeTab === tab.id ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'
             }`}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={tab.icon} /></svg>
@@ -50,8 +48,6 @@ export const Community: React.FC<CommunityProps> = ({ user, classes, chatMessage
             <Chat
               user={user}
               classes={classes}
-              messages={chatMessages}
-              onSendMessage={onSendMessage}
               setClasses={setClasses}
               allUsers={allUsers}
             />

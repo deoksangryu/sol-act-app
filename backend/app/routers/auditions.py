@@ -10,6 +10,7 @@ from app.schemas.audition import (
 )
 from app.utils.auth import get_current_user
 from app.services.ai import generate_audition_tips
+from app.services.notification_service import notify_users, get_class_student_ids, emit_data_changed
 import uuid
 
 router = APIRouter()
@@ -85,7 +86,7 @@ def get_audition(audition_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=AuditionResponse, status_code=status.HTTP_201_CREATED)
-def create_audition(
+async def create_audition(
     data: AuditionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -103,6 +104,16 @@ def create_audition(
     db.add(audition)
     db.commit()
     db.refresh(audition)
+
+    if data.class_id:
+        student_ids = get_class_student_ids(db, data.class_id)
+        if student_ids:
+            await notify_users(
+                db, student_ids,
+                f"새 오디션이 등록되었습니다: {data.title}",
+                entity="auditions",
+            )
+
     a = (
         db.query(Audition)
         .options(joinedload(Audition.creator), joinedload(Audition.checklists))
@@ -113,7 +124,7 @@ def create_audition(
 
 
 @router.put("/{audition_id}", response_model=AuditionResponse)
-def update_audition(
+async def update_audition(
     audition_id: str,
     update_data: AuditionUpdate,
     db: Session = Depends(get_db),
@@ -136,11 +147,17 @@ def update_audition(
 
     db.commit()
     db.refresh(a)
+
+    if a.class_id:
+        student_ids = get_class_student_ids(db, a.class_id)
+        if student_ids:
+            await emit_data_changed(student_ids, "auditions")
+
     return audition_to_response(a)
 
 
 @router.post("/{audition_id}/checklists", response_model=ChecklistResponse, status_code=status.HTTP_201_CREATED)
-def add_checklist(
+async def add_checklist(
     audition_id: str,
     data: ChecklistCreate,
     db: Session = Depends(get_db),
@@ -159,11 +176,17 @@ def add_checklist(
     db.add(checklist)
     db.commit()
     db.refresh(checklist)
+
+    if a.class_id:
+        student_ids = get_class_student_ids(db, a.class_id)
+        if student_ids:
+            await emit_data_changed(student_ids, "auditions")
+
     return checklist
 
 
 @router.put("/{audition_id}/checklists/{checklist_id}", response_model=ChecklistResponse)
-def update_checklist(
+async def update_checklist(
     audition_id: str,
     checklist_id: str,
     update_data: ChecklistUpdate,
@@ -182,11 +205,18 @@ def update_checklist(
 
     db.commit()
     db.refresh(c)
+
+    a = db.query(Audition).filter(Audition.id == audition_id).first()
+    if a and a.class_id:
+        student_ids = get_class_student_ids(db, a.class_id)
+        if student_ids:
+            await emit_data_changed(student_ids, "auditions")
+
     return c
 
 
 @router.delete("/{audition_id}/checklists/{checklist_id}")
-def delete_checklist(
+async def delete_checklist(
     audition_id: str,
     checklist_id: str,
     db: Session = Depends(get_db),
@@ -199,8 +229,15 @@ def delete_checklist(
     if not c:
         raise HTTPException(status_code=404, detail="Checklist item not found")
 
+    a = db.query(Audition).filter(Audition.id == audition_id).first()
     db.delete(c)
     db.commit()
+
+    if a and a.class_id:
+        student_ids = get_class_student_ids(db, a.class_id)
+        if student_ids:
+            await emit_data_changed(student_ids, "auditions")
+
     return {"message": "Checklist item deleted"}
 
 
@@ -219,7 +256,7 @@ def generate_tips(
 
 
 @router.delete("/{audition_id}")
-def delete_audition(
+async def delete_audition(
     audition_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -231,6 +268,14 @@ def delete_audition(
     if current_user.id != a.creator_id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    affected_ids = []
+    if a.class_id:
+        affected_ids = get_class_student_ids(db, a.class_id)
+
     db.delete(a)
     db.commit()
+
+    if affected_ids:
+        await emit_data_changed(affected_ids, "auditions")
+
     return {"message": "Audition deleted"}

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, ForeignKey, Table
+from sqlalchemy import Column, String, Text, ForeignKey, Table, JSON
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -18,11 +18,10 @@ class ClassInfo(Base):
     id = Column(String, primary_key=True, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    teacher_id = Column(String, ForeignKey("users.id"), nullable=False)
+    subject_teachers = Column(JSON, nullable=False, default=dict)  # {"acting": "t1", "musical": "t2"}
     schedule = Column(String, nullable=False)  # e.g., "Mon/Wed 14:00"
 
     # Relationships
-    teacher = relationship("User", back_populates="taught_classes", foreign_keys=[teacher_id])
     students = relationship("User", secondary=class_students, backref="enrolled_classes")
     messages = relationship("ChatMessage", back_populates="class_info")
     lessons = relationship("Lesson", back_populates="class_info")

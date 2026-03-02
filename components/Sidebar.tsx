@@ -41,9 +41,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, use
       </div>
 
       <div className="px-6 mb-8 flex items-center gap-3">
-        <img src={user.avatar} alt="Profile" className="w-10 h-10 rounded-full bg-slate-200 object-cover" />
-        <div>
-          <p className="font-bold text-slate-800 text-sm">{user.name}</p>
+        <img
+          src={user.avatar}
+          alt="Profile"
+          className="w-10 h-10 rounded-full bg-slate-200 object-cover cursor-pointer hover:ring-2 hover:ring-brand-300"
+          onClick={() => onChangeView('profile' as ViewState)}
+        />
+        <div className="cursor-pointer" onClick={() => onChangeView('profile' as ViewState)}>
+          <p className="font-bold text-slate-800 text-sm hover:text-brand-500">{user.name}</p>
           <p className="text-xs text-slate-400 capitalize">
             {user.role === UserRole.DIRECTOR ? 'Director' : user.role === UserRole.TEACHER ? 'Teacher' : 'Student'}
           </p>
@@ -57,8 +62,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, use
             onClick={() => onChangeView(item.id as ViewState)}
             className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-xl transition-colors ${
               currentView === item.id
-                ? 'bg-orange-500 text-white shadow-md shadow-orange-200'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-orange-500'
+                ? 'bg-brand-500 text-white shadow-md shadow-brand-200'
+                : 'text-slate-600 hover:bg-slate-50 hover:text-brand-500'
             }`}
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={item.icon} /></svg>

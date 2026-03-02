@@ -27,7 +27,7 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers }) => {
         </div>
         {/* Only Director can add users for now in this mock */}
         {isDirector && (
-            <button className="text-sm font-bold text-orange-500 bg-orange-50 px-4 py-2 rounded-xl hover:bg-orange-100 flex items-center gap-2">
+            <button className="text-sm font-bold text-brand-500 bg-brand-50 px-4 py-2 rounded-xl hover:bg-brand-100 flex items-center gap-2">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 추가
             </button>
@@ -39,13 +39,13 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers }) => {
           <div className="flex gap-2 border-b border-slate-100 shrink-0">
               <button 
                 onClick={() => setActiveTab('students')}
-                className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'students' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'students' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               >
                   수강생 ({students.length})
               </button>
               <button 
                 onClick={() => setActiveTab('teachers')}
-                className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'teachers' ? 'border-orange-500 text-orange-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+                className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'teachers' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               >
                   선생님 ({teachers.length})
               </button>

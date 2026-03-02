@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, DateTime, JSON, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
@@ -21,6 +21,7 @@ class LessonJournal(Base):
     objectives = Column(Text, nullable=True)  # Teacher only
     next_plan = Column(Text, nullable=True)  # Teacher only
     ai_feedback = Column(Text, nullable=True)
+    media_urls = Column(JSON, nullable=True)  # ["url1", "url2", ...] attached media
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

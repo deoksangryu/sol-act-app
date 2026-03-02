@@ -3,11 +3,13 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from app.database import get_db
 from app.models.evaluation import Evaluation
+from app.models.lesson import Subject
 from app.models.user import User, UserRole
 from app.models.class_info import ClassInfo
 from app.schemas.evaluation import EvaluationCreate, EvaluationUpdate, EvaluationResponse
 from app.utils.auth import get_current_user
 from app.services.ai import generate_evaluation_summary
+from app.services.notification_service import notify_user, emit_data_changed
 import uuid
 
 router = APIRouter()
@@ -22,12 +24,15 @@ def evaluation_to_response(e: Evaluation) -> dict:
         "evaluator_name": e.evaluator.name if e.evaluator else "",
         "class_id": e.class_id,
         "class_name": e.class_info.name if e.class_info else "",
+        "subject": e.subject,
         "period": e.period,
-        "acting_skill": e.acting_skill,
-        "expressiveness": e.expressiveness,
-        "teamwork": e.teamwork,
-        "effort": e.effort,
-        "attendance_score": e.attendance_score,
+        "scores": {
+            "acting": e.acting_skill,
+            "expression": e.expressiveness,
+            "creativity": e.creativity,
+            "teamwork": e.teamwork,
+            "effort": e.effort,
+        },
         "comment": e.comment,
         "ai_summary": e.ai_summary,
         "created_at": e.created_at,
@@ -38,6 +43,7 @@ def evaluation_to_response(e: Evaluation) -> dict:
 def list_evaluations(
     student_id: Optional[str] = Query(None),
     class_id: Optional[str] = Query(None),
+    subject: Optional[str] = Query(None),
     period: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
@@ -50,13 +56,18 @@ def list_evaluations(
         query = query.filter(Evaluation.student_id == student_id)
     if class_id:
         query = query.filter(Evaluation.class_id == class_id)
+    if subject:
+        try:
+            s = Subject(subject)
+            query = query.filter(Evaluation.subject == s)
+        except ValueError:
+            pass
     if period:
         query = query.filter(Evaluation.period == period)
     evals = query.order_by(Evaluation.created_at.desc()).all()
     return [evaluation_to_response(e) for e in evals]
 
 
-# /report/{student_id} must be before /{id}
 @router.get("/report/{student_id}")
 def get_student_report(student_id: str, db: Session = Depends(get_db)):
     student = db.query(User).filter(User.id == student_id).first()
@@ -76,11 +87,12 @@ def get_student_report(student_id: str, db: Session = Depends(get_db)):
         eval_data.append({
             "period": e.period,
             "class": e.class_info.name if e.class_info else "",
+            "subject": e.subject.value if e.subject else "acting",
             "acting_skill": e.acting_skill,
             "expressiveness": e.expressiveness,
+            "creativity": e.creativity,
             "teamwork": e.teamwork,
             "effort": e.effort,
-            "attendance_score": e.attendance_score,
             "comment": e.comment or "",
         })
 
@@ -111,7 +123,7 @@ def get_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=EvaluationResponse, status_code=status.HTTP_201_CREATED)
-def create_evaluation(
+async def create_evaluation(
     data: EvaluationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -124,17 +136,25 @@ def create_evaluation(
         student_id=data.student_id,
         evaluator_id=current_user.id,
         class_id=data.class_id,
+        subject=data.subject,
         period=data.period,
-        acting_skill=data.acting_skill,
-        expressiveness=data.expressiveness,
-        teamwork=data.teamwork,
-        effort=data.effort,
-        attendance_score=data.attendance_score,
+        acting_skill=data.scores.acting,
+        expressiveness=data.scores.expression,
+        creativity=data.scores.creativity,
+        teamwork=data.scores.teamwork,
+        effort=data.scores.effort,
         comment=data.comment,
     )
     db.add(evaluation)
     db.commit()
     db.refresh(evaluation)
+
+    await notify_user(
+        db, data.student_id,
+        f"새 평가가 등록되었습니다. ({data.period})",
+        entity="evaluations",
+    )
+
     e = (
         db.query(Evaluation)
         .options(joinedload(Evaluation.student), joinedload(Evaluation.evaluator), joinedload(Evaluation.class_info))
@@ -145,7 +165,7 @@ def create_evaluation(
 
 
 @router.put("/{evaluation_id}", response_model=EvaluationResponse)
-def update_evaluation(
+async def update_evaluation(
     evaluation_id: str,
     update_data: EvaluationUpdate,
     db: Session = Depends(get_db),
@@ -163,11 +183,26 @@ def update_evaluation(
     if not e:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
-    for field, value in update_data.model_dump(exclude_unset=True).items():
+    update_dict = update_data.model_dump(exclude_unset=True)
+    scores = update_dict.pop("scores", None)
+    if scores:
+        e.acting_skill = scores["acting"]
+        e.expressiveness = scores["expression"]
+        e.creativity = scores["creativity"]
+        e.teamwork = scores["teamwork"]
+        e.effort = scores["effort"]
+    for field, value in update_dict.items():
         setattr(e, field, value)
 
     db.commit()
     db.refresh(e)
+
+    await notify_user(
+        db, e.student_id,
+        f"평가가 수정되었습니다. ({e.period})",
+        entity="evaluations",
+    )
+
     return evaluation_to_response(e)
 
 
@@ -185,9 +220,9 @@ def generate_ai_summary(
     eval_data = json.dumps({
         "acting_skill": e.acting_skill,
         "expressiveness": e.expressiveness,
+        "creativity": e.creativity,
         "teamwork": e.teamwork,
         "effort": e.effort,
-        "attendance_score": e.attendance_score,
         "comment": e.comment or "",
     }, ensure_ascii=False)
 
@@ -198,7 +233,7 @@ def generate_ai_summary(
 
 
 @router.delete("/{evaluation_id}")
-def delete_evaluation(
+async def delete_evaluation(
     evaluation_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -210,6 +245,10 @@ def delete_evaluation(
     if not e:
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
+    student_id = e.student_id
     db.delete(e)
     db.commit()
+
+    await emit_data_changed([student_id], "evaluations")
+
     return {"message": "Evaluation deleted"}

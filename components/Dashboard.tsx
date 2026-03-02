@@ -1,6 +1,10 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, ViewState, Assignment, DietLog, Lesson, CompetitionEvent, Subject, SUBJECT_LABELS } from '../types';
+import { assignmentApi, dietApi, lessonApi, auditionApi } from '../services/api';
+import { useDataRefresh } from '../services/useWebSocket';
+import toast from 'react-hot-toast';
+import { EmptyState } from './EmptyState';
 
 interface DashboardProps {
   user: User;
@@ -14,51 +18,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
   const [todayLessonList, setTodayLessonList] = useState<Lesson[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<CompetitionEvent[]>([]);
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     const today = new Date().toISOString().split('T')[0];
-
-    // Assignments
-    const assignmentsStr = localStorage.getItem('muse_assignments');
-    let pending = 0;
-    if (assignmentsStr) {
-       const assignments: Assignment[] = JSON.parse(assignmentsStr);
-       pending = assignments.filter(a => a.status === 'pending').length;
-    } else {
-       pending = 1;
+    try {
+      const [assignmentsData, dietData, lessonsData, eventsData] = await Promise.all([
+        assignmentApi.list({ status: 'pending' }).catch(() => []),
+        dietApi.list({ date: today }).catch(() => []),
+        lessonApi.list({ dateFrom: today, dateTo: today }).catch(() => []),
+        auditionApi.list({ status: 'upcoming' }).catch(() => []),
+      ]);
+      const pending = Array.isArray(assignmentsData) ? assignmentsData.length : 0;
+      const dietArr = Array.isArray(dietData) ? dietData as DietLog[] : [];
+      const cals = dietArr.reduce((acc, curr) => acc + (curr.calories || 0), 0);
+      const lessonsArr = Array.isArray(lessonsData) ? lessonsData : [];
+      const todayL = lessonsArr.filter((l: any) => l.status !== 'cancelled');
+      setTodayLessonList(todayL);
+      const eventsArr = Array.isArray(eventsData) ? eventsData : [];
+      setUpcomingEvents(eventsArr.slice(0, 3));
+      setStats({ pendingAssignments: pending, todayCalories: cals, todayLessons: todayL.length });
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
+      toast.error('데이터를 불러오지 못했습니다. 새로고침해주세요.');
     }
-
-    // Diet
-    const dietStr = localStorage.getItem('muse_diet');
-    let cals = 0;
-    if (dietStr) {
-       const diet: DietLog[] = JSON.parse(dietStr);
-       cals = diet
-         .filter(d => d.date.startsWith(today))
-         .reduce((acc, curr) => acc + (curr.calories || 0), 0);
-    } else {
-        cals = 450;
-    }
-
-    // Lessons
-    const lessonsStr = localStorage.getItem('muse_lessons');
-    let todayL: Lesson[] = [];
-    if (lessonsStr) {
-      const allLessons: Lesson[] = JSON.parse(lessonsStr);
-      todayL = allLessons.filter(l => l.date === today && l.status !== 'cancelled');
-    }
-    setTodayLessonList(todayL);
-
-    // Events
-    const eventsStr = localStorage.getItem('muse_events');
-    let upcoming: CompetitionEvent[] = [];
-    if (eventsStr) {
-      const allEvents: CompetitionEvent[] = JSON.parse(eventsStr);
-      upcoming = allEvents.filter(e => e.status === 'upcoming' || e.status === 'ongoing').slice(0, 3);
-    }
-    setUpcomingEvents(upcoming);
-
-    setStats({ pendingAssignments: pending, todayCalories: cals, todayLessons: todayL.length });
   }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  useDataRefresh(['assignments', 'lessons', 'auditions', 'diet'], loadData);
 
   // D-day calculation for nearest event
   const nearestEvent = upcomingEvents[0];
@@ -69,9 +55,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
       <div className="flex justify-between items-end">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
-            반가워요, <span className="text-orange-500">{user.name}</span>님!
+            반가워요, <span className="text-brand-500">{user.name}</span>님!
           </h1>
-          <p className="text-slate-500 mt-1">오늘도 멋진 연기를 보여주세요.</p>
+          <p className="text-slate-500 mt-1">{isStudent ? '오늘도 멋진 연기를 보여주세요.' : '오늘도 좋은 하루 되세요.'}</p>
         </div>
         <div className="hidden md:block text-right">
           <p className="text-sm font-semibold text-slate-600">{new Date().toLocaleDateString('ko-KR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})}</p>
@@ -92,7 +78,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
           <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           </div>
-          <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">진행 중인 과제</h3>
+          <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">{isStudent ? '진행 중인 과제' : '미완료 과제'}</h3>
           <p className="text-2xl font-bold text-slate-800 mt-1">{stats.pendingAssignments} <span className="text-xs font-normal text-slate-400">개</span></p>
         </div>
 
@@ -100,12 +86,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
           <div className="w-10 h-10 rounded-full bg-green-50 text-green-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
           </div>
-          <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">오늘의 식단</h3>
+          <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">{isStudent ? '오늘의 식단' : '오늘 식단 기록'}</h3>
           <p className="text-2xl font-bold text-slate-800 mt-1">{stats.todayCalories.toLocaleString()} <span className="text-xs font-normal text-slate-400">kcal</span></p>
         </div>
 
         {/* D-DAY Card */}
-        <div onClick={() => onChangeView('growth')} className="bg-gradient-to-br from-orange-400 to-pink-500 p-5 rounded-2xl shadow-md text-white flex flex-col justify-between relative overflow-hidden cursor-pointer">
+        <div onClick={() => onChangeView('growth')} className="bg-gradient-to-br from-brand-400 to-pink-500 p-5 rounded-2xl shadow-md text-white flex flex-col justify-between relative overflow-hidden cursor-pointer">
           <div className="relative z-10">
             <h3 className="text-white/80 text-xs font-bold uppercase tracking-wider">D-DAY</h3>
             {dDay !== null ? (
@@ -132,13 +118,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-lg text-slate-800">오늘의 수업</h3>
-            <button onClick={() => onChangeView('lessons')} className="text-xs font-bold text-orange-500 hover:underline py-2 px-2">전체 보기</button>
+            <button onClick={() => onChangeView('lessons')} className="text-xs font-bold text-brand-500 hover:underline py-2 px-2">전체 보기</button>
           </div>
           <div className="space-y-3">
             {todayLessonList.length > 0 ? todayLessonList.map(l => (
               <div key={l.id} onClick={() => onChangeView('lessons')} className="flex gap-4 items-center p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors border border-slate-50">
                 <div className={`w-12 h-12 rounded-xl flex-shrink-0 flex items-center justify-center font-bold text-xs ${
-                  l.status === 'completed' ? 'bg-green-50 text-green-500' : 'bg-orange-50 text-orange-500'
+                  l.status === 'completed' ? 'bg-green-50 text-green-500' : 'bg-brand-50 text-brand-500'
                 }`}>
                   {l.startTime}
                 </div>
@@ -147,15 +133,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
                   <p className="text-xs text-slate-400">{l.location} • {l.isPrivate ? '(개인) ' : ''}{SUBJECT_LABELS[l.subject]}</p>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  l.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-orange-100 text-orange-600'
+                  l.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-brand-100 text-brand-600'
                 }`}>
                   {l.status === 'completed' ? '완료' : '예정'}
                 </span>
               </div>
             )) : (
-              <div className="text-center py-6 text-slate-400 text-sm">
-                오늘 예정된 수업이 없습니다.
-              </div>
+              <EmptyState icon="calendar" title="오늘은 쉬는 날이에요" description="예정된 수업이 없습니다." />
             )}
           </div>
         </div>
@@ -164,13 +148,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="font-bold text-lg text-slate-800">다가오는 대회·행사</h3>
-            <button onClick={() => onChangeView('growth')} className="text-xs font-bold text-orange-500 hover:underline py-2 px-2">더보기</button>
+            <button onClick={() => onChangeView('growth')} className="text-xs font-bold text-brand-500 hover:underline py-2 px-2">더보기</button>
           </div>
           <div className="space-y-3">
             {upcomingEvents.length > 0 ? upcomingEvents.map(ev => {
               const evDDay = Math.max(0, Math.ceil((new Date(ev.date).getTime() - Date.now()) / 86400000));
-              const done = ev.checklist.filter(c => c.completed).length;
-              const total = ev.checklist.length;
+              const done = (ev.checklist || []).filter(c => c.completed).length;
+              const total = (ev.checklist || []).length;
               return (
                 <div key={ev.id} onClick={() => onChangeView('growth')} className="flex gap-4 items-center p-3 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors border border-slate-50">
                   <div className="w-12 h-12 rounded-xl bg-pink-50 flex-shrink-0 flex items-center justify-center">
@@ -186,9 +170,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
                 </div>
               );
             }) : (
-              <div className="text-center py-6 text-slate-400 text-sm">
-                등록된 대회/행사가 없습니다.
-              </div>
+              <EmptyState icon="calendar" title="다가오는 일정이 없어요" description="새 대회나 행사가 등록되면 여기에 표시됩니다." />
             )}
           </div>
         </div>

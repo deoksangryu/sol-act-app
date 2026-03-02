@@ -5,9 +5,13 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models.assignment import Assignment, AssignmentStatus
 from app.models.user import User, UserRole
+from app.models.class_info import ClassInfo
+from app.models.notification import Notification, NotificationType
 from app.schemas.assignment import AssignmentCreate, AssignmentUpdate, AssignmentResponse
 from app.utils.auth import get_current_user
 from app.services.ai import analyze_monologue
+from app.services.websocket_manager import manager
+from app.services.notification_service import notify_user, emit_data_changed
 import uuid
 
 router = APIRouter()
@@ -60,7 +64,7 @@ def get_assignment(assignment_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
-def create_assignment(
+async def create_assignment(
     data: AssignmentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -84,17 +88,26 @@ def create_assignment(
     db.commit()
     db.refresh(assignment)
 
+    await notify_user(
+        db, data.student_id,
+        f"새 과제가 등록되었습니다: '{data.title}'",
+        entity="assignments",
+    )
+
     a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment.id).first()
     return assignment_to_response(a)
 
 
 @router.put("/{assignment_id}", response_model=AssignmentResponse)
-def update_assignment(
+async def update_assignment(
     assignment_id: str,
     update_data: AssignmentUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
     a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
@@ -104,6 +117,9 @@ def update_assignment(
 
     db.commit()
     db.refresh(a)
+
+    await emit_data_changed([a.student_id], "assignments")
+
     return assignment_to_response(a)
 
 
@@ -113,7 +129,7 @@ class SubmissionData(BaseModel):
 
 
 @router.put("/{assignment_id}/submit", response_model=AssignmentResponse)
-def submit_assignment(
+async def submit_assignment(
     assignment_id: str,
     data: SubmissionData,
     db: Session = Depends(get_db),
@@ -133,6 +149,42 @@ def submit_assignment(
 
     db.commit()
     db.refresh(a)
+
+    # Notify teachers about submission
+    teacher_ids = set()
+    classes = db.query(ClassInfo).all()
+    for cls in classes:
+        student_ids = [s.id for s in cls.students]
+        if a.student_id in student_ids and cls.subject_teachers:
+            for tid in cls.subject_teachers.values():
+                if tid:
+                    teacher_ids.add(tid)
+    directors = db.query(User).filter(User.role == UserRole.DIRECTOR).all()
+    for d in directors:
+        teacher_ids.add(d.id)
+
+    student_name = a.student.name if a.student else "학생"
+    msg = f"{student_name}님이 과제 '{a.title}'을 제출했습니다."
+    for tid in teacher_ids:
+        notif = Notification(
+            id=f"noti{uuid.uuid4().hex[:7]}",
+            user_id=tid,
+            type=NotificationType.INFO,
+            message=msg,
+        )
+        db.add(notif)
+        db.commit()
+        db.refresh(notif)
+        await manager.send_to_user(tid, {
+            "type": "new_notification",
+            "data": {
+                "id": notif.id, "type": notif.type.value,
+                "message": notif.message, "read": notif.read,
+                "created_at": notif.created_at.isoformat(),
+            },
+        })
+    await emit_data_changed(list(teacher_ids), "assignments")
+
     return assignment_to_response(a)
 
 
@@ -142,7 +194,7 @@ class GradeData(BaseModel):
 
 
 @router.put("/{assignment_id}/grade", response_model=AssignmentResponse)
-def grade_assignment(
+async def grade_assignment(
     assignment_id: str,
     data: GradeData,
     db: Session = Depends(get_db),
@@ -161,6 +213,28 @@ def grade_assignment(
 
     db.commit()
     db.refresh(a)
+
+    # Notify student about grading
+    msg = f"과제 '{a.title}'이 채점되었습니다. 등급: {data.grade}"
+    notif = Notification(
+        id=f"noti{uuid.uuid4().hex[:7]}",
+        user_id=a.student_id,
+        type=NotificationType.SUCCESS,
+        message=msg,
+    )
+    db.add(notif)
+    db.commit()
+    db.refresh(notif)
+    await manager.send_to_user(a.student_id, {
+        "type": "new_notification",
+        "data": {
+            "id": notif.id, "type": notif.type.value,
+            "message": notif.message, "read": notif.read,
+            "created_at": notif.created_at.isoformat(),
+        },
+    })
+    await emit_data_changed([a.student_id], "assignments")
+
     return assignment_to_response(a)
 
 
@@ -185,7 +259,7 @@ def analyze_assignment(
 
 
 @router.delete("/{assignment_id}")
-def delete_assignment(
+async def delete_assignment(
     assignment_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -197,6 +271,10 @@ def delete_assignment(
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
+    student_id = a.student_id
     db.delete(a)
     db.commit()
+
+    await emit_data_changed([student_id], "assignments")
+
     return {"message": "Assignment deleted"}
