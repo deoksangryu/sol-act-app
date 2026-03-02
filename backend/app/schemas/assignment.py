@@ -33,6 +33,7 @@ class AssignmentResponse(AssignmentBase):
     feedback: Optional[str] = None
     ai_analysis: Optional[str] = None
     grade: Optional[str] = None
+    assigned_by: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

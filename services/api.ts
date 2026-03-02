@@ -290,9 +290,10 @@ export const journalApi = {
 
 // --- Assignment API ---
 export const assignmentApi = {
-  list(params?: { studentId?: string; status?: string }): Promise<Assignment[]> {
+  list(params?: { studentId?: string; assignedBy?: string; status?: string }): Promise<Assignment[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
+    if (params?.assignedBy) q.set('assigned_by', params.assignedBy);
     if (params?.status) q.set('status', params.status);
     const qs = q.toString();
     return apiRequest(`/api/assignments${qs ? '?' + qs : ''}`);

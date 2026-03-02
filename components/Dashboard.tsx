@@ -1,10 +1,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, ViewState, Assignment, DietLog, Lesson, CompetitionEvent, Subject, SUBJECT_LABELS } from '../types';
-import { assignmentApi, dietApi, lessonApi, auditionApi } from '../services/api';
+import { assignmentApi, dietApi, lessonApi, auditionApi, journalApi, portfolioApi, userApi } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
 import toast from 'react-hot-toast';
 import { EmptyState } from './EmptyState';
+import { formatRelativeKo } from '../services/dateUtils';
 
 interface DashboardProps {
   user: User;
@@ -17,6 +18,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
   const [stats, setStats] = useState({ pendingAssignments: 0, todayCalories: 0, todayLessons: 0 });
   const [todayLessonList, setTodayLessonList] = useState<Lesson[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<CompetitionEvent[]>([]);
+  const [directorStats, setDirectorStats] = useState({ totalStudents: 0, totalTeachers: 0, weekLessons: 0, pendingSubmissions: 0 });
+  const [recentActivity, setRecentActivity] = useState<{ type: string; text: string; time: string }[]>([]);
 
   const loadData = useCallback(async () => {
     const today = new Date().toISOString().split('T')[0];
@@ -36,11 +39,67 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
       const eventsArr = Array.isArray(eventsData) ? eventsData : [];
       setUpcomingEvents(eventsArr.slice(0, 3));
       setStats({ pendingAssignments: pending, todayCalories: cals, todayLessons: todayL.length });
+
+      // Director-specific data loading
+      if (user.role === UserRole.DIRECTOR) {
+        const [usersData, journalsData, portfoliosData] = await Promise.all([
+          userApi.list().catch(() => []),
+          journalApi.list().catch(() => []),
+          portfolioApi.list().catch(() => []),
+        ]);
+
+        // Calculate stats
+        const students = (Array.isArray(usersData) ? usersData : []).filter((u: any) => u.role === 'student');
+        const teachers = (Array.isArray(usersData) ? usersData : []).filter((u: any) => u.role === 'teacher');
+        setDirectorStats({
+          totalStudents: students.length,
+          totalTeachers: teachers.length,
+          weekLessons: lessonsArr.length,
+          pendingSubmissions: pending,
+        });
+
+        // Build activity feed from recent data
+        const activities: { type: string; text: string; time: string }[] = [];
+
+        // From assignments (submitted ones)
+        const assignmentsArr = Array.isArray(assignmentsData) ? assignmentsData : [];
+        assignmentsArr.filter((a: any) => a.status === 'submitted').forEach((a: any) => {
+          activities.push({
+            type: 'assignment',
+            text: `${a.studentName}님이 과제 "${a.title}"을 제출했습니다.`,
+            time: a.updatedAt || a.createdAt,
+          });
+        });
+
+        // From journals
+        const journalsArr = Array.isArray(journalsData) ? journalsData : [];
+        journalsArr.slice(0, 10).forEach((j: any) => {
+          activities.push({
+            type: 'journal',
+            text: `${j.authorName}님이 수업일지를 작성했습니다.`,
+            time: j.createdAt,
+          });
+        });
+
+        // From portfolios
+        const portfoliosArr = Array.isArray(portfoliosData) ? portfoliosData : [];
+        portfoliosArr.slice(0, 5).forEach((p: any) => {
+          activities.push({
+            type: 'portfolio',
+            text: `${p.studentName}님이 포트폴리오 "${p.title}"을 등록했습니다.`,
+            time: p.date,
+          });
+        });
+
+        // Sort by time, take recent 15
+        activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+        setRecentActivity(activities.slice(0, 15));
+      }
     } catch (err) {
       console.error('Failed to load dashboard data:', err);
       toast.error('데이터를 불러오지 못했습니다. 새로고침해주세요.');
     }
-  }, []);
+  }, [user.role]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
@@ -175,6 +234,63 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
           </div>
         </div>
       </div>
+
+      {/* Director Overview Section */}
+      {user.role === UserRole.DIRECTOR && (
+        <>
+          {/* Director Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <h3 className="text-slate-500 text-xs font-bold uppercase">전체 학생</h3>
+              <p className="text-2xl font-bold text-slate-800 mt-1">{directorStats.totalStudents}명</p>
+            </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <h3 className="text-slate-500 text-xs font-bold uppercase">전체 선생님</h3>
+              <p className="text-2xl font-bold text-slate-800 mt-1">{directorStats.totalTeachers}명</p>
+            </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <h3 className="text-slate-500 text-xs font-bold uppercase">오늘 전체 수업</h3>
+              <p className="text-2xl font-bold text-slate-800 mt-1">{directorStats.weekLessons}개</p>
+            </div>
+            <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
+              <h3 className="text-slate-500 text-xs font-bold uppercase">미제출 과제</h3>
+              <p className="text-2xl font-bold text-slate-800 mt-1">{directorStats.pendingSubmissions}건</p>
+            </div>
+          </div>
+
+          {/* Recent Activity Feed */}
+          <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
+            <h3 className="font-bold text-lg text-slate-800 mb-4">최근 활동</h3>
+            <div className="space-y-3">
+              {recentActivity.length > 0 ? recentActivity.map((act, i) => (
+                <div key={i} className="flex gap-3 items-start p-3 rounded-xl border border-slate-50 hover:bg-slate-50">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
+                    act.type === 'assignment' ? 'bg-blue-50 text-blue-500' :
+                    act.type === 'journal' ? 'bg-purple-50 text-purple-500' :
+                    'bg-brand-50 text-brand-500'
+                  }`}>
+                    {act.type === 'assignment' && (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    )}
+                    {act.type === 'journal' && (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C6.5 6.253 2 10.998 2 17.25c0 5.25 3.07 9.75 7.022 11.278.338.106.671.203 1.005.279m0-13c5.5 0 10-4.745 10-11.25 0-5.25-3.07-9.75-7.022-11.278A15.02 15.02 0 0012 6.253z" /></svg>
+                    )}
+                    {act.type === 'portfolio' && (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" /></svg>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-700">{act.text}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{formatRelativeKo(act.time)}</p>
+                  </div>
+                </div>
+              )) : (
+                <EmptyState icon="notification" title="최근 활동이 없습니다" />
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

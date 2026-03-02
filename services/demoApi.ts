@@ -17,6 +17,8 @@ import {
 
 // Simulate network delay
 const delay = (ms = 300) => new Promise(r => setTimeout(r, ms));
+const today = new Date().toISOString().split('T')[0];
+const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
 
 let currentUser: User | null = null;
 
@@ -83,7 +85,7 @@ export const demoLessonApi = {
 };
 
 export const demoAssignmentApi = {
-  async list(_params?: any) { await delay(100); return [...assignments]; },
+  async list(params?: any) { await delay(100); let result = [...assignments]; if (params?.studentId) result = result.filter(a => a.studentId === params.studentId); if (params?.assignedBy) result = result.filter(a => (a as any).assignedBy === params.assignedBy); return result; },
   async get(id: string) { await delay(100); return assignments.find(a => a.id === id)!; },
   async create(data: any) { await delay(); const a = { id: genId('asgn'), ...data, status: 'pending' } as any; assignments.push(a); return a; },
   async update(id: string, data: any) { await delay(); const a = assignments.find(a => a.id === id); if (a) Object.assign(a, data); return a!; },
@@ -114,8 +116,14 @@ export const demoNotificationApi = {
   async markAllRead() { await delay(); notifications.forEach(n => n.read = true); },
 };
 
+const demoJournals: any[] = [
+  { id: 'jrn001', lessonId: 'lsn003', authorId: 't1', authorName: '최선생', journalType: 'teacher', content: '오늘 햄릿 독백 발표를 진행했습니다. 김배우 학생의 감정 표현이 눈에 띄게 좋아졌고, 이연기 학생은 발성에 좀 더 집중이 필요합니다.', objectives: '독백 발표 및 피드백', nextPlan: '다음 시간에는 2인 장면 연기를 진행할 예정입니다.', date: yesterday },
+  { id: 'jrn002', lessonId: 'lsn003', authorId: 's1', authorName: '김배우', journalType: 'student', content: '선생님의 피드백 덕분에 감정 전환 부분이 많이 좋아진 것 같습니다. 호흡 조절에 더 신경 써야겠습니다.', date: yesterday },
+  { id: 'jrn003', lessonId: 'lsn001', authorId: 't1', authorName: '최선생', journalType: 'teacher', content: '오늘 수업에서는 즉흥 연기와 감정 표현 훈련을 진행했습니다.', objectives: '즉흥 연기 훈련', date: today },
+];
+
 export const demoJournalApi = {
-  async list(_params?: any) { await delay(100); return [] as LessonJournal[]; },
+  async list(params?: any) { await delay(100); let result = [...demoJournals]; if (params?.lessonId) result = result.filter(j => j.lessonId === params.lessonId); if (params?.authorId) result = result.filter(j => j.authorId === params.authorId); return result; },
   async create(data: any) { await delay(); return { id: genId('jrn'), ...data, authorName: currentUser?.name || '', date: new Date().toISOString() } as any; },
   async update(id: string, data: any) { await delay(); return { id, ...data } as any; },
   async getAiFeedback(id: string) { await delay(500); return { aiFeedback: '수업 내용이 체계적으로 잘 정리되어 있습니다. 다음 시간에는 감정 표현에 더 집중해보세요.' }; },

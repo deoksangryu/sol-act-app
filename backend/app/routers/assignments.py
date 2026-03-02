@@ -31,6 +31,7 @@ def assignment_to_response(a: Assignment) -> dict:
         "feedback": a.feedback,
         "ai_analysis": a.ai_analysis,
         "grade": a.grade,
+        "assigned_by": a.assigned_by,
         "created_at": a.created_at,
         "updated_at": a.updated_at,
     }
@@ -39,12 +40,15 @@ def assignment_to_response(a: Assignment) -> dict:
 @router.get("/", response_model=List[AssignmentResponse])
 def list_assignments(
     student_id: Optional[str] = Query(None),
+    assigned_by: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
     db: Session = Depends(get_db)
 ):
     query = db.query(Assignment).options(joinedload(Assignment.student))
     if student_id:
         query = query.filter(Assignment.student_id == student_id)
+    if assigned_by:
+        query = query.filter(Assignment.assigned_by == assigned_by)
     if status_filter:
         try:
             s = AssignmentStatus(status_filter)
@@ -82,6 +86,7 @@ async def create_assignment(
         description=data.description,
         due_date=data.due_date,
         student_id=data.student_id,
+        assigned_by=current_user.id,
         status=AssignmentStatus.PENDING,
     )
     db.add(assignment)

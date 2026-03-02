@@ -25,6 +25,7 @@ class Assignment(Base):
     feedback = Column(Text, nullable=True)
     ai_analysis = Column(Text, nullable=True)
     grade = Column(String, nullable=True)
+    assigned_by = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

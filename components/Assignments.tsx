@@ -56,6 +56,10 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
+  // Filter State (for staff)
+  const [filterStudentId, setFilterStudentId] = useState('');
+  const [filterTeacherId, setFilterTeacherId] = useState('');
+
   // Create Assignment State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
@@ -81,12 +85,19 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
 
   // Load assignments from API
   const loadData = useCallback(() => {
-    return assignmentApi.list(isStudent ? { studentId: user.id } : {}).then(setAssignments).catch(console.error);
-  }, [user.id]);
+    const params: any = {};
+    if (isStudent) {
+      params.studentId = user.id;
+    } else {
+      if (filterStudentId) params.studentId = filterStudentId;
+      if (filterTeacherId) params.assignedBy = filterTeacherId;
+    }
+    return assignmentApi.list(params).then(setAssignments).catch(console.error);
+  }, [user.id, filterStudentId, filterTeacherId, isStudent]);
 
   useEffect(() => {
     loadData().finally(() => setLoading(false));
-  }, [user.id]);
+  }, [loadData]);
 
   useDataRefresh('assignments', loadData);
 
@@ -335,6 +346,34 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
               목록 보기
             </button>
           </div>
+
+          {/* Filter Dropdowns for Staff */}
+          {isStaff && (
+            <div className="flex gap-2 items-center">
+              <select
+                value={filterStudentId}
+                onChange={(e) => setFilterStudentId(e.target.value)}
+                className="text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg flex-1"
+              >
+                <option value="">전체 학생</option>
+                {allUsers.filter(u => u.role === UserRole.STUDENT).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+              {user.role === UserRole.DIRECTOR && (
+                <select
+                  value={filterTeacherId}
+                  onChange={(e) => setFilterTeacherId(e.target.value)}
+                  className="text-xs p-2 bg-slate-50 border border-slate-200 rounded-lg flex-1"
+                >
+                  <option value="">전체 선생님</option>
+                  {allUsers.filter(u => u.role === UserRole.TEACHER).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Content Area */}

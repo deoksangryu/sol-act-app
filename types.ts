@@ -49,6 +49,7 @@ export interface Assignment {
   feedback?: string;
   aiAnalysis?: string;
   grade?: string;
+  assignedBy?: string;
 }
 
 export interface DietLog {

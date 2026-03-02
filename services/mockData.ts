@@ -40,9 +40,10 @@ export const DEMO_LESSONS: Lesson[] = [
 
 // ── Assignments ──
 export const DEMO_ASSIGNMENTS: Assignment[] = [
-  { id: 'asgn001', title: '햄릿 독백 연습', description: '셰익스피어 햄릿 3막 1장 독백을 녹화하여 제출하세요.', dueDate: tomorrow + 'T23:59:00', studentId: 's1', studentName: '김배우', status: 'pending' },
-  { id: 'asgn002', title: '감정 표현 연습', description: '기쁨, 슬픔, 분노, 공포 4가지 감정을 각 30초씩 연기하세요.', dueDate: today + 'T23:59:00', studentId: 's1', studentName: '김배우', status: 'submitted', submissionText: '4가지 감정 연기 영상을 제출합니다.' },
-  { id: 'asgn003', title: '뮤지컬 넘버 연습', description: 'Les Miserables - On My Own 연습 녹음본 제출', dueDate: yesterday + 'T23:59:00', studentId: 's1', studentName: '김배우', status: 'graded', grade: 'A', feedback: '감정 전달이 훌륭합니다. 고음 부분 안정감이 더 필요해요.' },
+  { id: 'asgn001', title: '햄릿 독백 연습', description: '셰익스피어 햄릿 3막 1장 독백을 녹화하여 제출하세요.', dueDate: tomorrow + 'T23:59:00', studentId: 's1', studentName: '김배우', status: 'pending', assignedBy: 't1' },
+  { id: 'asgn002', title: '감정 표현 연습', description: '기쁨, 슬픔, 분노, 공포 4가지 감정을 각 30초씩 연기하세요.', dueDate: today + 'T23:59:00', studentId: 's1', studentName: '김배우', status: 'submitted', submissionText: '4가지 감정 연기 영상을 제출합니다.', assignedBy: 't1' },
+  { id: 'asgn003', title: '뮤지컬 넘버 연습', description: 'Les Miserables - On My Own 연습 녹음본 제출', dueDate: yesterday + 'T23:59:00', studentId: 's1', studentName: '김배우', status: 'graded', grade: 'A', feedback: '감정 전달이 훌륭합니다. 고음 부분 안정감이 더 필요해요.', assignedBy: 't2' },
+  { id: 'asgn004', title: '장면 연기 녹화', description: '2인 장면 연기 녹화본 제출', dueDate: tomorrow + 'T23:59:00', studentId: 's2', studentName: '이연기', status: 'pending', assignedBy: 't1' },
 ];
 
 // ── Diet ──

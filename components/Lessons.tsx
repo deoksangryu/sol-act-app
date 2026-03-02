@@ -69,6 +69,11 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
 
+  // Journal overview (teacher/director - all journals)
+  const [isJournalOverviewOpen, setIsJournalOverviewOpen] = useState(false);
+  const [allJournals, setAllJournals] = useState<LessonJournal[]>([]);
+  const [journalFilterStudent, setJournalFilterStudent] = useState('');
+
   const isStudent = user.role === UserRole.STUDENT;
   const isStaff = !isStudent;
 
@@ -410,6 +415,18 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
     }
   };
 
+  const handleOpenJournalOverview = async () => {
+    setIsJournalOverviewOpen(true);
+    try {
+      const data = await journalApi.list();
+      setAllJournals(data);
+      setJournalFilterStudent('');
+    } catch (err) {
+      console.error('Failed to load journals:', err);
+      toast.error('수업일지 로드에 실패했습니다.');
+    }
+  };
+
   const statusLabel = (s: AttendanceRecord['status']) => {
     switch(s) {
       case 'present': return '출석';
@@ -479,13 +496,22 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               </button>
             )}
             {isStaff && (
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-brand-50 hover:text-brand-500 hover:border-brand-200 transition-colors shadow-sm"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                <span className="font-bold">수업 등록</span>
-              </button>
+              <>
+                <button
+                  onClick={handleOpenJournalOverview}
+                  className="text-xs flex items-center gap-1 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg hover:bg-blue-100 text-blue-600 font-bold transition-colors shadow-sm"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  <span>전체 수업일지</span>
+                </button>
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-brand-50 hover:text-brand-500 hover:border-brand-200 transition-colors shadow-sm"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  <span className="font-bold">수업 등록</span>
+                </button>
+              </>
             )}
           </div>
         </div>
@@ -1098,6 +1124,110 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               >
                 신청하기
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Journal Overview Modal (Teacher/Director - All Journals) */}
+      {isJournalOverviewOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl relative max-h-[80vh] flex flex-col">
+            <button
+              onClick={() => { setIsJournalOverviewOpen(false); setJournalFilterStudent(''); }}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+
+            <h3 className="text-xl font-bold text-slate-800 mb-1">전체 수업일지</h3>
+            <p className="text-xs text-slate-500 mb-4">모든 수업의 일지를 확인합니다.</p>
+
+            {/* Student Filter */}
+            <div className="mb-4">
+              <label className="text-xs font-bold text-slate-600 block mb-2">학생 필터</label>
+              <select
+                value={journalFilterStudent}
+                onChange={e => setJournalFilterStudent(e.target.value)}
+                className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400"
+              >
+                <option value="">모든 학생</option>
+                {Array.from(new Set(allJournals.map(j => j.authorName)))
+                  .sort()
+                  .map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+              </select>
+            </div>
+
+            {/* Journal List */}
+            <div className="flex-1 overflow-y-auto space-y-3">
+              {allJournals
+                .filter(j => !journalFilterStudent || j.authorName === journalFilterStudent)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                .length > 0 ? (
+                allJournals
+                  .filter(j => !journalFilterStudent || j.authorName === journalFilterStudent)
+                  .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                  .map(journal => {
+                    const lesson = lessons.find(l => l.id === journal.lessonId);
+                    return (
+                      <div key={journal.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${journal.journalType === 'teacher' ? 'bg-blue-500' : 'bg-green-500'}`}>
+                              {journal.journalType === 'teacher' ? 'T' : 'S'}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-700">{journal.authorName}</p>
+                              <p className="text-[10px] text-slate-400">{new Date(journal.date).toLocaleDateString('ko-KR')}</p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${journal.journalType === 'teacher' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                            {journal.journalType === 'teacher' ? '교사' : '학생'}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-slate-500 mb-2 font-bold">{lesson?.className} {lesson?.subject && SUBJECT_LABELS[lesson.subject]}</p>
+
+                        <div className="bg-slate-50 rounded-lg p-3 mb-3">
+                          <p className="text-xs text-slate-700 line-clamp-3">{journal.content}</p>
+                        </div>
+
+                        {journal.mediaUrls && journal.mediaUrls.length > 0 && (
+                          <div className="flex gap-2 mb-3 flex-wrap">
+                            {journal.mediaUrls.map((url, idx) => {
+                              const mediaType = getMediaType(url);
+                              return (
+                                <a
+                                  key={idx}
+                                  href={url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold border border-blue-200 hover:bg-blue-100 transition-colors"
+                                >
+                                  {mediaType === 'video' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2m10 7l-5-3v6l5-3z" /></svg>}
+                                  {mediaType === 'audio' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v9.28c-. .64-.5 1.22-1.22 1.22-2 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2v5c3.35 0 6-2.57 6-6V3h-3z" /></svg>}
+                                  {mediaType === 'other' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" /></svg>}
+                                  {getFileName(url)}
+                                </a>
+                              );
+                            })}
+                          </div>
+                        )}
+
+                        <div className="text-xs text-slate-500 space-y-1">
+                          {journal.objectives && <p><span className="font-bold">목표:</span> {journal.objectives}</p>}
+                          {journal.nextPlan && <p><span className="font-bold">차기 계획:</span> {journal.nextPlan}</p>}
+                        </div>
+                      </div>
+                    );
+                  })
+              ) : (
+                <div className="text-center text-slate-400 text-sm py-12">
+                  {journalFilterStudent ? `${journalFilterStudent}의 수업일지가 없습니다.` : '수업일지가 없습니다.'}
+                </div>
+              )}
             </div>
           </div>
         </div>
