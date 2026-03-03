@@ -58,7 +58,7 @@ else
     echo -e "  ${GREEN}✓ backend/.env 이미 존재${NC}"
 fi
 
-# ── 6. DB 초기화 + 시드 데이터 ──
+# ── 6. DB 초기화 ──
 echo -e "${GREEN}[6/6] 데이터베이스 초기화...${NC}"
 cd backend
 python3 -c "
@@ -67,22 +67,8 @@ from app.models import *
 Base.metadata.create_all(bind=engine)
 print('  ✓ 테이블 생성 완료')
 "
-
-# 시드 데이터 삽입 (이미 있으면 스킵)
-python3 -c "
-from app.database import SessionLocal
-from app.models.user import User
-db = SessionLocal()
-if db.query(User).count() == 0:
-    db.close()
-    import subprocess
-    subprocess.run(['python3', 'seed_data.py'], check=True)
-    print('  ✓ 시드 데이터 삽입 완료')
-else:
-    db.close()
-    print('  ✓ 데이터 이미 존재 (스킵)')
-"
 cd ..
+echo -e "  ${YELLOW}→ sol-manager.com에서 회원가입하여 사용하세요.${NC}"
 
 echo ""
 echo -e "${YELLOW}╔══════════════════════════════════════╗"
