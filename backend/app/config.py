@@ -1,3 +1,4 @@
+import os
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./sol_act.db"
 
     # JWT Authentication
-    SECRET_KEY: str = "your-super-secret-key-change-this"
+    SECRET_KEY: str = os.environ.get("SECRET_KEY", os.urandom(32).hex())
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 

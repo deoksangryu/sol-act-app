@@ -76,8 +76,8 @@ class TestLessonResponseKeys:
     lessonType, isPrivate, privateStudentIds
     """
 
-    def test_lesson_response_keys(self, client, seed_lesson):
-        resp = client.get("/api/lessons/lsn001")
+    def test_lesson_response_keys(self, client, seed_lesson, teacher_headers):
+        resp = client.get("/api/lessons/lsn001", headers=teacher_headers)
         assert resp.status_code == 200
         data = resp.json()
         expected_keys = {
@@ -154,7 +154,7 @@ class TestAuditionChecklistsField:
         assert cl_resp.status_code == 201
 
         # Fetch audition and verify checklists structure
-        get_resp = client.get(f"/api/auditions/{aud_id}")
+        get_resp = client.get(f"/api/auditions/{aud_id}", headers=student_headers)
         assert get_resp.status_code == 200
         data = get_resp.json()
 
@@ -276,7 +276,7 @@ class TestAllResponsesSnakeCase:
 
     def test_all_responses_snake_case(self, client, seed_class, seed_lesson, teacher_headers, student_headers, director_headers):
         # 1. Lesson
-        lesson_resp = client.get("/api/lessons/lsn001")
+        lesson_resp = client.get("/api/lessons/lsn001", headers=teacher_headers)
         assert lesson_resp.status_code == 200
         assert not _has_camel_case_key(lesson_resp.json()), \
             f"Lesson response contains camelCase keys: {lesson_resp.json()}"

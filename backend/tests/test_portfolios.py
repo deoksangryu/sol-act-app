@@ -37,7 +37,7 @@ def test_create_portfolio(client, student_headers, db):
 # ── LIST / FILTER ────────────────────────────────────────────────────
 def test_list_portfolios(client, student_headers, db):
     _create_portfolio(client, student_headers)
-    res = client.get(BASE)
+    res = client.get(BASE, headers=student_headers)
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
@@ -46,7 +46,7 @@ def test_list_portfolios(client, student_headers, db):
 
 def test_list_filter_by_category(client, student_headers, db):
     _create_portfolio(client, student_headers)
-    res = client.get(BASE, params={"category": "monologue"})
+    res = client.get(BASE, params={"category": "monologue"}, headers=student_headers)
     assert res.status_code == 200
     data = res.json()
     assert len(data) >= 1
@@ -59,7 +59,7 @@ def test_get_portfolio(client, student_headers, db):
     create_res = _create_portfolio(client, student_headers)
     pid = create_res.json()["id"]
 
-    res = client.get(f"{BASE}/{pid}")
+    res = client.get(f"{BASE}/{pid}", headers=student_headers)
     assert res.status_code == 200
     data = res.json()
     assert data["id"] == pid
@@ -198,7 +198,7 @@ def test_response_has_comments_array(client, student_headers, teacher_headers, d
         headers=teacher_headers,
     )
 
-    res = client.get(f"{BASE}/{pid}")
+    res = client.get(f"{BASE}/{pid}", headers=student_headers)
     assert res.status_code == 200
     data = res.json()
     assert "comments" in data

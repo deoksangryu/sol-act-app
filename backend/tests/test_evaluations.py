@@ -50,7 +50,7 @@ def test_create_evaluation_forbidden(client, seed_class, student_headers):
 def test_list_evaluations(client, seed_class, teacher_headers):
     _create_evaluation(client, teacher_headers)
 
-    res = client.get(BASE)
+    res = client.get(BASE, headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
@@ -60,7 +60,7 @@ def test_list_evaluations(client, seed_class, teacher_headers):
 def test_list_filter_by_student(client, seed_class, teacher_headers):
     _create_evaluation(client, teacher_headers)
 
-    res = client.get(BASE, params={"student_id": "s1"})
+    res = client.get(BASE, params={"student_id": "s1"}, headers=teacher_headers)
     assert res.status_code == 200
     for item in res.json():
         assert item["student_id"] == "s1"
@@ -71,7 +71,7 @@ def test_get_evaluation(client, seed_class, teacher_headers):
     create_res = _create_evaluation(client, teacher_headers)
     eval_id = create_res.json()["id"]
 
-    res = client.get(f"{BASE}/{eval_id}")
+    res = client.get(f"{BASE}/{eval_id}", headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
     scores = data["scores"]
@@ -117,7 +117,7 @@ def test_delete_evaluation(client, seed_class, teacher_headers, db):
 def test_student_report(client, seed_class, teacher_headers):
     _create_evaluation(client, teacher_headers)
 
-    res = client.get(f"{BASE}/report/s1")
+    res = client.get(f"{BASE}/report/s1", headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
     assert data["student_id"] == "s1"

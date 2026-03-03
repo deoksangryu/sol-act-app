@@ -45,7 +45,8 @@ def list_evaluations(
     class_id: Optional[str] = Query(None),
     subject: Optional[str] = Query(None),
     period: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Evaluation).options(
         joinedload(Evaluation.student),
@@ -110,7 +111,7 @@ def get_student_report(student_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{evaluation_id}", response_model=EvaluationResponse)
-def get_evaluation(evaluation_id: str, db: Session = Depends(get_db)):
+def get_evaluation(evaluation_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     e = (
         db.query(Evaluation)
         .options(joinedload(Evaluation.student), joinedload(Evaluation.evaluator), joinedload(Evaluation.class_info))

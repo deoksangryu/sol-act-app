@@ -36,18 +36,18 @@ def test_create_audition(client, student_headers, db):
 
 
 # ── LIST / FILTER ────────────────────────────────────────────────────
-def test_list_auditions(client, student_headers, db):
+def test_list_auditions(client, student_headers, teacher_headers, db):
     _create_audition(client, student_headers)
-    res = client.get(BASE)
+    res = client.get(BASE, headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
     assert len(data) >= 1
 
 
-def test_list_filter_by_status(client, student_headers, db):
+def test_list_filter_by_status(client, student_headers, teacher_headers, db):
     _create_audition(client, student_headers)
-    res = client.get(BASE, params={"status": "upcoming"})
+    res = client.get(BASE, params={"status": "upcoming"}, headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
     assert len(data) >= 1
@@ -56,11 +56,11 @@ def test_list_filter_by_status(client, student_headers, db):
 
 
 # ── GET single ───────────────────────────────────────────────────────
-def test_get_audition(client, student_headers, db):
+def test_get_audition(client, student_headers, teacher_headers, db):
     create_res = _create_audition(client, student_headers)
     aid = create_res.json()["id"]
 
-    res = client.get(f"{BASE}/{aid}")
+    res = client.get(f"{BASE}/{aid}", headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
     assert data["id"] == aid
@@ -178,7 +178,7 @@ def test_delete_audition(client, student_headers, db):
 
 
 # ── CHECKLIST FIELD NAMES (CRITICAL) ─────────────────────────────────
-def test_checklist_field_names(client, student_headers, db):
+def test_checklist_field_names(client, student_headers, teacher_headers, db):
     """Verify the response uses 'checklists' (plural) and items have
     'content' and 'is_checked' -- NOT 'checklist', 'text', or 'completed'."""
     create_res = _create_audition(client, student_headers)
@@ -190,7 +190,7 @@ def test_checklist_field_names(client, student_headers, db):
         headers=student_headers,
     )
 
-    res = client.get(f"{BASE}/{aid}")
+    res = client.get(f"{BASE}/{aid}", headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
 

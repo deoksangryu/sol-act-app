@@ -47,7 +47,8 @@ def portfolio_to_response(p: Portfolio) -> dict:
 @router.get("/practice-groups")
 def list_practice_groups(
     student_id: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Get portfolios grouped by practice_group for timeline view."""
     query = db.query(Portfolio).options(
@@ -71,7 +72,8 @@ def list_practice_groups(
 def list_portfolios(
     student_id: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Portfolio).options(
         joinedload(Portfolio.student),
@@ -90,7 +92,7 @@ def list_portfolios(
 
 
 @router.get("/{portfolio_id}", response_model=PortfolioResponse)
-def get_portfolio(portfolio_id: str, db: Session = Depends(get_db)):
+def get_portfolio(portfolio_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     p = (
         db.query(Portfolio)
         .options(

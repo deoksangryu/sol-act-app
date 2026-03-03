@@ -47,7 +47,8 @@ def list_auditions(
     class_id: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
     type_filter: Optional[str] = Query(None, alias="type"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Audition).options(
         joinedload(Audition.creator), joinedload(Audition.checklists)
@@ -73,7 +74,7 @@ def list_auditions(
 
 
 @router.get("/{audition_id}", response_model=AuditionResponse)
-def get_audition(audition_id: str, db: Session = Depends(get_db)):
+def get_audition(audition_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     a = (
         db.query(Audition)
         .options(joinedload(Audition.creator), joinedload(Audition.checklists))

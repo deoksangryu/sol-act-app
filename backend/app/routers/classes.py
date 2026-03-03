@@ -28,7 +28,8 @@ def class_to_response(cls: ClassInfo) -> dict:
 def list_classes(
     teacher_id: Optional[str] = Query(None),
     student_id: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(ClassInfo)
     if student_id:
@@ -40,7 +41,7 @@ def list_classes(
 
 
 @router.get("/{class_id}", response_model=ClassInfoResponse)
-def get_class(class_id: str, db: Session = Depends(get_db)):
+def get_class(class_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     cls = db.query(ClassInfo).filter(ClassInfo.id == class_id).first()
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")

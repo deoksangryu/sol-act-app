@@ -44,7 +44,8 @@ def list_lessons(
     date_from: Optional[date] = Query(None),
     date_to: Optional[date] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Lesson).options(
         joinedload(Lesson.class_info),
@@ -69,7 +70,7 @@ def list_lessons(
 
 
 @router.get("/{lesson_id}", response_model=LessonResponse)
-def get_lesson(lesson_id: str, db: Session = Depends(get_db)):
+def get_lesson(lesson_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     l = db.query(Lesson).options(
         joinedload(Lesson.class_info),
         joinedload(Lesson.teacher)
