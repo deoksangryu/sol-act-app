@@ -42,6 +42,67 @@
     .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; }
     .tab-inactive { border-bottom: 2px solid transparent; color: #94a3b8; }
     .tab-inactive:hover { color: #cbd5e1; }
+
+    /* Slideshow styles */
+    .slideshow-overlay {
+      position: fixed; inset: 0; z-index: 100;
+      background: #0f172a;
+      display: none; opacity: 0;
+      transition: opacity 0.6s ease;
+    }
+    .slideshow-overlay.active { display: flex; opacity: 1; }
+    .slideshow-overlay.fade-out { opacity: 0; }
+
+    .slideshow-slide {
+      width: 100%; height: 100%;
+      display: none; opacity: 0;
+      transition: opacity 0.5s ease;
+      align-items: center; justify-content: center;
+      flex-direction: column; padding: 3rem;
+    }
+    .slideshow-slide.visible { display: flex; opacity: 1; }
+
+    .auto-badge {
+      position: fixed; top: 12px; right: 12px; z-index: 110;
+      background: #0ea5e9; color: #fff;
+      font-size: 11px; font-weight: 700;
+      padding: 3px 10px; border-radius: 4px;
+      letter-spacing: 1px;
+      display: none; opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .auto-badge.visible { display: block; opacity: 1; }
+
+    .ss-stat-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 2rem; width: 100%; max-width: 900px;
+    }
+    @media (min-width: 1024px) { .ss-stat-grid { grid-template-columns: repeat(4, 1fr); } }
+    .ss-stat-card {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 12px; padding: 2.5rem; text-align: center;
+    }
+    .ss-stat-label { font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.5rem; }
+    .ss-stat-value { font-size: 3.5rem; font-weight: 800; line-height: 1.1; }
+
+    .ss-feed-list { width: 100%; max-width: 800px; }
+    .ss-feed-item {
+      opacity: 0; transform: translateY(12px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      padding: 0.75rem 1rem; border-bottom: 1px solid #1e293b;
+    }
+    .ss-feed-item.shown { opacity: 1; transform: translateY(0); }
+
+    .ss-student-card {
+      background: #1e293b; border: 1px solid #334155;
+      border-radius: 16px; padding: 3rem; text-align: center;
+      width: 100%; max-width: 700px;
+    }
+    .ss-student-name { font-size: 2.5rem; font-weight: 800; color: #f1f5f9; margin-bottom: 1.5rem; }
+    .ss-student-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+    .ss-meta-item { background: #0f172a; border-radius: 8px; padding: 1.25rem; }
+    .ss-meta-label { font-size: 0.75rem; color: #64748b; margin-bottom: 0.25rem; }
+    .ss-meta-value { font-size: 1.75rem; font-weight: 700; }
   </style>
 </head>
 <body class="min-h-screen">
@@ -155,6 +216,28 @@
     SOL-ACT Admin Dashboard &mdash; Local Access Only &mdash; localhost:8000
   </footer>
 
+  <!-- Slideshow AUTO badge -->
+  <div id="autoBadge" class="auto-badge">AUTO</div>
+
+  <!-- Slideshow Overlay -->
+  <div id="slideshowOverlay" class="slideshow-overlay">
+    <!-- Slide 0: Stats Overview -->
+    <div id="ssSlide0" class="slideshow-slide">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8">학원 전체 통계</h2>
+      <div class="ss-stat-grid" id="ssStatsGrid"></div>
+    </div>
+    <!-- Slide 1: Activity Feed -->
+    <div id="ssSlide1" class="slideshow-slide">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8">실시간 활동 피드</h2>
+      <div class="ss-feed-list" id="ssFeedList"></div>
+    </div>
+    <!-- Slide 2: Student Spotlight -->
+    <div id="ssSlide2" class="slideshow-slide">
+      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8">학생 스포트라이트</h2>
+      <div class="ss-student-card" id="ssStudentCard"></div>
+    </div>
+  </div>
+
   <script>
     // ========================================================================
     // Configuration
@@ -172,6 +255,11 @@
       activity: [],
       expandedStudent: null,
       studentDetails: {}, // cache: { [studentId]: detailData }
+      slideshowActive: false,
+      slideshowStep: 0,
+      idleTimer: null,
+      slideshowTimer: null,
+      studentSpotlightIndex: 0,
     };
 
     // ========================================================================
@@ -642,11 +730,185 @@
     }
 
     // ========================================================================
+    // Slideshow / Idle Detection
+    // ========================================================================
+    const IDLE_TIMEOUT = 30000;   // 30 seconds
+    const SLIDE_INTERVAL = 8000;  // 8 seconds per slide
+    const TOTAL_SLIDES = 3;
+
+    function resetIdle() {
+      clearTimeout(state.idleTimer);
+      if (state.slideshowActive) stopSlideshow();
+      state.idleTimer = setTimeout(startSlideshow, IDLE_TIMEOUT);
+    }
+
+    function startSlideshow() {
+      if (state.slideshowActive) return;
+      state.slideshowActive = true;
+      state.slideshowStep = 0;
+
+      const overlay = document.getElementById('slideshowOverlay');
+      const badge = document.getElementById('autoBadge');
+
+      overlay.classList.add('active');
+      badge.classList.add('visible');
+
+      showSlide(0);
+
+      state.slideshowTimer = setInterval(() => {
+        state.slideshowStep = (state.slideshowStep + 1) % TOTAL_SLIDES;
+        showSlide(state.slideshowStep);
+      }, SLIDE_INTERVAL);
+    }
+
+    function stopSlideshow() {
+      state.slideshowActive = false;
+      clearInterval(state.slideshowTimer);
+      state.slideshowTimer = null;
+
+      const overlay = document.getElementById('slideshowOverlay');
+      const badge = document.getElementById('autoBadge');
+
+      overlay.classList.add('fade-out');
+      badge.classList.remove('visible');
+
+      setTimeout(() => {
+        overlay.classList.remove('active', 'fade-out');
+        // Hide all slides
+        for (let i = 0; i < TOTAL_SLIDES; i++) {
+          document.getElementById('ssSlide' + i).classList.remove('visible');
+        }
+      }, 600);
+    }
+
+    function showSlide(index) {
+      // Hide all slides first
+      for (let i = 0; i < TOTAL_SLIDES; i++) {
+        document.getElementById('ssSlide' + i).classList.remove('visible');
+      }
+
+      // Populate the target slide
+      if (index === 0) populateSSStats();
+      else if (index === 1) populateSSFeed();
+      else if (index === 2) populateSSStudent();
+
+      // Show with a slight delay for fade effect
+      setTimeout(() => {
+        document.getElementById('ssSlide' + index).classList.add('visible');
+      }, 50);
+    }
+
+    function populateSSStats() {
+      const s = state.stats;
+      if (!s) return;
+      const items = [
+        { label: '학생 수', value: s.students ?? '--', color: 'color:#38bdf8' },
+        { label: '강사 수', value: s.teachers ?? '--', color: 'color:#a78bfa' },
+        { label: '전체 수업', value: s.lessons_total ?? '--', color: 'color:#4ade80' },
+        { label: '미완료 과제', value: s.assignments_pending ?? '--', color: 'color:#fbbf24' },
+        { label: '제출 과제', value: s.assignments_submitted ?? '--', color: 'color:#38bdf8' },
+        { label: '채점 완료', value: s.assignments_graded ?? '--', color: 'color:#4ade80' },
+        { label: '포트폴리오', value: s.portfolios ?? '--', color: 'color:#f472b6' },
+        { label: '원장', value: s.directors ?? '--', color: 'color:#fbbf24' },
+      ];
+      document.getElementById('ssStatsGrid').innerHTML = items.map(it => `
+        <div class="ss-stat-card">
+          <div class="ss-stat-label">${it.label}</div>
+          <div class="ss-stat-value" style="${it.color}">${it.value}</div>
+        </div>
+      `).join('');
+    }
+
+    function populateSSFeed() {
+      const items = (state.activity || []).slice(0, 10);
+      const list = document.getElementById('ssFeedList');
+      if (items.length === 0) {
+        list.innerHTML = '<div class="text-slate-500 text-center py-8">활동 내역이 없습니다</div>';
+        return;
+      }
+      list.innerHTML = items.map((item, idx) => {
+        const [icon, iconColor] = activityIcon(item.type);
+        return `
+          <div class="ss-feed-item" style="transition-delay:${idx * 0.15}s">
+            <span class="${iconColor}" style="margin-right:8px">${icon}</span>
+            <span class="text-sm text-slate-300">${item.text}</span>
+            <span class="text-xs text-slate-500 float-right">${timeAgo(item.time)}</span>
+          </div>
+        `;
+      }).join('');
+      // Trigger staggered appearance
+      requestAnimationFrame(() => {
+        list.querySelectorAll('.ss-feed-item').forEach(el => el.classList.add('shown'));
+      });
+    }
+
+    function populateSSStudent() {
+      const students = state.students || [];
+      if (students.length === 0) {
+        document.getElementById('ssStudentCard').innerHTML =
+          '<div class="text-slate-500 py-8">학생 데이터 없음</div>';
+        return;
+      }
+      const idx = state.studentSpotlightIndex % students.length;
+      const s = students[idx];
+      state.studentSpotlightIndex = idx + 1;
+
+      const pending = s.assignments?.pending ?? 0;
+      const submitted = s.assignments?.submitted ?? 0;
+      const graded = s.assignments?.graded ?? 0;
+      const rate = s.attendance_rate;
+      const ptfs = s.portfolio_count ?? 0;
+      const classes = (s.classes || []).join(', ') || '-';
+
+      document.getElementById('ssStudentCard').innerHTML = `
+        <div class="ss-student-name">${esc(s.name)}</div>
+        <div class="text-sm text-slate-400 mb-6">${esc(s.email)} &middot; ${classes}</div>
+        <div class="ss-student-meta">
+          <div class="ss-meta-item">
+            <div class="ss-meta-label">대기 과제</div>
+            <div class="ss-meta-value" style="color:#fbbf24">${pending}</div>
+          </div>
+          <div class="ss-meta-item">
+            <div class="ss-meta-label">제출 과제</div>
+            <div class="ss-meta-value" style="color:#38bdf8">${submitted}</div>
+          </div>
+          <div class="ss-meta-item">
+            <div class="ss-meta-label">채점 완료</div>
+            <div class="ss-meta-value" style="color:#4ade80">${graded}</div>
+          </div>
+          <div class="ss-meta-item">
+            <div class="ss-meta-label">출석률</div>
+            <div class="ss-meta-value" style="color:${typeof rate === 'number' ? (rate >= 80 ? '#4ade80' : rate >= 60 ? '#fbbf24' : '#f87171') : '#64748b'}">
+              ${typeof rate === 'number' ? rate + '%' : '--'}
+            </div>
+          </div>
+          <div class="ss-meta-item">
+            <div class="ss-meta-label">포트폴리오</div>
+            <div class="ss-meta-value" style="color:#f472b6">${ptfs}</div>
+          </div>
+          <div class="ss-meta-item">
+            <div class="ss-meta-label">반</div>
+            <div class="ss-meta-value text-lg" style="color:#94a3b8">${classes}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function initIdleTracking() {
+      document.addEventListener('mousemove', resetIdle);
+      document.addEventListener('keydown', resetIdle);
+      document.addEventListener('click', resetIdle);
+      // Start the first idle timer
+      state.idleTimer = setTimeout(startSlideshow, IDLE_TIMEOUT);
+    }
+
+    // ========================================================================
     // Initialization
     // ========================================================================
     function init() {
       refreshAll();
       startAutoRefresh();
+      initIdleTracking();
     }
 
     // Start the app
