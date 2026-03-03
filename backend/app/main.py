@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from app.config import settings
 from app.database import engine, Base
 
@@ -65,6 +66,12 @@ app.include_router(upload.router, prefix="/api", tags=["Upload"])
 import os
 os.makedirs("backend/uploads", exist_ok=True)
 app.mount("/uploads", StaticFiles(directory="backend/uploads"), name="uploads")
+
+
+# Admin dashboard (local access only)
+@app.get("/admin")
+def admin_dashboard():
+    return FileResponse("static/admin.html")
 
 
 # Root endpoint
