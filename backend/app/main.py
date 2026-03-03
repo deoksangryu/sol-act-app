@@ -21,7 +21,8 @@ app = FastAPI(
     description="Acting academy management platform with AI-powered feedback",
     version=settings.VERSION,
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    redirect_slashes=False
 )
 
 # CORS 미들웨어 설정
