@@ -12,11 +12,11 @@ interface LessonsProps {
 }
 
 // Helper: determine media type from URL extension
-function getMediaType(url: string): 'video' | 'audio' | 'other' {
+function getMediaType(url: string): 'video' | 'audio' | 'image' | 'other' {
   const lower = url.toLowerCase();
   if (/\.(mp4|mov|webm)$/.test(lower)) return 'video';
   if (/\.(mp3|wav|m4a|ogg)$/.test(lower)) return 'audio';
-  // .webm without video context — check if it looks like audio (heuristic: already handled above as video)
+  if (/\.(jpg|jpeg|png|gif|webp|heic)$/.test(lower)) return 'image';
   return 'other';
 }
 
@@ -750,6 +750,17 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                                 />
                               );
                             }
+                            if (mediaType === 'image') {
+                              return (
+                                <img
+                                  key={idx}
+                                  src={API_URL + url}
+                                  alt="수업일지 첨부 이미지"
+                                  className="w-full rounded-lg mt-2 border border-slate-200 cursor-pointer hover:opacity-90"
+                                  onClick={() => window.open(API_URL + url, '_blank')}
+                                />
+                              );
+                            }
                             // Other file types: download link
                             return (
                               <a
@@ -814,7 +825,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                       <input
                         ref={journalFileInputRef}
                         type="file"
-                        accept="video/*,audio/*,.pdf,.doc,.docx,.jpg,.jpeg,.png"
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx"
                         onChange={handleJournalFileSelect}
                         className="hidden"
                       />
@@ -839,7 +850,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                             <svg className="w-4 h-4 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                             </svg>
-                            <span className="font-bold">녹음/녹화 첨부</span>
+                            <span className="font-bold">파일 첨부 (사진/영상/음성)</span>
                           </>
                         )}
                       </button>
@@ -860,6 +871,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                                 )}
                                 {mediaType === 'audio' && (
                                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                                )}
+                                {mediaType === 'image' && (
+                                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                                 )}
                                 {mediaType === 'other' && (
                                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
