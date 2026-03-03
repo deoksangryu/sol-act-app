@@ -38,7 +38,6 @@
     .status-pending { color: #fbbf24; }
     .status-submitted { color: #38bdf8; }
     .status-graded { color: #4ade80; }
-    .login-overlay { backdrop-filter: blur(8px); }
     table { border-collapse: separate; border-spacing: 0; }
     .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; }
     .tab-inactive { border-bottom: 2px solid transparent; color: #94a3b8; }
@@ -47,37 +46,13 @@
 </head>
 <body class="min-h-screen">
 
-  <!-- Login Overlay -->
-  <div id="loginOverlay" class="fixed inset-0 z-50 flex items-center justify-center login-overlay bg-slate-900/90" style="display:none;">
-    <div class="bg-slate-800 border border-slate-700 rounded-lg p-8 w-full max-w-md shadow-2xl">
-      <h2 class="text-xl font-bold text-slate-100 mb-1">SOL-ACT 관리자 로그인</h2>
-      <p class="text-sm text-slate-400 mb-6">로컬 전용 관리 도구 (localhost:8000)</p>
-      <div id="loginError" class="hidden mb-4 p-3 bg-red-900/50 border border-red-700 rounded text-red-300 text-sm"></div>
-      <form id="loginForm" onsubmit="handleLogin(event)">
-        <label class="block text-sm text-slate-400 mb-1">이메일</label>
-        <input id="loginEmail" type="email" required
-          class="w-full mb-4 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-slate-200 text-sm focus:outline-none focus:border-sky-500"
-          placeholder="admin@solact.com">
-        <label class="block text-sm text-slate-400 mb-1">비밀번호</label>
-        <input id="loginPassword" type="password" required
-          class="w-full mb-6 px-3 py-2 bg-slate-900 border border-slate-600 rounded text-slate-200 text-sm focus:outline-none focus:border-sky-500"
-          placeholder="********">
-        <button type="submit" id="loginBtn"
-          class="w-full py-2 bg-sky-600 hover:bg-sky-500 text-white rounded text-sm font-semibold transition-colors">
-          로그인
-        </button>
-      </form>
-      <p class="text-xs text-slate-500 mt-4 text-center">원장(Director) 계정으로 로그인하세요</p>
-    </div>
-  </div>
-
   <!-- Top Bar -->
   <header class="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-700 backdrop-blur">
     <div class="max-w-[1920px] mx-auto px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></div>
         <h1 class="text-lg font-bold text-slate-100 tracking-tight">SOL-ACT 관리자 대시보드</h1>
-        <span id="userBadge" class="hidden text-xs px-2 py-0.5 rounded bg-sky-900 text-sky-300 border border-sky-700"></span>
+        <span class="text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300 border border-emerald-700">No-Auth Mode</span>
       </div>
       <div class="flex items-center gap-4">
         <span id="lastRefresh" class="text-xs text-slate-500">--</span>
@@ -89,10 +64,6 @@
           </svg>
           새로고침
         </button>
-        <button onclick="handleLogout()"
-          class="px-3 py-1.5 bg-slate-800 hover:bg-red-900/50 border border-slate-600 hover:border-red-700 rounded text-xs text-slate-400 hover:text-red-300 transition-colors">
-          로그아웃
-        </button>
       </div>
     </div>
   </header>
@@ -103,7 +74,7 @@
     <!-- Section 1: Summary Stats -->
     <section>
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">학원 전체 통계</h2>
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
         <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
           <div class="text-xs text-slate-500 mb-1">학생 수</div>
           <div id="statStudents" class="text-2xl font-bold text-sky-400">--</div>
@@ -117,12 +88,16 @@
           <div id="statDirectors" class="text-2xl font-bold text-amber-400">--</div>
         </div>
         <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div class="text-xs text-slate-500 mb-1">이번주 수업</div>
+          <div class="text-xs text-slate-500 mb-1">전체 수업</div>
           <div id="statLessons" class="text-2xl font-bold text-emerald-400">--</div>
         </div>
         <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
           <div class="text-xs text-slate-500 mb-1">미완료 과제</div>
           <div id="statPending" class="text-2xl font-bold text-yellow-400">--</div>
+        </div>
+        <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
+          <div class="text-xs text-slate-500 mb-1">제출 과제</div>
+          <div id="statSubmitted" class="text-2xl font-bold text-sky-300">--</div>
         </div>
         <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
           <div class="text-xs text-slate-500 mb-1">포트폴리오</div>
@@ -184,7 +159,7 @@
     // ========================================================================
     // Configuration
     // ========================================================================
-    const API_BASE = 'http://localhost:8000';
+    const BASE_URL = '';
     const REFRESH_INTERVAL = 30000; // 30 seconds
     let refreshTimer = null;
 
@@ -192,112 +167,19 @@
     // State
     // ========================================================================
     let state = {
-      token: localStorage.getItem('admin_token') || null,
-      currentUser: null,
-      users: [],
+      stats: null,
       students: [],
-      teachers: [],
-      directors: [],
-      assignments: [],
-      lessons: [],
-      journals: [],
-      portfolios: [],
-      attendance: [],
-      attendanceStats: [],
-      evaluations: [],
-      dietLogs: [],
-      classes: [],
+      activity: [],
       expandedStudent: null,
+      studentDetails: {}, // cache: { [studentId]: detailData }
     };
 
     // ========================================================================
-    // Auth
+    // API Helpers (no auth)
     // ========================================================================
-    function checkAuth() {
-      if (!state.token) {
-        showLogin();
-        return false;
-      }
-      hideLogin();
-      return true;
-    }
-
-    function showLogin() {
-      document.getElementById('loginOverlay').style.display = 'flex';
-    }
-
-    function hideLogin() {
-      document.getElementById('loginOverlay').style.display = 'none';
-    }
-
-    async function handleLogin(e) {
-      e.preventDefault();
-      const email = document.getElementById('loginEmail').value;
-      const password = document.getElementById('loginPassword').value;
-      const errDiv = document.getElementById('loginError');
-      const btn = document.getElementById('loginBtn');
-
-      errDiv.classList.add('hidden');
-      btn.textContent = '로그인 중...';
-      btn.disabled = true;
-
+    async function apiFetch(path) {
       try {
-        const res = await fetch(`${API_BASE}/api/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.detail || '로그인 실패');
-        }
-        const data = await res.json();
-        state.token = data.access_token;
-        state.currentUser = data.user;
-        localStorage.setItem('admin_token', data.access_token);
-
-        const badge = document.getElementById('userBadge');
-        badge.textContent = `${data.user.name} (${data.user.role})`;
-        badge.classList.remove('hidden');
-
-        hideLogin();
-        refreshAll();
-      } catch (err) {
-        errDiv.textContent = err.message;
-        errDiv.classList.remove('hidden');
-      } finally {
-        btn.textContent = '로그인';
-        btn.disabled = false;
-      }
-    }
-
-    function handleLogout() {
-      state.token = null;
-      state.currentUser = null;
-      localStorage.removeItem('admin_token');
-      document.getElementById('userBadge').classList.add('hidden');
-      showLogin();
-      if (refreshTimer) clearInterval(refreshTimer);
-    }
-
-    // ========================================================================
-    // API Helpers
-    // ========================================================================
-    async function apiFetch(path, options = {}) {
-      const headers = {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',
-        ...(options.headers || {}),
-      };
-      if (state.token) {
-        headers['Authorization'] = `Bearer ${state.token}`;
-      }
-      try {
-        const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
-        if (res.status === 401) {
-          handleLogout();
-          throw new Error('인증이 만료되었습니다. 다시 로그인하세요.');
-        }
+        const res = await fetch(`${BASE_URL}${path}`);
         if (!res.ok) throw new Error(`API error ${res.status}`);
         return await res.json();
       } catch (err) {
@@ -310,56 +192,38 @@
     // Data Fetching
     // ========================================================================
     async function fetchAllData() {
-      const now = new Date();
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - now.getDay() + 1);
-      const sunday = new Date(monday);
-      sunday.setDate(monday.getDate() + 6);
-      const dateFrom = monday.toISOString().slice(0, 10);
-      const dateTo = sunday.toISOString().slice(0, 10);
+      const [stats, students, activity] = await Promise.all([
+        apiFetch('/api/admin/stats'),
+        apiFetch('/api/admin/students'),
+        apiFetch('/api/admin/activity'),
+      ]);
 
-      const [users, assignments, lessons, journals, portfolios, attendance, attendanceStats, evaluations, dietLogs, classes] =
-        await Promise.all([
-          apiFetch('/api/users'),
-          apiFetch('/api/assignments'),
-          apiFetch(`/api/lessons?date_from=${dateFrom}&date_to=${dateTo}`),
-          apiFetch('/api/journals'),
-          apiFetch('/api/portfolios'),
-          apiFetch('/api/attendance'),
-          apiFetch('/api/attendance/stats'),
-          apiFetch('/api/evaluations'),
-          apiFetch('/api/diet'),
-          apiFetch('/api/classes'),
-        ]);
+      if (stats) state.stats = stats;
+      if (students) state.students = students;
+      if (activity) state.activity = activity;
+    }
 
-      if (users) {
-        state.users = users;
-        state.students = users.filter(u => u.role === 'student');
-        state.teachers = users.filter(u => u.role === 'teacher');
-        state.directors = users.filter(u => u.role === 'director');
+    async function fetchStudentDetail(studentId) {
+      const data = await apiFetch(`/api/admin/students/${studentId}`);
+      if (data) {
+        state.studentDetails[studentId] = data;
       }
-      if (assignments) state.assignments = assignments;
-      if (lessons) state.lessons = lessons;
-      if (journals) state.journals = journals;
-      if (portfolios) state.portfolios = portfolios;
-      if (attendance) state.attendance = attendance;
-      if (attendanceStats) state.attendanceStats = attendanceStats;
-      if (evaluations) state.evaluations = evaluations;
-      if (dietLogs) state.dietLogs = dietLogs;
-      if (classes) state.classes = classes;
+      return data;
     }
 
     // ========================================================================
     // Rendering
     // ========================================================================
     function renderStats() {
-      document.getElementById('statStudents').textContent = state.students.length;
-      document.getElementById('statTeachers').textContent = state.teachers.length;
-      document.getElementById('statDirectors').textContent = state.directors.length;
-      document.getElementById('statLessons').textContent = state.lessons.length;
-      const pending = state.assignments.filter(a => a.status === 'pending' || a.status === 'submitted');
-      document.getElementById('statPending').textContent = pending.length;
-      document.getElementById('statPortfolios').textContent = state.portfolios.length;
+      if (!state.stats) return;
+      const s = state.stats;
+      document.getElementById('statStudents').textContent = s.students ?? '--';
+      document.getElementById('statTeachers').textContent = s.teachers ?? '--';
+      document.getElementById('statDirectors').textContent = s.directors ?? '--';
+      document.getElementById('statLessons').textContent = s.lessons_total ?? '--';
+      document.getElementById('statPending').textContent = s.assignments_pending ?? '--';
+      document.getElementById('statSubmitted').textContent = s.assignments_submitted ?? '--';
+      document.getElementById('statPortfolios').textContent = s.portfolios ?? '--';
     }
 
     function timeAgo(dateStr) {
@@ -389,102 +253,53 @@
       return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
     }
 
-    function getUserName(userId) {
-      const u = state.users.find(u => u.id === userId);
-      return u ? u.name : userId || '알 수 없음';
-    }
-
-    function getStudentClasses(studentId) {
-      return state.classes
-        .filter(c => c.student_ids && c.student_ids.includes(studentId))
-        .map(c => c.name);
+    function activityIcon(type) {
+      const icons = {
+        'assignment-submit': ['&#9997;', 'text-sky-400'],
+        'assignment-grade': ['&#10003;', 'text-emerald-400'],
+        'assignment-new': ['&#43;', 'text-yellow-400'],
+        'journal': ['&#128221;', 'text-violet-400'],
+        'portfolio': ['&#127909;', 'text-pink-400'],
+        'attendance': ['&#128203;', 'text-emerald-400'],
+        'diet': ['&#127860;', 'text-amber-400'],
+        'evaluation': ['&#128200;', 'text-cyan-400'],
+      };
+      return icons[type] || ['&#8226;', 'text-slate-400'];
     }
 
     function renderActivityFeed() {
       const feed = document.getElementById('activityFeed');
-      const items = [];
-
-      // Assignments activity
-      for (const a of state.assignments) {
-        if (a.status === 'submitted') {
-          items.push({
-            time: a.updated_at || a.created_at,
-            icon: '&#9997;',
-            iconColor: 'text-sky-400',
-            text: `<span class="text-sky-300">${a.student_name || getUserName(a.student_id)}</span>님이 과제 '<span class="text-slate-200">${esc(a.title)}</span>'을 제출했습니다`,
-            type: 'assignment-submit',
-          });
-        }
-        if (a.status === 'graded') {
-          items.push({
-            time: a.updated_at || a.created_at,
-            icon: '&#10003;',
-            iconColor: 'text-emerald-400',
-            text: `과제 '<span class="text-slate-200">${esc(a.title)}</span>' (<span class="text-sky-300">${a.student_name || getUserName(a.student_id)}</span>) 채점 완료 [${esc(a.grade || '-')}]`,
-            type: 'assignment-grade',
-          });
-        }
-        if (a.status === 'pending') {
-          items.push({
-            time: a.created_at,
-            icon: '&#43;',
-            iconColor: 'text-yellow-400',
-            text: `<span class="text-sky-300">${a.student_name || getUserName(a.student_id)}</span>님에게 과제 '<span class="text-slate-200">${esc(a.title)}</span>' 배정됨`,
-            type: 'assignment-new',
-          });
-        }
-      }
-
-      // Journals activity
-      for (const j of state.journals) {
-        items.push({
-          time: j.created_at,
-          icon: '&#128221;',
-          iconColor: 'text-violet-400',
-          text: `<span class="text-violet-300">${j.author_name || getUserName(j.author_id)}</span>님이 수업일지를 작성했습니다 (${j.journal_type || ''})`,
-          type: 'journal',
-        });
-      }
-
-      // Portfolios activity
-      for (const p of state.portfolios) {
-        items.push({
-          time: p.created_at,
-          icon: '&#127909;',
-          iconColor: 'text-pink-400',
-          text: `<span class="text-pink-300">${p.student_name || getUserName(p.student_id)}</span>님이 포트폴리오 '<span class="text-slate-200">${esc(p.title)}</span>'을 업로드했습니다`,
-          type: 'portfolio',
-        });
-      }
-
-      // Sort newest first
-      items.sort((a, b) => new Date(b.time) - new Date(a.time));
+      const items = state.activity || [];
 
       if (items.length === 0) {
         feed.innerHTML = '<div class="text-sm text-slate-500 text-center py-8">활동 내역이 없습니다</div>';
         return;
       }
 
-      // Only show latest 50
-      const display = items.slice(0, 50);
-      feed.innerHTML = display.map(item => `
-        <div class="feed-item flex items-start gap-3 py-2 px-2 rounded hover:bg-slate-700/50">
-          <span class="flex-shrink-0 w-5 text-center ${item.iconColor}">${item.icon}</span>
-          <div class="flex-1 min-w-0">
-            <div class="text-xs text-slate-300 leading-relaxed">${item.text}</div>
+      feed.innerHTML = items.map(item => {
+        const [icon, iconColor] = activityIcon(item.type);
+        return `
+          <div class="feed-item flex items-start gap-3 py-2 px-2 rounded hover:bg-slate-700/50">
+            <span class="flex-shrink-0 w-5 text-center ${iconColor}">${icon}</span>
+            <div class="flex-1 min-w-0">
+              <div class="text-xs text-slate-300 leading-relaxed">${item.text}</div>
+            </div>
+            <span class="flex-shrink-0 text-xs text-slate-500 whitespace-nowrap">${timeAgo(item.time)}</span>
           </div>
-          <span class="flex-shrink-0 text-xs text-slate-500 whitespace-nowrap">${timeAgo(item.time)}</span>
-        </div>
-      `).join('');
+        `;
+      }).join('');
     }
 
     function renderStudentTable() {
       const tbody = document.getElementById('studentTableBody');
       const search = (document.getElementById('studentSearch').value || '').toLowerCase();
 
-      let students = state.students;
+      let students = state.students || [];
       if (search) {
-        students = students.filter(s => s.name.toLowerCase().includes(search) || s.email.toLowerCase().includes(search));
+        students = students.filter(s =>
+          (s.name || '').toLowerCase().includes(search) ||
+          (s.email || '').toLowerCase().includes(search)
+        );
       }
 
       document.getElementById('studentCount').textContent = `총 ${students.length}명`;
@@ -495,14 +310,12 @@
       }
 
       tbody.innerHTML = students.map(s => {
-        const assigns = state.assignments.filter(a => a.student_id === s.id);
-        const pending = assigns.filter(a => a.status === 'pending').length;
-        const submitted = assigns.filter(a => a.status === 'submitted').length;
-        const graded = assigns.filter(a => a.status === 'graded').length;
-        const stats = state.attendanceStats.find(st => st.student_id === s.id);
-        const rate = stats ? stats.rate : '--';
-        const ptfs = state.portfolios.filter(p => p.student_id === s.id).length;
-        const classes = getStudentClasses(s.id);
+        const pending = s.assignments?.pending ?? 0;
+        const submitted = s.assignments?.submitted ?? 0;
+        const graded = s.assignments?.graded ?? 0;
+        const rate = s.attendance_rate;
+        const ptfs = s.portfolio_count ?? 0;
+        const classes = s.classes || [];
         const isExpanded = state.expandedStudent === s.id;
 
         return `
@@ -516,7 +329,7 @@
             <td class="px-4 py-3 text-center"><span class="status-graded font-semibold">${graded}</span></td>
             <td class="px-4 py-3 text-center">
               <span class="${typeof rate === 'number' ? (rate >= 80 ? 'text-emerald-400' : rate >= 60 ? 'text-yellow-400' : 'text-red-400') : 'text-slate-500'} font-semibold">
-                ${typeof rate === 'number' ? rate + '%' : rate}
+                ${typeof rate === 'number' ? rate + '%' : '--'}
               </span>
             </td>
             <td class="px-4 py-3 text-center text-pink-400 font-semibold">${ptfs}</td>
@@ -532,35 +345,44 @@
       }).join('');
     }
 
-    function toggleStudentDetail(studentId) {
+    async function toggleStudentDetail(studentId) {
       if (state.expandedStudent === studentId) {
         state.expandedStudent = null;
-      } else {
-        state.expandedStudent = studentId;
+        renderStudentTable();
+        return;
       }
+
+      state.expandedStudent = studentId;
+
+      // Fetch detail data if not cached
+      if (!state.studentDetails[studentId]) {
+        // Show loading state
+        renderStudentTable();
+        await fetchStudentDetail(studentId);
+      }
+
       renderStudentTable();
     }
 
     function renderStudentDetail(studentId) {
-      const student = state.students.find(s => s.id === studentId);
-      if (!student) return '';
+      const detail = state.studentDetails[studentId];
+      if (!detail) return '<div class="text-xs text-slate-500 py-2">데이터를 불러오는 중...</div>';
 
-      // Tabs content
-      const assigns = state.assignments.filter(a => a.student_id === studentId);
-      const atts = state.attendance.filter(a => a.student_id === studentId);
-      const diets = state.dietLogs.filter(d => d.student_id === studentId);
-      const ptfs = state.portfolios.filter(p => p.student_id === studentId);
-      const evals = state.evaluations.filter(e => e.student_id === studentId);
+      const assigns = detail.assignments || [];
+      const diets = detail.diets || [];
+      const ptfs = detail.portfolios || [];
+      const evals = detail.evaluations || [];
+      const atts = detail.attendances || [];
 
       return `
         <div class="space-y-4">
           <!-- Sub-tabs -->
           <div class="flex gap-4 border-b border-slate-700 pb-0 text-xs">
-            <button class="tab-active pb-2 px-1 font-medium" onclick="switchTab(event, '${studentId}', 'assignments')">과제 (${assigns.length})</button>
-            <button class="tab-inactive pb-2 px-1 font-medium" onclick="switchTab(event, '${studentId}', 'attendance')">출석 (${atts.length})</button>
-            <button class="tab-inactive pb-2 px-1 font-medium" onclick="switchTab(event, '${studentId}', 'diet')">식단 (${diets.length})</button>
-            <button class="tab-inactive pb-2 px-1 font-medium" onclick="switchTab(event, '${studentId}', 'portfolios')">포트폴리오 (${ptfs.length})</button>
-            <button class="tab-inactive pb-2 px-1 font-medium" onclick="switchTab(event, '${studentId}', 'evaluations')">평가 (${evals.length})</button>
+            <button class="tab-active pb-2 px-1 font-medium" onclick="event.stopPropagation(); switchTab(event, '${studentId}', 'assignments')">과제 (${assigns.length})</button>
+            <button class="tab-inactive pb-2 px-1 font-medium" onclick="event.stopPropagation(); switchTab(event, '${studentId}', 'attendance')">출석 (${atts.length})</button>
+            <button class="tab-inactive pb-2 px-1 font-medium" onclick="event.stopPropagation(); switchTab(event, '${studentId}', 'diet')">식단 (${diets.length})</button>
+            <button class="tab-inactive pb-2 px-1 font-medium" onclick="event.stopPropagation(); switchTab(event, '${studentId}', 'portfolios')">포트폴리오 (${ptfs.length})</button>
+            <button class="tab-inactive pb-2 px-1 font-medium" onclick="event.stopPropagation(); switchTab(event, '${studentId}', 'evaluations')">평가 (${evals.length})</button>
           </div>
 
           <!-- Assignments Tab -->
@@ -592,30 +414,6 @@
           <!-- Attendance Tab -->
           <div id="tab-${studentId}-attendance" class="tab-content hidden">
             ${atts.length === 0 ? '<div class="text-xs text-slate-500 py-2">출석 기록 없음</div>' : `
-              <div class="grid grid-cols-4 gap-3 mb-3">
-                ${(() => {
-                  const stats = state.attendanceStats.find(s => s.student_id === studentId);
-                  if (!stats) return '<div class="col-span-4 text-xs text-slate-500">통계 없음</div>';
-                  return `
-                    <div class="bg-slate-800 rounded p-2 text-center">
-                      <div class="text-xs text-slate-500">출석</div>
-                      <div class="text-sm font-bold text-emerald-400">${stats.present}</div>
-                    </div>
-                    <div class="bg-slate-800 rounded p-2 text-center">
-                      <div class="text-xs text-slate-500">지각</div>
-                      <div class="text-sm font-bold text-yellow-400">${stats.late}</div>
-                    </div>
-                    <div class="bg-slate-800 rounded p-2 text-center">
-                      <div class="text-xs text-slate-500">결석</div>
-                      <div class="text-sm font-bold text-red-400">${stats.absent}</div>
-                    </div>
-                    <div class="bg-slate-800 rounded p-2 text-center">
-                      <div class="text-xs text-slate-500">공결</div>
-                      <div class="text-sm font-bold text-slate-400">${stats.excused}</div>
-                    </div>
-                  `;
-                })()}
-              </div>
               <table class="w-full text-xs">
                 <thead><tr class="text-slate-500">
                   <th class="text-left pb-2 font-medium">수업</th>
@@ -626,7 +424,7 @@
                 <tbody>
                   ${atts.slice(0, 20).map(a => `
                     <tr class="border-t border-slate-700/30">
-                      <td class="py-2 text-slate-300">${a.lesson_id || '-'}</td>
+                      <td class="py-2 text-slate-300">${esc(a.lesson_id || '-')}</td>
                       <td class="py-2 text-center">${attendanceStatusBadge(a.status)}</td>
                       <td class="py-2 text-slate-400">${esc(a.note || '-')}</td>
                       <td class="py-2 text-slate-400">${formatDateTime(a.created_at)}</td>
@@ -839,51 +637,16 @@
     function startAutoRefresh() {
       if (refreshTimer) clearInterval(refreshTimer);
       refreshTimer = setInterval(() => {
-        if (state.token) refreshAll();
+        refreshAll();
       }, REFRESH_INTERVAL);
     }
 
     // ========================================================================
     // Initialization
     // ========================================================================
-    async function init() {
-      // Try to restore session from localStorage
-      if (state.token) {
-        // Validate token by trying a simple API call
-        const testRes = await apiFetch('/api/users');
-        if (testRes === null) {
-          // Token might be invalid, but /api/users doesn't require auth
-          // Try an auth-required endpoint instead
-          const testAuth = await apiFetch('/api/classes');
-          if (testAuth === null) {
-            handleLogout();
-            return;
-          }
-        }
-
-        // Try to get current user info from token
-        try {
-          // Decode JWT payload (no verification, just for display)
-          const payload = JSON.parse(atob(state.token.split('.')[1]));
-          if (payload.sub) {
-            const userRes = await apiFetch(`/api/users/${payload.sub}`);
-            if (userRes) {
-              state.currentUser = userRes;
-              const badge = document.getElementById('userBadge');
-              badge.textContent = `${userRes.name} (${userRes.role})`;
-              badge.classList.remove('hidden');
-            }
-          }
-        } catch (e) {
-          console.warn('Could not decode token:', e);
-        }
-
-        hideLogin();
-        refreshAll();
-        startAutoRefresh();
-      } else {
-        showLogin();
-      }
+    function init() {
+      refreshAll();
+      startAutoRefresh();
     }
 
     // Start the app

@@ -9,7 +9,7 @@ from app.database import engine, Base
 from app.routers import (
     auth, users, assignments, diet, classes, chat, qna, notices, notifications,
     lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
-    ws, upload
+    ws, upload, admin
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -61,6 +61,7 @@ app.include_router(auditions.router, prefix="/api/auditions", tags=["Auditions"]
 app.include_router(private_lessons.router, prefix="/api/private-lessons", tags=["Private Lessons"])
 app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])
 app.include_router(upload.router, prefix="/api", tags=["Upload"])
+app.include_router(admin.router, prefix="/api/admin", tags=["Admin (localhost only)"])
 
 # Static file serving for uploads
 import os
