@@ -25,6 +25,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    invite_code: str
     avatar: Optional[str] = None
 
     @field_validator("password")

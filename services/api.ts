@@ -123,10 +123,31 @@ export const authApi = {
     return res;
   },
 
-  async register(data: { name: string; email: string; password: string; role: string }) {
+  async register(data: { name: string; email: string; password: string; role: string; inviteCode: string }) {
     return apiRequest<{ accessToken: string; user: User }>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ name: data.name, email: data.email, password: data.password, role: data.role, invite_code: data.inviteCode }),
+    });
+  },
+
+  async verifyCode(code: string): Promise<{ valid: boolean; role: string }> {
+    return apiRequest('/api/auth/verify-code', {
+      method: 'POST',
+      body: JSON.stringify({ code }),
+    });
+  },
+
+  async findEmail(name: string): Promise<{ results: { email: string; role: string }[] }> {
+    return apiRequest('/api/auth/find-email', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+  },
+
+  async resetPassword(email: string, name: string): Promise<{ tempPassword: string }> {
+    return apiRequest('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ email, name }),
     });
   },
 };

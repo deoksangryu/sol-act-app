@@ -8,6 +8,7 @@ from datetime import date, datetime
 from app.database import Base, get_db
 from app.main import app
 from app.models.user import User, UserRole
+from app.models.invite_code import InviteCode
 from app.models.class_info import ClassInfo
 from app.models.lesson import Lesson, LessonStatus, LessonType, Subject
 from app.models.assignment import Assignment

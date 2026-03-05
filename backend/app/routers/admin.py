@@ -11,6 +11,7 @@ from app.models.evaluation import Evaluation
 from app.models.diet import DietLog
 from app.models.attendance import Attendance
 from app.models.class_info import ClassInfo
+from app.models.invite_code import InviteCode
 
 router = APIRouter()
 
@@ -152,3 +153,20 @@ def admin_activity(request: Request, db: Session = Depends(get_db)):
 
     activities.sort(key=lambda x: x["time"], reverse=True)
     return activities[:30]
+
+
+@router.get("/invite-codes")
+def admin_invite_codes(request: Request, db: Session = Depends(get_db)):
+    require_localhost(request)
+    codes = db.query(InviteCode).order_by(InviteCode.created_at.desc()).all()
+    return [
+        {
+            "code": c.code,
+            "role": c.role.value,
+            "used": c.used,
+            "used_by": c.used_by,
+            "memo": c.memo,
+            "created_at": str(c.created_at) if c.created_at else None,
+        }
+        for c in codes
+    ]
