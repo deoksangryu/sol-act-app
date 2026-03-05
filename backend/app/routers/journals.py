@@ -37,7 +37,8 @@ def list_journals(
     lesson_id: Optional[str] = Query(None),
     author_id: Optional[str] = Query(None),
     journal_type: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(LessonJournal).options(
         joinedload(LessonJournal.author), joinedload(LessonJournal.lesson)
@@ -57,7 +58,7 @@ def list_journals(
 
 
 @router.get("/{journal_id}", response_model=LessonJournalResponse)
-def get_journal(journal_id: str, db: Session = Depends(get_db)):
+def get_journal(journal_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     j = (
         db.query(LessonJournal)
         .options(joinedload(LessonJournal.author), joinedload(LessonJournal.lesson))

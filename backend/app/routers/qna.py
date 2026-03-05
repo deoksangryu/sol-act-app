@@ -37,7 +37,7 @@ def question_to_response(q: Question) -> dict:
 
 
 @router.get("/questions", response_model=List[QuestionResponse])
-def list_questions(db: Session = Depends(get_db)):
+def list_questions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     questions = (
         db.query(Question)
         .options(joinedload(Question.author), joinedload(Question.answers))
@@ -48,7 +48,7 @@ def list_questions(db: Session = Depends(get_db)):
 
 
 @router.get("/questions/{question_id}", response_model=QuestionResponse)
-def get_question(question_id: str, db: Session = Depends(get_db)):
+def get_question(question_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     q = (
         db.query(Question)
         .options(joinedload(Question.author), joinedload(Question.answers))

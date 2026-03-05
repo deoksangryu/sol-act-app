@@ -278,28 +278,36 @@ export const attendanceApi = {
 };
 
 // --- Journal API ---
+function mapJournal(raw: any): LessonJournal {
+  return { ...raw, date: raw.lessonDate || raw.createdAt || raw.date };
+}
+
 export const journalApi = {
-  list(params?: { lessonId?: string; authorId?: string }): Promise<LessonJournal[]> {
+  async list(params?: { lessonId?: string; authorId?: string }): Promise<LessonJournal[]> {
     const q = new URLSearchParams();
     if (params?.lessonId) q.set('lesson_id', params.lessonId);
     if (params?.authorId) q.set('author_id', params.authorId);
     const qs = q.toString();
-    return apiRequest(`/api/journals${qs ? '?' + qs : ''}`);
+    const data = await apiRequest<any[]>(`/api/journals${qs ? '?' + qs : ''}`);
+    return data.map(mapJournal);
   },
-  create(data: any): Promise<LessonJournal> {
-    return apiRequest('/api/journals', {
+  async create(data: any): Promise<LessonJournal> {
+    const res = await apiRequest<any>('/api/journals', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
+    return mapJournal(res);
   },
-  update(id: string, data: any): Promise<LessonJournal> {
-    return apiRequest(`/api/journals/${id}`, {
+  async update(id: string, data: any): Promise<LessonJournal> {
+    const res = await apiRequest<any>(`/api/journals/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
     });
+    return mapJournal(res);
   },
-  get(id: string): Promise<LessonJournal> {
-    return apiRequest(`/api/journals/${id}`);
+  async get(id: string): Promise<LessonJournal> {
+    const res = await apiRequest<any>(`/api/journals/${id}`);
+    return mapJournal(res);
   },
   getAiFeedback(id: string): Promise<{ aiFeedback: string }> {
     return apiRequest(`/api/journals/${id}/ai-feedback`, { method: 'POST' });
@@ -388,29 +396,33 @@ export const dietApi = {
 
 // --- Evaluation API ---
 export const evaluationApi = {
-  list(params?: { studentId?: string; classId?: string; subject?: string; period?: string }): Promise<Evaluation[]> {
+  async list(params?: { studentId?: string; classId?: string; subject?: string; period?: string }): Promise<Evaluation[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.classId) q.set('class_id', params.classId);
     if (params?.subject) q.set('subject', params.subject);
     if (params?.period) q.set('period', params.period);
     const qs = q.toString();
-    return apiRequest(`/api/evaluations${qs ? '?' + qs : ''}`);
+    const data = await apiRequest<any[]>(`/api/evaluations${qs ? '?' + qs : ''}`);
+    return data.map(withDateAlias);
   },
-  get(id: string): Promise<Evaluation> {
-    return apiRequest(`/api/evaluations/${id}`);
+  async get(id: string): Promise<Evaluation> {
+    const data = await apiRequest<any>(`/api/evaluations/${id}`);
+    return withDateAlias(data);
   },
-  create(data: any): Promise<Evaluation> {
-    return apiRequest('/api/evaluations', {
+  async create(data: any): Promise<Evaluation> {
+    const res = await apiRequest<any>('/api/evaluations', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
+    return withDateAlias(res);
   },
-  update(id: string, data: any): Promise<Evaluation> {
-    return apiRequest(`/api/evaluations/${id}`, {
+  async update(id: string, data: any): Promise<Evaluation> {
+    const res = await apiRequest<any>(`/api/evaluations/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
     });
+    return withDateAlias(res);
   },
   getReport(studentId: string): Promise<any> {
     return apiRequest(`/api/evaluations/report/${studentId}`);

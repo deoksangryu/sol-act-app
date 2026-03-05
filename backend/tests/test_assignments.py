@@ -40,7 +40,7 @@ def test_create_assignment_student_forbidden(client, student_headers):
 
 # ── LIST / FILTER ────────────────────────────────────────────────────
 def test_list_assignments(client, seed_assignment, teacher_headers):
-    res = client.get(BASE)
+    res = client.get(BASE, headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
@@ -48,28 +48,28 @@ def test_list_assignments(client, seed_assignment, teacher_headers):
 
 
 def test_list_filter_by_status(client, seed_assignment, teacher_headers):
-    res = client.get(BASE, params={"status": "pending"})
+    res = client.get(BASE, params={"status": "pending"}, headers=teacher_headers)
     assert res.status_code == 200
     for item in res.json():
         assert item["status"] == "pending"
 
 
 def test_list_filter_by_student(client, seed_assignment, teacher_headers):
-    res = client.get(BASE, params={"student_id": "s1"})
+    res = client.get(BASE, params={"student_id": "s1"}, headers=teacher_headers)
     assert res.status_code == 200
     for item in res.json():
         assert item["student_id"] == "s1"
 
 
 # ── GET single ───────────────────────────────────────────────────────
-def test_get_assignment(client, seed_assignment):
-    res = client.get(f"{BASE}/asgn001")
+def test_get_assignment(client, seed_assignment, teacher_headers):
+    res = client.get(f"{BASE}/asgn001", headers=teacher_headers)
     assert res.status_code == 200
     assert res.json()["id"] == "asgn001"
 
 
-def test_get_assignment_not_found(client, seed_users):
-    res = client.get(f"{BASE}/nonexistent")
+def test_get_assignment_not_found(client, seed_users, teacher_headers):
+    res = client.get(f"{BASE}/nonexistent", headers=teacher_headers)
     assert res.status_code == 404
 
 
@@ -193,8 +193,8 @@ def test_analyze_endpoint(client, seed_assignment, student_headers, teacher_head
 
 
 # ── RESPONSE FORMAT ──────────────────────────────────────────────────
-def test_response_has_student_name(client, seed_assignment):
-    res = client.get(f"{BASE}/asgn001")
+def test_response_has_student_name(client, seed_assignment, teacher_headers):
+    res = client.get(f"{BASE}/asgn001", headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
     assert "student_name" in data

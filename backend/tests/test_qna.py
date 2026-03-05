@@ -41,7 +41,7 @@ class TestListAndGetQuestions:
 
     def test_list_questions(self, client, seed_users, student_headers):
         _create_question(client, student_headers)
-        resp = client.get("/api/qna/questions")
+        resp = client.get("/api/qna/questions", headers=student_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert len(data) >= 1
@@ -52,10 +52,10 @@ class TestListAndGetQuestions:
         create_resp = _create_question(client, student_headers)
         qid = create_resp.json()["id"]
 
-        resp1 = client.get(f"/api/qna/questions/{qid}")
+        resp1 = client.get(f"/api/qna/questions/{qid}", headers=student_headers)
         views1 = resp1.json()["views"]
 
-        resp2 = client.get(f"/api/qna/questions/{qid}")
+        resp2 = client.get(f"/api/qna/questions/{qid}", headers=student_headers)
         views2 = resp2.json()["views"]
 
         assert views2 == views1 + 1

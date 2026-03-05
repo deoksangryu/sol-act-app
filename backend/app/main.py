@@ -21,8 +21,7 @@ app = FastAPI(
     description="Acting academy management platform with AI-powered feedback",
     version=settings.VERSION,
     docs_url="/docs",
-    redoc_url="/redoc",
-    redirect_slashes=False
+    redoc_url="/redoc"
 )
 
 # CORS 미들웨어 설정
@@ -35,11 +34,17 @@ app.add_middleware(
 )
 
 
-# ngrok 브라우저 경고 우회 미들웨어
+# ngrok 경고 우회 + 리다이렉트 응답 CORS 보장 미들웨어
 @app.middleware("http")
-async def add_ngrok_headers(request, call_next):
+async def add_extra_headers(request, call_next):
     response = await call_next(request)
     response.headers["ngrok-skip-browser-warning"] = "true"
+    # CORSMiddleware가 리다이렉트(307) 응답에 CORS 헤더를 누락할 수 있으므로 보완
+    origin = request.headers.get("origin")
+    if origin and "access-control-allow-origin" not in response.headers:
+        if origin in settings.CORS_ORIGINS:
+            response.headers["access-control-allow-origin"] = origin
+            response.headers["access-control-allow-credentials"] = "true"
     return response
 
 

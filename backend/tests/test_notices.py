@@ -52,7 +52,7 @@ class TestListNotices:
 
     def test_list_notices(self, client, director_headers):
         _create_notice(client, director_headers)
-        resp = client.get("/api/notices/")
+        resp = client.get("/api/notices/", headers=director_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert isinstance(data, list)
@@ -64,12 +64,12 @@ class TestGetNotice:
 
     def test_get_notice(self, client, director_headers):
         notice_id = _create_notice(client, director_headers).json()["id"]
-        resp = client.get(f"/api/notices/{notice_id}")
+        resp = client.get(f"/api/notices/{notice_id}", headers=director_headers)
         assert resp.status_code == 200
         assert resp.json()["id"] == notice_id
 
-    def test_get_notice_not_found(self, client, seed_users):
-        resp = client.get("/api/notices/nonexistent")
+    def test_get_notice_not_found(self, client, seed_users, teacher_headers):
+        resp = client.get("/api/notices/nonexistent", headers=teacher_headers)
         assert resp.status_code == 404
 
 
@@ -95,5 +95,5 @@ class TestDeleteNotice:
         notice_id = _create_notice(client, director_headers).json()["id"]
         resp = client.delete(f"/api/notices/{notice_id}", headers=director_headers)
         assert resp.status_code == 200
-        get_resp = client.get(f"/api/notices/{notice_id}")
+        get_resp = client.get(f"/api/notices/{notice_id}", headers=director_headers)
         assert get_resp.status_code == 404

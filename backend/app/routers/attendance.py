@@ -34,7 +34,8 @@ def attendance_to_response(a: Attendance) -> dict:
 def list_attendance(
     lesson_id: Optional[str] = Query(None),
     student_id: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Attendance).options(joinedload(Attendance.student))
     if lesson_id:
@@ -52,7 +53,8 @@ def get_attendance_stats(
     class_id: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Attendance).join(Lesson, Attendance.lesson_id == Lesson.id)
     if student_id:

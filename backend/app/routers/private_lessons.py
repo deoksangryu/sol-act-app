@@ -41,7 +41,8 @@ def list_requests(
     student_id: Optional[str] = Query(None),
     teacher_id: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(PrivateLessonRequest)
     if student_id:

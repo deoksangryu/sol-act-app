@@ -15,7 +15,8 @@ router = APIRouter()
 @router.get("/", response_model=List[NoticeResponse])
 def list_notices(
     class_id: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     query = db.query(Notice)
     if class_id:
@@ -25,7 +26,7 @@ def list_notices(
 
 
 @router.get("/{notice_id}", response_model=NoticeResponse)
-def get_notice(notice_id: str, db: Session = Depends(get_db)):
+def get_notice(notice_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     notice = db.query(Notice).filter(Notice.id == notice_id).first()
     if not notice:
         raise HTTPException(status_code=404, detail="Notice not found")

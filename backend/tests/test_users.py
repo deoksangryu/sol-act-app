@@ -3,9 +3,9 @@
 from app.models.user import User
 
 
-def test_list_users(client, seed_users):
+def test_list_users(client, seed_users, director_headers):
     """GET /api/users/ returns all seeded users."""
-    resp = client.get("/api/users/")
+    resp = client.get("/api/users/", headers=director_headers)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -14,9 +14,9 @@ def test_list_users(client, seed_users):
     assert ids == {"s1", "s2", "t1", "d1"}
 
 
-def test_list_users_filter_by_role(client, seed_users):
+def test_list_users_filter_by_role(client, seed_users, director_headers):
     """GET /api/users/?role=student returns only students."""
-    resp = client.get("/api/users/?role=student")
+    resp = client.get("/api/users/?role=student", headers=director_headers)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -25,9 +25,9 @@ def test_list_users_filter_by_role(client, seed_users):
         assert user["role"] == "student"
 
 
-def test_get_user(client, seed_users):
+def test_get_user(client, seed_users, student_headers):
     """GET /api/users/s1 returns the correct user with expected fields."""
-    resp = client.get("/api/users/s1")
+    resp = client.get("/api/users/s1", headers=student_headers)
 
     assert resp.status_code == 200
     body = resp.json()
@@ -37,9 +37,9 @@ def test_get_user(client, seed_users):
     assert body["role"] == "student"
 
 
-def test_get_user_not_found(client, seed_users):
+def test_get_user_not_found(client, seed_users, student_headers):
     """GET /api/users/xxx for a non-existent user returns 404."""
-    resp = client.get("/api/users/xxx")
+    resp = client.get("/api/users/xxx", headers=student_headers)
 
     assert resp.status_code == 404
 

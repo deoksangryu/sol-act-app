@@ -70,7 +70,7 @@ def list_evaluations(
 
 
 @router.get("/report/{student_id}")
-def get_student_report(student_id: str, db: Session = Depends(get_db)):
+def get_student_report(student_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     student = db.query(User).filter(User.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")

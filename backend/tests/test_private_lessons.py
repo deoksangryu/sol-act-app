@@ -44,7 +44,7 @@ def test_create_request(client, student_headers, db):
 # ── LIST / FILTER ────────────────────────────────────────────────────
 def test_list_requests(client, student_headers, db):
     _create_request(client, student_headers)
-    res = client.get(BASE)
+    res = client.get(BASE, headers=student_headers)
     assert res.status_code == 200
     data = res.json()
     assert isinstance(data, list)
@@ -53,7 +53,7 @@ def test_list_requests(client, student_headers, db):
 
 def test_list_filter_by_student(client, student_headers, db):
     _create_request(client, student_headers)
-    res = client.get(BASE, params={"student_id": "s1"})
+    res = client.get(BASE, params={"student_id": "s1"}, headers=student_headers)
     assert res.status_code == 200
     data = res.json()
     assert len(data) >= 1
@@ -158,7 +158,7 @@ def test_response_has_student_teacher_names(client, student_headers, db):
     create_res = _create_request(client, student_headers)
     rid = create_res.json()["id"]
 
-    res = client.get(BASE)
+    res = client.get(BASE, headers=student_headers)
     assert res.status_code == 200
     data = res.json()
 
