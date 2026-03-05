@@ -200,6 +200,16 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
     } catch { toast.error('포트폴리오 등록에 실패했습니다.'); }
   };
 
+  const handleDeletePortfolio = async (id: string) => {
+    if (!window.confirm('포트폴리오를 삭제하시겠습니까?')) return;
+    try {
+      await portfolioApi.delete(id);
+      setPortfolios(prev => prev.filter(p => p.id !== id));
+      setSelectedPortfolioId(null);
+      toast.success('포트폴리오가 삭제되었습니다.');
+    } catch { toast.error('삭제에 실패했습니다.'); }
+  };
+
   const handleAddComment = async () => {
     if (!commentText.trim() || !selectedPortfolioId) return;
     try {
@@ -691,7 +701,17 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
             <button onClick={() => { setSelectedPortfolioId(null); setCommentTimestamp(null); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 z-10">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <h3 className="text-xl font-bold text-slate-800 mb-1">{selectedPortfolio.title}</h3>
+            <div className="flex items-start justify-between pr-8 mb-1">
+              <h3 className="text-xl font-bold text-slate-800">{selectedPortfolio.title}</h3>
+              {(isStaff || selectedPortfolio.studentId === user.id) && (
+                <button
+                  onClick={() => handleDeletePortfolio(selectedPortfolio.id)}
+                  className="text-xs text-red-400 hover:text-red-600 font-medium shrink-0"
+                >
+                  삭제
+                </button>
+              )}
+            </div>
             <p className="text-xs text-slate-400 mb-4">{selectedPortfolio.studentName} • {selectedPortfolio.date}</p>
 
             {/* Video Player */}

@@ -171,6 +171,7 @@ async def create_bulk_lessons(
         student_ids = get_class_student_ids(db, data.class_id)
         if student_ids:
             await emit_data_changed(student_ids, "lessons")
+    await emit_data_changed([current_user.id], "lessons")
 
     return result
 

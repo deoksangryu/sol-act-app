@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { User, UserRole } from '../types';
-import { userApi, getToken, resolveFileUrl } from '../services/api';
+import { userApi, API_URL, getToken, resolveFileUrl } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface ProfileSettingsProps {

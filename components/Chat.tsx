@@ -116,28 +116,32 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
     setLeaveConfirm({ classId: currentClass.id, isStaff });
   };
 
-  const handleLeaveConfirm = () => {
+  const handleLeaveConfirm = async () => {
     if (!leaveConfirm || !currentClass) return;
 
-    if (leaveConfirm.isStaff) {
-      setClasses(classes.filter(c => c.id !== currentClass.id));
-      setSelectedClassId(null);
-      setIsSettingsOpen(false);
-      toast.success('클래스 및 채팅방이 삭제되었습니다.');
-    } else {
-      const updatedClass = {
-        ...currentClass,
-        studentIds: currentClass.studentIds.filter(id => id !== user.id)
-      };
-      setClasses(classes.map(c => c.id === currentClass.id ? updatedClass : c));
-      setSelectedClassId(null);
-      setIsSettingsOpen(false);
-      toast.success('채팅방에서 나갔습니다.');
+    try {
+      if (leaveConfirm.isStaff) {
+        await classApi.delete(currentClass.id);
+        setClasses(classes.filter(c => c.id !== currentClass.id));
+        setSelectedClassId(null);
+        setIsSettingsOpen(false);
+        toast.success('클래스 및 채팅방이 삭제되었습니다.');
+      } else {
+        const newStudentIds = currentClass.studentIds.filter(id => id !== user.id);
+        await classApi.update(currentClass.id, { studentIds: newStudentIds });
+        const updatedClass = { ...currentClass, studentIds: newStudentIds };
+        setClasses(classes.map(c => c.id === currentClass.id ? updatedClass : c));
+        setSelectedClassId(null);
+        setIsSettingsOpen(false);
+        toast.success('채팅방에서 나갔습니다.');
+      }
+    } catch {
+      toast.error('처리에 실패했습니다.');
     }
     setLeaveConfirm(null);
   };
 
-  const handleInviteUser = (userId: string) => {
+  const handleInviteUser = async (userId: string) => {
     if (!currentClass) return;
 
     if (currentClass.studentIds.includes(userId)) {
@@ -145,13 +149,16 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
       return;
     }
 
-    const updatedClass = {
-      ...currentClass,
-      studentIds: [...currentClass.studentIds, userId]
-    };
-    setClasses(classes.map(c => c.id === currentClass.id ? updatedClass : c));
-    setIsInviteOpen(false);
-    toast.success('사용자를 초대했습니다.');
+    try {
+      const newStudentIds = [...currentClass.studentIds, userId];
+      await classApi.update(currentClass.id, { studentIds: newStudentIds });
+      const updatedClass = { ...currentClass, studentIds: newStudentIds };
+      setClasses(classes.map(c => c.id === currentClass.id ? updatedClass : c));
+      setIsInviteOpen(false);
+      toast.success('사용자를 초대했습니다.');
+    } catch {
+      toast.error('초대에 실패했습니다.');
+    }
   };
 
   const handleCreateClass = async () => {

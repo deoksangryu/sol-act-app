@@ -71,6 +71,10 @@ def list_evaluations(
 
 @router.get("/report/{student_id}")
 def get_student_report(student_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Students can only view their own report
+    if current_user.role == UserRole.STUDENT and current_user.id != student_id:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
     student = db.query(User).filter(User.id == student_id).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found")
