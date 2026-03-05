@@ -5,3 +5,5 @@ dist
 .env
 .env.local
 sol_act.db
+backend/backend/uploads/
+backend/static/uploads/
