@@ -8,12 +8,13 @@ interface UsersProps {
 }
 
 export const Users: React.FC<UsersProps> = ({ user, allUsers }) => {
-  const [activeTab, setActiveTab] = useState<'students' | 'teachers'>('students');
+  const [activeTab, setActiveTab] = useState<'students' | 'teachers' | 'directors'>('students');
 
   if (user.role === UserRole.STUDENT) return <div className="p-8 text-center text-slate-400">접근 권한이 없습니다.</div>;
 
   const students = allUsers.filter(u => u.role === UserRole.STUDENT);
   const teachers = allUsers.filter(u => u.role === UserRole.TEACHER);
+  const directors = allUsers.filter(u => u.role === UserRole.DIRECTOR);
   const isDirector = user.role === UserRole.DIRECTOR;
 
   return (
@@ -37,34 +38,36 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers }) => {
       {/* Tabs for Director */}
       {isDirector && (
           <div className="flex gap-2 border-b border-slate-100 shrink-0">
-              <button 
+              <button
                 onClick={() => setActiveTab('students')}
                 className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'students' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               >
                   수강생 ({students.length})
               </button>
-              <button 
+              <button
                 onClick={() => setActiveTab('teachers')}
                 className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'teachers' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
               >
                   선생님 ({teachers.length})
               </button>
+              <button
+                onClick={() => setActiveTab('directors')}
+                className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'directors' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+              >
+                  원장 ({directors.length})
+              </button>
           </div>
       )}
 
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pb-4">
-        {(activeTab === 'students' || !isDirector ? students : teachers).map((u) => (
+        {(activeTab === 'students' || !isDirector ? students : activeTab === 'teachers' ? teachers : directors).map((u) => (
           <div key={u.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
             <img src={u.avatar} alt="User" className="w-16 h-16 rounded-full object-cover bg-slate-200" />
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-start">
-                  <h3 className="font-bold text-slate-800 truncate">{u.name}</h3>
-                  {isDirector && activeTab === 'teachers' && (
-                      <span className="bg-slate-100 text-slate-500 text-[10px] px-2 py-0.5 rounded-full">T</span>
-                  )}
+                <h3 className="font-bold text-slate-800 truncate">{u.name}</h3>
               </div>
               <p className="text-xs text-slate-400 truncate">{u.email}</p>
-              
               <div className="mt-2">
                 <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${u.role === UserRole.STUDENT ? 'bg-brand-50 text-brand-600' : u.role === UserRole.TEACHER ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
                   {u.role === UserRole.STUDENT ? '수강생' : u.role === UserRole.TEACHER ? '선생님' : '원장'}
@@ -73,11 +76,12 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers }) => {
             </div>
           </div>
         ))}
-        
-        {(activeTab === 'teachers' && teachers.length === 0) && (
-            <div className="col-span-full text-center py-10 text-slate-400">
-                등록된 선생님이 없습니다.
-            </div>
+
+        {isDirector && activeTab === 'teachers' && teachers.length === 0 && (
+          <div className="col-span-full text-center py-10 text-slate-400">등록된 선생님이 없습니다.</div>
+        )}
+        {isDirector && activeTab === 'directors' && directors.length === 0 && (
+          <div className="col-span-full text-center py-10 text-slate-400">등록된 원장이 없습니다.</div>
         )}
       </div>
     </div>

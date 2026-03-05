@@ -44,7 +44,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
       : classes.filter(c => Object.values(c.subjectTeachers).includes(user.id));
 
   const students = allUsers.filter(u => u.role === UserRole.STUDENT);
-  const teachers = allUsers.filter(u => u.role === UserRole.TEACHER);
+  const teachers = allUsers.filter(u => u.role === UserRole.TEACHER || u.role === UserRole.DIRECTOR);
 
   const handleOpenModal = (cls?: ClassInfo) => {
     if (cls) {

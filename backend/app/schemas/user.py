@@ -55,8 +55,11 @@ class UserLogin(BaseModel):
     password: str
 
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
     id: str
+    name: str
+    email: str
+    role: UserRole
     avatar: Optional[str] = None
 
     class Config:
