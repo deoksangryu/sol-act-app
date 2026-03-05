@@ -150,7 +150,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
         {displayedClasses.map(cls => (
           <div key={cls.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group relative">
              {isDirector && (
-               <div className="absolute top-4 right-4 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+               <div className="absolute top-4 right-4 flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => handleOpenModal(cls)}
                     className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
