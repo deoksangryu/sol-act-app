@@ -59,20 +59,15 @@ const App: React.FC = () => {
 
   const loadAppData = async (currentUser: User) => {
     try {
-      const [usersData, classesData] = await Promise.all([
-        userApi.list(),
-        classApi.list(),
+      // Load each independently so one failure doesn't block the others
+      const [usersData, classesData, notifsData] = await Promise.all([
+        userApi.list().catch((err) => { console.error('Failed to load users:', err); return [] as User[]; }),
+        classApi.list().catch((err) => { console.error('Failed to load classes:', err); return [] as ClassInfo[]; }),
+        notificationApi.list().catch(() => [] as Notification[]),
       ]);
       setAllUsers(usersData);
       setClasses(classesData);
-
-      // Load notifications
-      try {
-        const notifsData = await notificationApi.list();
-        setNotifications(notifsData);
-      } catch {
-        // Notifications API may not exist yet
-      }
+      setNotifications(notifsData);
     } catch (err) {
       console.error('Failed to load app data:', err);
     } finally {

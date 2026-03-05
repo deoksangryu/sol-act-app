@@ -95,7 +95,14 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  // Ensure trailing slash before query params to prevent FastAPI 307 redirects
+  // which can cause CORS/auth-header issues in cross-origin environments
+  const qIdx = path.indexOf('?');
+  const pathname = qIdx >= 0 ? path.substring(0, qIdx) : path;
+  const query = qIdx >= 0 ? path.substring(qIdx) : '';
+  const normalizedPath = pathname.endsWith('/') ? path : pathname + '/' + query;
+
+  const response = await fetch(`${API_URL}${normalizedPath}`, { ...options, headers });
 
   if (response.status === 401) {
     clearAuth();
