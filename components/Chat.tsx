@@ -160,7 +160,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
       const newClass = await classApi.create({
         name: newClassName,
         description: newClassDesc || '새로운 채팅방',
-        schedule: '일정 미정',
+        schedule: [],
       });
       setClasses([...classes, newClass]);
       setSelectedClassId(newClass.id);

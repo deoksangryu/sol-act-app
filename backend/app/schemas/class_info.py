@@ -1,11 +1,17 @@
 from pydantic import BaseModel
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
+
+
+class ScheduleSlot(BaseModel):
+    day: str          # '월' | '화' | '수' | '목' | '금' | '토' | '일'
+    start_time: str   # 'HH:mm'
+    end_time: str     # 'HH:mm'
 
 
 class ClassInfoBase(BaseModel):
     name: str
     description: str
-    schedule: str
+    schedule: List[ScheduleSlot] = []
 
 
 class ClassInfoCreate(ClassInfoBase):
@@ -16,13 +22,16 @@ class ClassInfoCreate(ClassInfoBase):
 class ClassInfoUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
-    schedule: Optional[str] = None
+    schedule: Optional[List[ScheduleSlot]] = None
     subject_teachers: Optional[Dict[str, str]] = None
     student_ids: Optional[List[str]] = None
 
 
-class ClassInfoResponse(ClassInfoBase):
+class ClassInfoResponse(BaseModel):
     id: str
+    name: str
+    description: str
+    schedule: Any  # List[ScheduleSlot] or legacy string
     subject_teachers: Dict[str, str]
     student_ids: List[str]
 

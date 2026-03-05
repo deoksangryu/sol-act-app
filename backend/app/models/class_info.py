@@ -19,7 +19,7 @@ class ClassInfo(Base):
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
     subject_teachers = Column(JSON, nullable=False, default=dict)  # {"acting": "t1", "musical": "t2"}
-    schedule = Column(String, nullable=False)  # e.g., "Mon/Wed 14:00"
+    schedule = Column(JSON, nullable=False, default=list)  # [{"day":"월","start_time":"14:00","end_time":"16:00"},...]
 
     # Relationships
     students = relationship("User", secondary=class_students, backref="enrolled_classes")

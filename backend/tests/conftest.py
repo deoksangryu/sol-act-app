@@ -99,7 +99,10 @@ def director_headers(seed_users):
 def seed_class(db, seed_users):
     cls = ClassInfo(
         id="c1", name="입시 A반", description="심화반",
-        subject_teachers={"acting": "t1"}, schedule="월/수/금 18:00"
+        subject_teachers={"acting": "t1"},
+        schedule=[{"day": "월", "start_time": "18:00", "end_time": "20:00"},
+                  {"day": "수", "start_time": "18:00", "end_time": "20:00"},
+                  {"day": "금", "start_time": "18:00", "end_time": "20:00"}]
     )
     db.add(cls)
     db.commit()

@@ -86,13 +86,19 @@ export interface Question {
   views: number;
 }
 
+export interface ScheduleSlot {
+  day: string;       // '월' | '화' | '수' | '목' | '금' | '토' | '일'
+  startTime: string; // 'HH:mm'
+  endTime: string;   // 'HH:mm'
+}
+
 export interface ClassInfo {
   id: string;
   name: string;
   description: string;
   subjectTeachers: Partial<Record<Subject, string>>; // 과목별 담당 교사 ID
   studentIds: string[];
-  schedule: string; // e.g. "Mon/Wed 14:00"
+  schedule: ScheduleSlot[] | string; // structured or legacy string
 }
 
 export interface ChatMessage {

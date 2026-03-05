@@ -54,7 +54,7 @@ async def create_class(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+    if current_user.role != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     new_class = ClassInfo(
@@ -62,7 +62,7 @@ async def create_class(
         name=data.name,
         description=data.description,
         subject_teachers=data.subject_teachers,
-        schedule=data.schedule,
+        schedule=[s.model_dump() for s in data.schedule],
     )
     if data.student_ids:
         students = db.query(User).filter(User.id.in_(data.student_ids)).all()
@@ -84,7 +84,7 @@ async def update_class(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+    if current_user.role != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     cls = db.query(ClassInfo).filter(ClassInfo.id == class_id).first()
@@ -93,6 +93,9 @@ async def update_class(
 
     update_dict = update_data.model_dump(exclude_unset=True)
     student_ids = update_dict.pop("student_ids", None)
+    # Convert ScheduleSlot list to plain dicts for JSON storage
+    if "schedule" in update_dict and isinstance(update_dict["schedule"], list):
+        update_dict["schedule"] = [s if isinstance(s, dict) else s for s in update_dict["schedule"]]
 
     for field, value in update_dict.items():
         setattr(cls, field, value)
@@ -119,7 +122,7 @@ async def delete_class(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+    if current_user.role != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     cls = db.query(ClassInfo).filter(ClassInfo.id == class_id).first()
@@ -150,7 +153,7 @@ async def add_student(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+    if current_user.role != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     cls = db.query(ClassInfo).filter(ClassInfo.id == class_id).first()
@@ -180,7 +183,7 @@ async def remove_student(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+    if current_user.role != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     cls = db.query(ClassInfo).filter(ClassInfo.id == class_id).first()
