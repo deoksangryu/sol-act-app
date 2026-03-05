@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, UserRole } from '../types';
+import { resolveFileUrl } from '../services/api';
 
 interface UsersProps {
   user: User;
@@ -62,7 +63,7 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers }) => {
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pb-4">
         {(activeTab === 'students' || !isDirector ? students : activeTab === 'teachers' ? teachers : directors).map((u) => (
           <div key={u.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
-            <img src={u.avatar} alt="User" className="w-16 h-16 rounded-full object-cover bg-slate-200" />
+            <img src={resolveFileUrl(u.avatar)} alt="User" className="w-16 h-16 rounded-full object-cover bg-slate-200" />
             <div className="flex-1 min-w-0">
               <div className="flex justify-between items-start">
                 <h3 className="font-bold text-slate-800 truncate">{u.name}</h3>

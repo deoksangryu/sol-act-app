@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Lesson, LessonJournal, AttendanceRecord, ClassInfo, Subject, SUBJECT_LABELS, PrivateLessonRequest } from '../types';
 import toast from 'react-hot-toast';
-import { lessonApi, journalApi, attendanceApi, privateLessonApi, API_URL, getToken } from '../services/api';
+import { lessonApi, journalApi, attendanceApi, privateLessonApi, API_URL, getToken, resolveFileUrl } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
 
 interface LessonsProps {
@@ -944,7 +944,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                           return (
                             <div key={s.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-3">
                               <div className="flex items-center gap-3">
-                                <img src={s.avatar} alt={s.name} className="w-8 h-8 rounded-full bg-slate-200" />
+                                <img src={resolveFileUrl(s.avatar)} alt={s.name} className="w-8 h-8 rounded-full bg-slate-200" />
                                 <span className="text-sm font-bold text-slate-700">{s.name}</span>
                               </div>
                               <div className="flex flex-wrap gap-1.5">
@@ -1215,7 +1215,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                               return (
                                 <a
                                   key={idx}
-                                  href={url}
+                                  href={url.startsWith('/') ? `${API_URL}${url}` : url}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold border border-blue-200 hover:bg-blue-100 transition-colors"

@@ -698,12 +698,12 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
             <div className="aspect-video bg-black rounded-xl mb-4 overflow-hidden">
               <video
                 ref={videoRef}
-                src={selectedPortfolio.videoUrl}
+                src={selectedPortfolio.videoUrl.startsWith('/') ? `${API_URL}${selectedPortfolio.videoUrl}` : selectedPortfolio.videoUrl}
                 controls
                 className="w-full h-full object-contain"
                 preload="metadata"
               >
-                <source src={selectedPortfolio.videoUrl} />
+                <source src={selectedPortfolio.videoUrl.startsWith('/') ? `${API_URL}${selectedPortfolio.videoUrl}` : selectedPortfolio.videoUrl} />
               </video>
             </div>
 

@@ -15,7 +15,7 @@ import { ProfileSettings } from './components/ProfileSettings';
 import { Notifications } from './components/Notifications';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Toaster } from 'react-hot-toast';
-import { getSavedUser, clearAuth, userApi, classApi, notificationApi } from './services/api';
+import { getSavedUser, clearAuth, userApi, classApi, notificationApi, resolveFileUrl } from './services/api';
 import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
 
 const App: React.FC = () => {
@@ -211,7 +211,7 @@ const App: React.FC = () => {
                 <p className="text-xs font-bold text-slate-700">{user.name}</p>
                 <p className="text-[10px] text-slate-400">{getRoleLabel(user.role)}</p>
              </div>
-             <img src={user.avatar} alt="Profile" className="w-8 h-8 rounded-full border border-slate-100 cursor-pointer hover:ring-2 hover:ring-brand-300" onClick={() => setCurrentView('profile')} />
+             <img src={resolveFileUrl(user.avatar)} alt="Profile" className="w-8 h-8 rounded-full border border-slate-100 cursor-pointer hover:ring-2 hover:ring-brand-300" onClick={() => setCurrentView('profile')} />
              <button
                onClick={handleLogout}
                className="ml-1 p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"

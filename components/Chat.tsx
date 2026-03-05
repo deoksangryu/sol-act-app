@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ClassInfo, ChatMessage, UserRole, Subject } from '../types';
-import { chatApi, classApi } from '../services/api';
+import { chatApi, classApi, resolveFileUrl } from '../services/api';
 import { useChatWebSocket } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
 import toast from 'react-hot-toast';
@@ -252,7 +252,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                  const isMe = msg.senderId === user.id;
                  return (
                    <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
-                      {!isMe && <img src={msg.avatar} alt={msg.senderName} className="w-8 h-8 rounded-full bg-slate-200" />}
+                      {!isMe && <img src={resolveFileUrl(msg.avatar)} alt={msg.senderName} className="w-8 h-8 rounded-full bg-slate-200" />}
                       <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
                          {!isMe && <span className="text-[10px] text-slate-500 mb-1 ml-1">{msg.senderName}</span>}
                          <div className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
@@ -333,7 +333,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                             const student = allUsers.find(u => u.id === sid);
                             return student ? (
                               <div key={sid} className="flex items-center gap-2">
-                                <img src={student.avatar} alt={student.name} className="w-8 h-8 rounded-full bg-slate-200" />
+                                <img src={resolveFileUrl(student.avatar)} alt={student.name} className="w-8 h-8 rounded-full bg-slate-200" />
                                 <div>
                                   <p className="text-sm font-medium text-slate-700">{student.name}</p>
                                   <p className="text-[10px] text-slate-400">Student</p>
@@ -381,7 +381,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                        onClick={() => handleInviteUser(u.id)}
                        className="w-full flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg transition-colors text-left"
                      >
-                       <img src={u.avatar} className="w-8 h-8 rounded-full bg-slate-200" alt={u.name} />
+                       <img src={resolveFileUrl(u.avatar)} className="w-8 h-8 rounded-full bg-slate-200" alt={u.name} />
                        <span className="text-sm font-medium text-slate-700">{u.name}</span>
                      </button>
                    ))

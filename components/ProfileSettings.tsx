@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { User, UserRole } from '../types';
-import { userApi, API_URL, getToken } from '../services/api';
+import { userApi, getToken, resolveFileUrl } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface ProfileSettingsProps {
@@ -44,7 +44,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
       });
       if (!res.ok) throw new Error('Upload failed');
       const result = await res.json();
-      const avatarUrl = API_URL + result.url;
+      const avatarUrl = result.url; // store relative path, resolve to full URL at display time
       const updated = await userApi.update(user.id, { avatar: avatarUrl });
       onUserUpdate({ ...user, avatar: updated.avatar || avatarUrl });
       toast.success('프로필 사진이 변경되었습니다.');
@@ -94,7 +94,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
         <div className="flex items-center gap-6">
           <div className="relative group">
             <img
-              src={user.avatar}
+              src={resolveFileUrl(user.avatar)}
               alt={user.name}
               className="w-24 h-24 rounded-full object-cover border-2 border-slate-200"
             />

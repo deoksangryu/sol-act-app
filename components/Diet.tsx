@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { DietLog, User, UserRole } from '../types';
-import { dietApi } from '../services/api';
+import { dietApi, uploadApi, API_URL } from '../services/api';
 import toast from 'react-hot-toast';
 import { useDataRefresh } from '../services/useWebSocket';
 
@@ -25,6 +25,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [newMealType, setNewMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('lunch');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Comment State
@@ -112,6 +113,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setSelectedFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setSelectedImage(reader.result as string);
@@ -121,18 +123,33 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   };
 
   const handleAddMeal = async () => {
-    if (!newMeal.trim() && !selectedImage) return;
+    if (!newMeal.trim() && !selectedFile) return;
     setIsAnalyzing(true);
     try {
-      // First analyze if needed
+      // Upload image file first if selected
+      let imageUrl: string | undefined;
+      if (selectedFile) {
+        try {
+          const uploaded = await uploadApi.upload(selectedFile, undefined, 'diet');
+          imageUrl = uploaded.url;
+        } catch {
+          toast.error('이미지 업로드에 실패했습니다.');
+          setIsAnalyzing(false);
+          return;
+        }
+      }
+
+      // Analyze based on description only (no base64 to avoid large request body)
       let calories = 0;
       let advice = '';
-      try {
-        const analysis = await dietApi.analyze({ description: newMeal, imageBase64: selectedImage || undefined });
-        calories = analysis.calories;
-        advice = analysis.advice;
-      } catch {
-        // Analysis may fail, continue without it
+      if (newMeal.trim()) {
+        try {
+          const analysis = await dietApi.analyze({ description: newMeal });
+          calories = analysis.calories;
+          advice = analysis.advice;
+        } catch {
+          // Analysis may fail, continue without it
+        }
       }
 
       let logDate = new Date();
@@ -147,11 +164,12 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
         date: logDate.toISOString(),
         mealType: newMealType,
         description: newMeal || '사진으로 기록된 식단',
-        imageUrl: selectedImage || undefined,
+        imageUrl,
       });
       setLogs([newLog, ...logs]);
       setNewMeal('');
       setSelectedImage(null);
+      setSelectedFile(null);
       setIsModalOpen(false);
       toast.success('식단이 기록되었습니다.');
     } catch { toast.error('식단 기록에 실패했습니다.'); }
@@ -161,6 +179,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   const handleOpenModal = () => {
     setNewMeal('');
     setSelectedImage(null);
+    setSelectedFile(null);
     setIsModalOpen(true);
   };
 
@@ -319,7 +338,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                             <div className="flex flex-col md:flex-row gap-4">
                                 {log.imageUrl && (
                                 <div className="shrink-0 w-full md:w-32 h-32 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
-                                    <img src={log.imageUrl} alt="Meal" className="w-full h-full object-cover" />
+                                    <img src={log.imageUrl.startsWith('/') ? `${API_URL}${log.imageUrl}` : log.imageUrl} alt="Meal" className="w-full h-full object-cover" />
                                 </div>
                                 )}
                                 <div className="flex-1">

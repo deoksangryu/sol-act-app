@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { User, ClassInfo, UserRole, Subject, SUBJECT_LABELS, ScheduleSlot } from '../types';
-import { classApi } from '../services/api';
+import { classApi, resolveFileUrl } from '../services/api';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -197,7 +197,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                       <img
                         key={sid}
                         className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-slate-200"
-                        src={student.avatar}
+                        src={resolveFileUrl(student.avatar)}
                         alt={student.name}
                         title={student.name}
                       />
@@ -347,7 +347,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                             onChange={() => toggleStudent(s.id)}
                             className="w-5 h-5 text-brand-500 rounded focus:ring-brand-500 border-gray-300"
                           />
-                          <img src={s.avatar} alt={s.name} className="w-8 h-8 rounded-full bg-slate-200" />
+                          <img src={resolveFileUrl(s.avatar)} alt={s.name} className="w-8 h-8 rounded-full bg-slate-200" />
                           <span className="text-sm font-medium text-slate-700">{s.name}</span>
                        </label>
                      ))}

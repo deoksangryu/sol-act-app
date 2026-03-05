@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { User, UserRole, ViewState } from '../types';
+import { resolveFileUrl } from '../services/api';
 
 interface SidebarProps {
   currentView: ViewState;
@@ -42,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onChangeView, use
 
       <div className="px-6 mb-8 flex items-center gap-3">
         <img
-          src={user.avatar}
+          src={resolveFileUrl(user.avatar)}
           alt="Profile"
           className="w-10 h-10 rounded-full bg-slate-200 object-cover cursor-pointer hover:ring-2 hover:ring-brand-300"
           onClick={() => onChangeView('profile' as ViewState)}

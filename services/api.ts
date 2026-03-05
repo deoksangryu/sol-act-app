@@ -83,6 +83,13 @@ function mapPortfolio(raw: any): any {
   };
 }
 
+// Resolve a file URL: relative paths (/uploads/...) get API_URL prepended,
+// absolute URLs (http/https) are returned as-is.
+export function resolveFileUrl(url: string | null | undefined): string {
+  if (!url) return '';
+  return url.startsWith('/') ? `${API_URL}${url}` : url;
+}
+
 // --- Fetch wrapper ---
 async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getToken();
@@ -736,13 +743,16 @@ export const privateLessonApi = {
 
 // --- Upload API ---
 export const uploadApi = {
-  upload(file: File, onProgress?: (pct: number) => void): Promise<{ url: string; filename: string }> {
+  upload(file: File, onProgress?: (pct: number) => void, subfolder?: string): Promise<{ url: string; filename: string }> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const formData = new FormData();
       formData.append('file', file);
 
-      xhr.open('POST', `${API_URL}/api/upload`);
+      const uploadUrl = subfolder
+        ? `${API_URL}/api/upload?subfolder=${subfolder}`
+        : `${API_URL}/api/upload`;
+      xhr.open('POST', uploadUrl);
 
       const token = getToken();
       if (token) {
