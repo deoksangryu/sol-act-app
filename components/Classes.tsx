@@ -263,6 +263,9 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                 <div>
                    <label className="block text-xs font-bold text-slate-500 mb-2">수강생 편집</label>
                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-h-40 overflow-y-auto space-y-2">
+                     {students.length === 0 && (
+                       <p className="text-sm text-slate-400 text-center py-2">등록된 수강생이 없습니다.</p>
+                     )}
                      {students.map(s => (
                        <label key={s.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
                           <input
