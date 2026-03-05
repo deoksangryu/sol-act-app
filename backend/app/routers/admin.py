@@ -6,7 +6,7 @@ from app.models.user import User, UserRole
 from app.models.assignment import Assignment
 from app.models.lesson import Lesson
 from app.models.lesson_journal import LessonJournal
-from app.models.portfolio import Portfolio
+from app.models.portfolio import Portfolio, PortfolioComment
 from app.models.evaluation import Evaluation
 from app.models.diet import DietLog
 from app.models.attendance import Attendance
@@ -80,7 +80,9 @@ def admin_student_detail(student_id: str, request: Request, db: Session = Depend
 
     assignments = db.query(Assignment).filter(Assignment.student_id == student_id).order_by(Assignment.due_date.desc()).all()
     diets = db.query(DietLog).filter(DietLog.student_id == student_id).order_by(DietLog.date.desc()).limit(30).all()
-    portfolios = db.query(Portfolio).filter(Portfolio.student_id == student_id).order_by(Portfolio.created_at.desc()).all()
+    portfolios = db.query(Portfolio).options(
+        joinedload(Portfolio.comments).joinedload(PortfolioComment.author)
+    ).filter(Portfolio.student_id == student_id).order_by(Portfolio.created_at.desc()).all()
     evaluations = db.query(Evaluation).options(
         joinedload(Evaluation.evaluator), joinedload(Evaluation.class_info)
     ).filter(Evaluation.student_id == student_id).order_by(Evaluation.created_at.desc()).all()
@@ -90,16 +92,31 @@ def admin_student_detail(student_id: str, request: Request, db: Session = Depend
         "user": {"id": user.id, "name": user.name, "email": user.email, "avatar": user.avatar},
         "assignments": [{
             "id": a.id, "title": a.title, "status": a.status.value,
+            "description": a.description,
             "due_date": str(a.due_date), "grade": a.grade, "feedback": a.feedback,
+            "submission_text": a.submission_text,
+            "submission_file_url": a.submission_file_url,
+            "ai_analysis": a.ai_analysis,
         } for a in assignments],
         "diets": [{
             "id": d.id, "date": str(d.date), "meal_type": d.meal_type.value,
             "description": d.description, "calories": d.calories,
             "ai_advice": d.ai_advice, "teacher_comment": d.teacher_comment,
+            "image_url": d.image_url,
         } for d in diets],
         "portfolios": [{
             "id": p.id, "title": p.title, "category": p.category.value,
+            "description": p.description,
             "tags": p.tags, "created_at": str(p.created_at),
+            "video_url": p.video_url,
+            "ai_feedback": p.ai_feedback,
+            "video_duration": p.video_duration,
+            "comments": [{
+                "author_name": c.author.name if c.author else "?",
+                "content": c.content,
+                "timestamp_sec": c.timestamp_sec,
+                "created_at": str(c.created_at),
+            } for c in p.comments],
         } for p in portfolios],
         "evaluations": [{
             "id": e.id, "period": e.period,

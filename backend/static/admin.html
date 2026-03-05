@@ -33,8 +33,6 @@
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
     .student-row { cursor: pointer; transition: background 0.15s ease; }
     .student-row:hover { background: #1e293b !important; }
-    .expand-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
-    .expand-content.open { max-height: 2000px; }
     .status-pending { color: #fbbf24; }
     .status-submitted { color: #38bdf8; }
     .status-graded { color: #4ade80; }
@@ -42,6 +40,22 @@
     .tab-active { border-bottom: 2px solid #38bdf8; color: #38bdf8; }
     .tab-inactive { border-bottom: 2px solid transparent; color: #94a3b8; }
     .tab-inactive:hover { color: #cbd5e1; }
+
+    /* Sidebar nav */
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 9px 14px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      color: #94a3b8; transition: background 0.15s, color 0.15s;
+      border: none; background: none; width: 100%; text-align: left;
+    }
+    .nav-item:hover { background: #1e293b; color: #e2e8f0; }
+    .nav-item.active { background: #0ea5e9/10; color: #38bdf8; background-color: rgba(14,165,233,0.12); }
+    .nav-item.active .nav-icon { color: #38bdf8; }
+
+    /* Page sections */
+    .page { display: none; }
+    .page.active { display: block; }
 
     /* Slideshow styles */
     .slideshow-overlay {
@@ -105,15 +119,15 @@
     .ss-meta-value { font-size: 1.75rem; font-weight: 700; }
   </style>
 </head>
-<body class="min-h-screen">
+<body class="min-h-screen flex flex-col">
 
   <!-- Top Bar -->
-  <header class="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-700 backdrop-blur">
-    <div class="max-w-[1920px] mx-auto px-4 py-3 flex items-center justify-between">
+  <header class="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-700 backdrop-blur flex-shrink-0">
+    <div class="px-4 py-3 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-2 h-2 rounded-full bg-emerald-400 pulse-dot"></div>
-        <h1 class="text-lg font-bold text-slate-100 tracking-tight">SOL-ACT 관리자 대시보드</h1>
-        <span class="text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300 border border-emerald-700">No-Auth Mode</span>
+        <h1 class="text-lg font-bold text-slate-100 tracking-tight">SOL-ACT 관리자</h1>
+        <span class="text-xs px-2 py-0.5 rounded bg-emerald-900 text-emerald-300 border border-emerald-700">No-Auth</span>
       </div>
       <div class="flex items-center gap-4">
         <span id="lastRefresh" class="text-xs text-slate-500">--</span>
@@ -129,109 +143,195 @@
     </div>
   </header>
 
-  <!-- Main Content -->
-  <main class="max-w-[1920px] mx-auto px-4 py-6 space-y-6">
+  <!-- Body: Sidebar + Content -->
+  <div class="flex flex-1 overflow-hidden">
 
-    <!-- Section 1: Summary Stats -->
-    <section>
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">학원 전체 통계</h2>
-      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
-        <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div class="text-xs text-slate-500 mb-1">학생 수</div>
-          <div id="statStudents" class="text-2xl font-bold text-sky-400">--</div>
-        </div>
-        <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div class="text-xs text-slate-500 mb-1">강사 수</div>
-          <div id="statTeachers" class="text-2xl font-bold text-violet-400">--</div>
-        </div>
-        <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div class="text-xs text-slate-500 mb-1">원장</div>
-          <div id="statDirectors" class="text-2xl font-bold text-amber-400">--</div>
-        </div>
-        <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div class="text-xs text-slate-500 mb-1">전체 수업</div>
-          <div id="statLessons" class="text-2xl font-bold text-emerald-400">--</div>
-        </div>
-        <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div class="text-xs text-slate-500 mb-1">미완료 과제</div>
-          <div id="statPending" class="text-2xl font-bold text-yellow-400">--</div>
-        </div>
-        <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div class="text-xs text-slate-500 mb-1">제출 과제</div>
-          <div id="statSubmitted" class="text-2xl font-bold text-sky-300">--</div>
-        </div>
-        <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
-          <div class="text-xs text-slate-500 mb-1">포트폴리오</div>
-          <div id="statPortfolios" class="text-2xl font-bold text-pink-400">--</div>
-        </div>
-      </div>
-    </section>
+    <!-- Sidebar -->
+    <aside class="w-52 flex-shrink-0 bg-slate-900 border-r border-slate-800 flex flex-col py-4 px-3 gap-1 overflow-y-auto">
+      <button class="nav-item active" onclick="navigate('dashboard')" id="nav-dashboard">
+        <svg class="w-4 h-4 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+        </svg>
+        대시보드
+      </button>
 
-    <!-- Section 2: Activity Feed -->
-    <section>
-      <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">실시간 활동 피드</h2>
-      <div class="bg-slate-800 border border-slate-700 rounded-lg">
-        <div id="activityFeed" class="max-h-80 overflow-y-auto p-4 space-y-2">
-          <div class="text-sm text-slate-500 text-center py-8">데이터를 불러오는 중...</div>
-        </div>
-      </div>
-    </section>
+      <button class="nav-item" onclick="navigate('students')" id="nav-students">
+        <svg class="w-4 h-4 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        학생 현황
+      </button>
 
-    <!-- Section 3: Student Detail Table -->
-    <section>
-      <div class="flex items-center justify-between mb-3">
-        <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">학생별 상세 현황</h2>
-        <div class="flex items-center gap-2">
-          <input id="studentSearch" type="text" placeholder="이름 검색..."
-            oninput="filterStudents()"
-            class="px-3 py-1.5 bg-slate-900 border border-slate-600 rounded text-xs text-slate-300 focus:outline-none focus:border-sky-500 w-48">
-          <span id="studentCount" class="text-xs text-slate-500"></span>
-        </div>
-      </div>
-      <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
-        <div class="overflow-x-auto">
-          <table class="w-full text-xs">
-            <thead>
-              <tr class="bg-slate-900 text-slate-400 uppercase tracking-wider">
-                <th class="px-4 py-3 text-left font-medium">이름</th>
-                <th class="px-4 py-3 text-left font-medium">이메일</th>
-                <th class="px-4 py-3 text-left font-medium">반</th>
-                <th class="px-4 py-3 text-center font-medium">과제(대기)</th>
-                <th class="px-4 py-3 text-center font-medium">과제(제출)</th>
-                <th class="px-4 py-3 text-center font-medium">과제(채점)</th>
-                <th class="px-4 py-3 text-center font-medium">출석률</th>
-                <th class="px-4 py-3 text-center font-medium">포트폴리오</th>
-              </tr>
-            </thead>
-            <tbody id="studentTableBody">
-              <tr><td colspan="8" class="px-4 py-8 text-center text-slate-500">데이터를 불러오는 중...</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  </main>
+      <button class="nav-item" onclick="navigate('activity')" id="nav-activity">
+        <svg class="w-4 h-4 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13 10V3L4 14h7v7l9-11h-7z"/>
+        </svg>
+        활동 피드
+      </button>
 
-  <footer class="max-w-[1920px] mx-auto px-4 py-4 text-center text-xs text-slate-600 border-t border-slate-800">
-    SOL-ACT Admin Dashboard &mdash; Local Access Only &mdash; localhost:8000
-  </footer>
+      <button class="nav-item" onclick="navigate('invites')" id="nav-invites">
+        <svg class="w-4 h-4 nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+        </svg>
+        초대 코드
+      </button>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto">
+      <div class="max-w-[1600px] mx-auto px-6 py-6">
+
+        <!-- Page: Dashboard -->
+        <div id="page-dashboard" class="page active space-y-6">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">학원 전체 통계</h2>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+            <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div class="text-xs text-slate-500 mb-1">학생 수</div>
+              <div id="statStudents" class="text-2xl font-bold text-sky-400">--</div>
+            </div>
+            <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div class="text-xs text-slate-500 mb-1">강사 수</div>
+              <div id="statTeachers" class="text-2xl font-bold text-violet-400">--</div>
+            </div>
+            <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div class="text-xs text-slate-500 mb-1">원장</div>
+              <div id="statDirectors" class="text-2xl font-bold text-amber-400">--</div>
+            </div>
+            <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div class="text-xs text-slate-500 mb-1">전체 수업</div>
+              <div id="statLessons" class="text-2xl font-bold text-emerald-400">--</div>
+            </div>
+            <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div class="text-xs text-slate-500 mb-1">미완료 과제</div>
+              <div id="statPending" class="text-2xl font-bold text-yellow-400">--</div>
+            </div>
+            <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div class="text-xs text-slate-500 mb-1">제출 과제</div>
+              <div id="statSubmitted" class="text-2xl font-bold text-sky-300">--</div>
+            </div>
+            <div class="stat-card bg-slate-800 border border-slate-700 rounded-lg p-4">
+              <div class="text-xs text-slate-500 mb-1">포트폴리오</div>
+              <div id="statPortfolios" class="text-2xl font-bold text-pink-400">--</div>
+            </div>
+          </div>
+
+          <div>
+            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-3">실시간 활동 피드</h2>
+            <div class="bg-slate-800 border border-slate-700 rounded-lg">
+              <div id="activityFeedDash" class="max-h-96 overflow-y-auto p-4 space-y-1">
+                <div class="text-sm text-slate-500 text-center py-8">데이터를 불러오는 중...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page: Students -->
+        <div id="page-students" class="page">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">학생별 상세 현황</h2>
+            <div class="flex items-center gap-2">
+              <input id="studentSearch" type="text" placeholder="이름 검색..."
+                oninput="filterStudents()"
+                class="px-3 py-1.5 bg-slate-900 border border-slate-600 rounded text-xs text-slate-300 focus:outline-none focus:border-sky-500 w-48">
+              <span id="studentCount" class="text-xs text-slate-500"></span>
+            </div>
+          </div>
+          <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="bg-slate-900 text-slate-400 uppercase tracking-wider">
+                    <th class="px-4 py-3 text-left font-medium">이름</th>
+                    <th class="px-4 py-3 text-left font-medium">이메일</th>
+                    <th class="px-4 py-3 text-left font-medium">반</th>
+                    <th class="px-4 py-3 text-center font-medium">과제(대기)</th>
+                    <th class="px-4 py-3 text-center font-medium">과제(제출)</th>
+                    <th class="px-4 py-3 text-center font-medium">과제(채점)</th>
+                    <th class="px-4 py-3 text-center font-medium">출석률</th>
+                    <th class="px-4 py-3 text-center font-medium">포트폴리오</th>
+                  </tr>
+                </thead>
+                <tbody id="studentTableBody">
+                  <tr><td colspan="8" class="px-4 py-8 text-center text-slate-500">데이터를 불러오는 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page: Activity -->
+        <div id="page-activity" class="page">
+          <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-4">실시간 활동 피드</h2>
+          <div class="bg-slate-800 border border-slate-700 rounded-lg">
+            <div id="activityFeedFull" class="p-4 space-y-1">
+              <div class="text-sm text-slate-500 text-center py-8">데이터를 불러오는 중...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Page: Invite Codes -->
+        <div id="page-invites" class="page">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-wider">초대 코드</h2>
+            <div class="flex items-center gap-2">
+              <select id="inviteRoleFilter" onchange="filterInviteCodes()"
+                class="px-3 py-1.5 bg-slate-900 border border-slate-600 rounded text-xs text-slate-300 focus:outline-none focus:border-sky-500">
+                <option value="">전체 역할</option>
+                <option value="student">수강생</option>
+                <option value="teacher">강사</option>
+                <option value="director">원장</option>
+              </select>
+              <select id="inviteUsedFilter" onchange="filterInviteCodes()"
+                class="px-3 py-1.5 bg-slate-900 border border-slate-600 rounded text-xs text-slate-300 focus:outline-none focus:border-sky-500">
+                <option value="">전체 상태</option>
+                <option value="unused">미사용</option>
+                <option value="used">사용됨</option>
+              </select>
+              <span id="inviteCount" class="text-xs text-slate-500"></span>
+            </div>
+          </div>
+          <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="bg-slate-900 text-slate-400 uppercase tracking-wider">
+                    <th class="px-4 py-3 text-left font-medium">코드</th>
+                    <th class="px-4 py-3 text-center font-medium">역할</th>
+                    <th class="px-4 py-3 text-center font-medium">상태</th>
+                    <th class="px-4 py-3 text-left font-medium">사용자</th>
+                    <th class="px-4 py-3 text-left font-medium">메모</th>
+                    <th class="px-4 py-3 text-left font-medium">생성일</th>
+                  </tr>
+                </thead>
+                <tbody id="inviteTableBody">
+                  <tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">데이터를 불러오는 중...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
 
   <!-- Slideshow AUTO badge -->
   <div id="autoBadge" class="auto-badge">AUTO</div>
 
   <!-- Slideshow Overlay -->
   <div id="slideshowOverlay" class="slideshow-overlay">
-    <!-- Slide 0: Stats Overview -->
     <div id="ssSlide0" class="slideshow-slide">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8">학원 전체 통계</h2>
       <div class="ss-stat-grid" id="ssStatsGrid"></div>
     </div>
-    <!-- Slide 1: Activity Feed -->
     <div id="ssSlide1" class="slideshow-slide">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8">실시간 활동 피드</h2>
       <div class="ss-feed-list" id="ssFeedList"></div>
     </div>
-    <!-- Slide 2: Student Spotlight -->
     <div id="ssSlide2" class="slideshow-slide">
       <h2 class="text-sm font-semibold text-slate-400 uppercase tracking-widest mb-8">학생 스포트라이트</h2>
       <div class="ss-student-card" id="ssStudentCard"></div>
@@ -243,7 +343,7 @@
     // Configuration
     // ========================================================================
     const BASE_URL = '';
-    const REFRESH_INTERVAL = 30000; // 30 seconds
+    const REFRESH_INTERVAL = 30000;
     let refreshTimer = null;
 
     // ========================================================================
@@ -253,8 +353,10 @@
       stats: null,
       students: [],
       activity: [],
+      inviteCodes: [],
       expandedStudent: null,
-      studentDetails: {}, // cache: { [studentId]: detailData }
+      studentDetails: {},
+      currentPage: 'dashboard',
       slideshowActive: false,
       slideshowStep: 0,
       idleTimer: null,
@@ -263,7 +365,28 @@
     };
 
     // ========================================================================
-    // API Helpers (no auth)
+    // Navigation
+    // ========================================================================
+    function navigate(page) {
+      state.currentPage = page;
+
+      // Update nav items
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      document.getElementById('nav-' + page).classList.add('active');
+
+      // Update pages
+      document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+      document.getElementById('page-' + page).classList.add('active');
+
+      // Render the page's content
+      if (page === 'dashboard') { renderStats(); renderActivityFeed('activityFeedDash'); }
+      if (page === 'students') renderStudentTable();
+      if (page === 'activity') renderActivityFeed('activityFeedFull');
+      if (page === 'invites') renderInviteCodes();
+    }
+
+    // ========================================================================
+    // API Helpers
     // ========================================================================
     async function apiFetch(path) {
       try {
@@ -280,27 +403,27 @@
     // Data Fetching
     // ========================================================================
     async function fetchAllData() {
-      const [stats, students, activity] = await Promise.all([
+      const [stats, students, activity, inviteCodes] = await Promise.all([
         apiFetch('/api/admin/stats'),
         apiFetch('/api/admin/students'),
         apiFetch('/api/admin/activity'),
+        apiFetch('/api/admin/invite-codes'),
       ]);
 
       if (stats) state.stats = stats;
       if (students) state.students = students;
       if (activity) state.activity = activity;
+      if (inviteCodes) state.inviteCodes = inviteCodes;
     }
 
     async function fetchStudentDetail(studentId) {
       const data = await apiFetch(`/api/admin/students/${studentId}`);
-      if (data) {
-        state.studentDetails[studentId] = data;
-      }
+      if (data) state.studentDetails[studentId] = data;
       return data;
     }
 
     // ========================================================================
-    // Rendering
+    // Rendering: Stats
     // ========================================================================
     function renderStats() {
       if (!state.stats) return;
@@ -314,49 +437,12 @@
       document.getElementById('statPortfolios').textContent = s.portfolios ?? '--';
     }
 
-    function timeAgo(dateStr) {
-      if (!dateStr) return '';
-      const d = new Date(dateStr);
-      const now = new Date();
-      const diff = Math.floor((now - d) / 1000);
-      if (diff < 60) return `${diff}초 전`;
-      if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
-      if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
-      if (diff < 604800) return `${Math.floor(diff / 86400)}일 전`;
-      return d.toLocaleDateString('ko-KR');
-    }
-
-    function formatDateTime(dateStr) {
-      if (!dateStr) return '--';
-      const d = new Date(dateStr);
-      return d.toLocaleString('ko-KR', {
-        month: 'short', day: 'numeric',
-        hour: '2-digit', minute: '2-digit',
-      });
-    }
-
-    function formatDate(dateStr) {
-      if (!dateStr) return '--';
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
-    }
-
-    function activityIcon(type) {
-      const icons = {
-        'assignment-submit': ['&#9997;', 'text-sky-400'],
-        'assignment-grade': ['&#10003;', 'text-emerald-400'],
-        'assignment-new': ['&#43;', 'text-yellow-400'],
-        'journal': ['&#128221;', 'text-violet-400'],
-        'portfolio': ['&#127909;', 'text-pink-400'],
-        'attendance': ['&#128203;', 'text-emerald-400'],
-        'diet': ['&#127860;', 'text-amber-400'],
-        'evaluation': ['&#128200;', 'text-cyan-400'],
-      };
-      return icons[type] || ['&#8226;', 'text-slate-400'];
-    }
-
-    function renderActivityFeed() {
-      const feed = document.getElementById('activityFeed');
+    // ========================================================================
+    // Rendering: Activity Feed
+    // ========================================================================
+    function renderActivityFeed(containerId) {
+      const feed = document.getElementById(containerId);
+      if (!feed) return;
       const items = state.activity || [];
 
       if (items.length === 0) {
@@ -378,6 +464,9 @@
       }).join('');
     }
 
+    // ========================================================================
+    // Rendering: Student Table
+    // ========================================================================
     function renderStudentTable() {
       const tbody = document.getElementById('studentTableBody');
       const search = (document.getElementById('studentSearch').value || '').toLowerCase();
@@ -407,7 +496,7 @@
         const isExpanded = state.expandedStudent === s.id;
 
         return `
-          <tr class="student-row border-b border-slate-700/50 ${isExpanded ? 'bg-slate-750' : ''}"
+          <tr class="student-row border-b border-slate-700/50 ${isExpanded ? 'bg-slate-800' : ''}"
               onclick="toggleStudentDetail('${s.id}')">
             <td class="px-4 py-3 text-slate-200 font-medium">${esc(s.name)}</td>
             <td class="px-4 py-3 text-slate-400">${esc(s.email)}</td>
@@ -442,9 +531,7 @@
 
       state.expandedStudent = studentId;
 
-      // Fetch detail data if not cached
       if (!state.studentDetails[studentId]) {
-        // Show loading state
         renderStudentTable();
         await fetchStudentDetail(studentId);
       }
@@ -464,7 +551,6 @@
 
       return `
         <div class="space-y-4">
-          <!-- Sub-tabs -->
           <div class="flex gap-4 border-b border-slate-700 pb-0 text-xs">
             <button class="tab-active pb-2 px-1 font-medium" onclick="event.stopPropagation(); switchTab(event, '${studentId}', 'assignments')">과제 (${assigns.length})</button>
             <button class="tab-inactive pb-2 px-1 font-medium" onclick="event.stopPropagation(); switchTab(event, '${studentId}', 'attendance')">출석 (${atts.length})</button>
@@ -473,33 +559,52 @@
             <button class="tab-inactive pb-2 px-1 font-medium" onclick="event.stopPropagation(); switchTab(event, '${studentId}', 'evaluations')">평가 (${evals.length})</button>
           </div>
 
-          <!-- Assignments Tab -->
           <div id="tab-${studentId}-assignments" class="tab-content">
             ${assigns.length === 0 ? '<div class="text-xs text-slate-500 py-2">과제 없음</div>' : `
-              <table class="w-full text-xs">
-                <thead><tr class="text-slate-500">
-                  <th class="text-left pb-2 font-medium">제목</th>
-                  <th class="text-center pb-2 font-medium">상태</th>
-                  <th class="text-center pb-2 font-medium">등급</th>
-                  <th class="text-left pb-2 font-medium">마감일</th>
-                  <th class="text-left pb-2 font-medium">피드백</th>
-                </tr></thead>
-                <tbody>
-                  ${assigns.map(a => `
-                    <tr class="border-t border-slate-700/30">
-                      <td class="py-2 text-slate-300">${esc(a.title)}</td>
-                      <td class="py-2 text-center"><span class="status-${a.status} text-xs px-2 py-0.5 rounded bg-slate-800">${statusKo(a.status)}</span></td>
-                      <td class="py-2 text-center text-slate-300">${a.grade || '-'}</td>
-                      <td class="py-2 text-slate-400">${formatDate(a.due_date)}</td>
-                      <td class="py-2 text-slate-400 max-w-xs truncate">${esc(a.feedback || '-')}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+              <div class="space-y-3">
+                ${assigns.map(a => `
+                  <div class="bg-slate-800 border border-slate-700 rounded-lg p-4">
+                    <div class="flex items-start justify-between gap-3 mb-2">
+                      <div class="font-medium text-slate-200 text-sm">${esc(a.title)}</div>
+                      <div class="flex items-center gap-2 flex-shrink-0">
+                        <span class="status-${a.status} text-xs px-2 py-0.5 rounded bg-slate-900">${statusKo(a.status)}</span>
+                        ${a.grade ? `<span class="text-xs px-2 py-0.5 rounded bg-emerald-900/50 text-emerald-300 font-bold">${esc(a.grade)}</span>` : ''}
+                        <span class="text-xs text-slate-500">마감 ${formatDate(a.due_date)}</span>
+                      </div>
+                    </div>
+                    ${a.description ? `<div class="text-xs text-slate-400 mb-2">${esc(a.description)}</div>` : ''}
+                    ${a.submission_text ? `
+                      <div class="mt-2 p-3 bg-slate-900 rounded border border-slate-700">
+                        <div class="text-xs text-slate-500 mb-1">제출 내용</div>
+                        <div class="text-xs text-slate-300 whitespace-pre-wrap">${esc(a.submission_text)}</div>
+                      </div>
+                    ` : ''}
+                    ${a.submission_file_url ? `
+                      <div class="mt-2">
+                        <a href="${esc(a.submission_file_url)}" target="_blank"
+                          class="inline-flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300">
+                          &#128196; 첨부 파일 열기
+                        </a>
+                      </div>
+                    ` : ''}
+                    ${a.ai_analysis ? `
+                      <div class="mt-2 p-3 bg-violet-900/20 border border-violet-700/30 rounded">
+                        <div class="text-xs text-violet-400 mb-1">&#129302; AI 분석</div>
+                        <div class="text-xs text-slate-300 whitespace-pre-wrap">${esc(a.ai_analysis)}</div>
+                      </div>
+                    ` : ''}
+                    ${a.feedback ? `
+                      <div class="mt-2 p-3 bg-emerald-900/20 border border-emerald-700/30 rounded">
+                        <div class="text-xs text-emerald-400 mb-1">&#128172; 강사 피드백</div>
+                        <div class="text-xs text-slate-300 whitespace-pre-wrap">${esc(a.feedback)}</div>
+                      </div>
+                    ` : ''}
+                  </div>
+                `).join('')}
+              </div>
             `}
           </div>
 
-          <!-- Attendance Tab -->
           <div id="tab-${studentId}-attendance" class="tab-content hidden">
             ${atts.length === 0 ? '<div class="text-xs text-slate-500 py-2">출석 기록 없음</div>' : `
               <table class="w-full text-xs">
@@ -523,65 +628,101 @@
             `}
           </div>
 
-          <!-- Diet Tab -->
           <div id="tab-${studentId}-diet" class="tab-content hidden">
             ${diets.length === 0 ? '<div class="text-xs text-slate-500 py-2">식단 기록 없음</div>' : `
-              <table class="w-full text-xs">
-                <thead><tr class="text-slate-500">
-                  <th class="text-left pb-2 font-medium">날짜</th>
-                  <th class="text-left pb-2 font-medium">식사</th>
-                  <th class="text-left pb-2 font-medium">설명</th>
-                  <th class="text-center pb-2 font-medium">칼로리</th>
-                  <th class="text-left pb-2 font-medium">AI 조언</th>
-                </tr></thead>
-                <tbody>
-                  ${diets.slice(0, 20).map(d => `
-                    <tr class="border-t border-slate-700/30">
-                      <td class="py-2 text-slate-400">${formatDate(d.date)}</td>
-                      <td class="py-2 text-slate-300">${mealTypeKo(d.meal_type)}</td>
-                      <td class="py-2 text-slate-300 max-w-xs truncate">${esc(d.description || '-')}</td>
-                      <td class="py-2 text-center text-amber-400">${d.calories || '-'}</td>
-                      <td class="py-2 text-slate-400 max-w-xs truncate">${esc(d.ai_advice || '-')}</td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
-            `}
-          </div>
-
-          <!-- Portfolios Tab -->
-          <div id="tab-${studentId}-portfolios" class="tab-content hidden">
-            ${ptfs.length === 0 ? '<div class="text-xs text-slate-500 py-2">포트폴리오 없음</div>' : `
               <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                ${ptfs.map(p => `
-                  <div class="bg-slate-800 border border-slate-700 rounded p-3">
-                    <div class="text-sm font-medium text-slate-200 mb-1">${esc(p.title)}</div>
-                    <div class="text-xs text-slate-400 mb-2 line-clamp-2">${esc(p.description || '')}</div>
-                    <div class="flex items-center justify-between">
-                      <span class="text-xs px-1.5 py-0.5 rounded bg-pink-900/50 text-pink-300">${esc(p.category || '-')}</span>
-                      <span class="text-xs text-slate-500">${formatDate(p.created_at)}</span>
+                ${diets.slice(0, 20).map(d => `
+                  <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+                    ${d.image_url ? `
+                      <img src="${d.image_url.startsWith('/') ? d.image_url : d.image_url}"
+                        class="w-full h-40 object-cover cursor-pointer"
+                        onclick="window.open(this.src,'_blank')"
+                        onerror="this.style.display='none'"
+                        alt="식단 사진">
+                    ` : ''}
+                    <div class="p-3">
+                      <div class="flex items-center justify-between mb-1">
+                        <span class="text-xs font-bold text-amber-400">${mealTypeKo(d.meal_type)}</span>
+                        <span class="text-xs text-slate-500">${formatDate(d.date)}</span>
+                      </div>
+                      <div class="text-xs text-slate-300 mb-1">${esc(d.description || '-')}</div>
+                      ${d.calories ? `<div class="text-xs text-amber-300 mb-1">&#128293; ${d.calories} kcal</div>` : ''}
+                      ${d.ai_advice ? `
+                        <div class="mt-2 pt-2 border-t border-slate-700">
+                          <div class="text-xs text-violet-400 mb-0.5">&#129302; AI 조언</div>
+                          <div class="text-xs text-slate-400">${esc(d.ai_advice)}</div>
+                        </div>
+                      ` : ''}
+                      ${d.teacher_comment ? `
+                        <div class="mt-2 pt-2 border-t border-slate-700">
+                          <div class="text-xs text-emerald-400 mb-0.5">&#128172; 강사 코멘트</div>
+                          <div class="text-xs text-slate-400">${esc(d.teacher_comment)}</div>
+                        </div>
+                      ` : ''}
                     </div>
-                    ${p.tags && p.tags.length > 0 ? `
-                      <div class="mt-2 flex flex-wrap gap-1">
-                        ${p.tags.map(t => `<span class="text-xs px-1 py-0.5 bg-slate-700 rounded text-slate-400">${esc(t)}</span>`).join('')}
-                      </div>
-                    ` : ''}
-                    ${p.video_url ? `<a href="${esc(p.video_url)}" target="_blank" class="inline-block mt-2 text-xs text-sky-400 hover:text-sky-300">&#9654; 영상 보기</a>` : ''}
-                    ${p.comments && p.comments.length > 0 ? `
-                      <div class="mt-2 pt-2 border-t border-slate-700">
-                        <div class="text-xs text-slate-500 mb-1">댓글 (${p.comments.length})</div>
-                        ${p.comments.slice(0, 3).map(c => `
-                          <div class="text-xs text-slate-400 mb-1"><span class="text-slate-300">${esc(c.author_name)}</span>: ${esc(c.content)}</div>
-                        `).join('')}
-                      </div>
-                    ` : ''}
                   </div>
                 `).join('')}
               </div>
             `}
           </div>
 
-          <!-- Evaluations Tab -->
+          <div id="tab-${studentId}-portfolios" class="tab-content hidden">
+            ${ptfs.length === 0 ? '<div class="text-xs text-slate-500 py-2">포트폴리오 없음</div>' : `
+              <div class="space-y-4">
+                ${ptfs.map(p => {
+                  const isLocal = p.video_url && p.video_url.startsWith('/');
+                  const fullVideoUrl = isLocal ? p.video_url : p.video_url;
+                  const tags = p.tags ? (Array.isArray(p.tags) ? p.tags : p.tags.split(',').map(t => t.trim()).filter(Boolean)) : [];
+                  return `
+                    <div class="bg-slate-800 border border-slate-700 rounded-lg overflow-hidden">
+                      ${p.video_url ? `
+                        <video controls class="w-full max-h-72 bg-black"
+                          src="${esc(fullVideoUrl)}"
+                          onerror="this.outerHTML='<div class=\\'p-3 text-xs text-slate-500\\'>영상을 불러올 수 없습니다</div>'">
+                        </video>
+                      ` : ''}
+                      <div class="p-4">
+                        <div class="flex items-start justify-between gap-2 mb-2">
+                          <div class="font-medium text-slate-200">${esc(p.title)}</div>
+                          <div class="flex items-center gap-2 flex-shrink-0">
+                            <span class="text-xs px-1.5 py-0.5 rounded bg-pink-900/50 text-pink-300">${categoryKo(p.category)}</span>
+                            <span class="text-xs text-slate-500">${formatDate(p.created_at)}</span>
+                          </div>
+                        </div>
+                        ${p.description ? `<div class="text-xs text-slate-400 mb-2">${esc(p.description)}</div>` : ''}
+                        ${tags.length > 0 ? `
+                          <div class="flex flex-wrap gap-1 mb-2">
+                            ${tags.map(t => `<span class="text-xs px-1 py-0.5 bg-slate-700 rounded text-slate-400">${esc(t)}</span>`).join('')}
+                          </div>
+                        ` : ''}
+                        ${p.ai_feedback ? `
+                          <div class="mt-2 p-3 bg-violet-900/20 border border-violet-700/30 rounded">
+                            <div class="text-xs text-violet-400 mb-1">&#129302; AI 피드백</div>
+                            <div class="text-xs text-slate-300 whitespace-pre-wrap">${esc(p.ai_feedback)}</div>
+                          </div>
+                        ` : ''}
+                        ${p.comments && p.comments.length > 0 ? `
+                          <div class="mt-3 pt-3 border-t border-slate-700">
+                            <div class="text-xs text-slate-500 mb-2">댓글 (${p.comments.length})</div>
+                            <div class="space-y-1.5">
+                              ${p.comments.map(c => `
+                                <div class="text-xs flex gap-2">
+                                  ${c.timestamp_sec != null ? `<span class="text-sky-500 flex-shrink-0">${formatTimestamp(c.timestamp_sec)}</span>` : ''}
+                                  <span class="text-slate-300 flex-shrink-0">${esc(c.author_name)}</span>
+                                  <span class="text-slate-400">${esc(c.content)}</span>
+                                </div>
+                              `).join('')}
+                            </div>
+                          </div>
+                        ` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+
           <div id="tab-${studentId}-evaluations" class="tab-content hidden">
             ${evals.length === 0 ? '<div class="text-xs text-slate-500 py-2">평가 없음</div>' : `
               <table class="w-full text-xs">
@@ -619,19 +760,75 @@
     }
 
     function switchTab(event, studentId, tabName) {
-      // Update tab buttons
       const parent = event.target.parentElement;
       parent.querySelectorAll('button').forEach(btn => {
         btn.className = 'tab-inactive pb-2 px-1 font-medium';
       });
       event.target.className = 'tab-active pb-2 px-1 font-medium';
 
-      // Show/hide content
       const allTabs = ['assignments', 'attendance', 'diet', 'portfolios', 'evaluations'];
       allTabs.forEach(t => {
         const el = document.getElementById(`tab-${studentId}-${t}`);
         if (el) el.classList.toggle('hidden', t !== tabName);
       });
+    }
+
+    function filterStudents() {
+      renderStudentTable();
+    }
+
+    // ========================================================================
+    // Rendering: Invite Codes
+    // ========================================================================
+    function renderInviteCodes() {
+      const tbody = document.getElementById('inviteTableBody');
+      const roleFilter = document.getElementById('inviteRoleFilter').value;
+      const usedFilter = document.getElementById('inviteUsedFilter').value;
+
+      let codes = state.inviteCodes || [];
+      if (roleFilter) codes = codes.filter(c => c.role === roleFilter);
+      if (usedFilter === 'used') codes = codes.filter(c => c.used);
+      if (usedFilter === 'unused') codes = codes.filter(c => !c.used);
+
+      document.getElementById('inviteCount').textContent = `총 ${codes.length}개`;
+
+      if (codes.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-500">초대 코드가 없습니다</td></tr>';
+        return;
+      }
+
+      const roleLabels = { student: '수강생', teacher: '강사', director: '원장' };
+      const roleColors = {
+        student: 'bg-sky-900/50 text-sky-300',
+        teacher: 'bg-violet-900/50 text-violet-300',
+        director: 'bg-amber-900/50 text-amber-300',
+      };
+
+      tbody.innerHTML = codes.map(c => `
+        <tr class="border-b border-slate-700/50 hover:bg-slate-700/30">
+          <td class="px-4 py-3">
+            <code class="text-sm font-bold text-emerald-400 tracking-widest">${esc(c.code)}</code>
+          </td>
+          <td class="px-4 py-3 text-center">
+            <span class="text-xs px-2 py-0.5 rounded ${roleColors[c.role] || 'bg-slate-700 text-slate-300'}">
+              ${roleLabels[c.role] || c.role}
+            </span>
+          </td>
+          <td class="px-4 py-3 text-center">
+            ${c.used
+              ? '<span class="text-xs px-2 py-0.5 rounded bg-slate-700 text-slate-400">사용됨</span>'
+              : '<span class="text-xs px-2 py-0.5 rounded bg-emerald-900/50 text-emerald-300">미사용</span>'
+            }
+          </td>
+          <td class="px-4 py-3 text-slate-400 text-xs">${esc(c.used_by || '-')}</td>
+          <td class="px-4 py-3 text-slate-400 text-xs">${esc(c.memo || '-')}</td>
+          <td class="px-4 py-3 text-slate-500 text-xs">${formatDateTime(c.created_at)}</td>
+        </tr>
+      `).join('');
+    }
+
+    function filterInviteCodes() {
+      renderInviteCodes();
     }
 
     // ========================================================================
@@ -642,6 +839,44 @@
       const div = document.createElement('div');
       div.textContent = String(str);
       return div.innerHTML;
+    }
+
+    function timeAgo(dateStr) {
+      if (!dateStr) return '';
+      const d = new Date(dateStr);
+      const now = new Date();
+      const diff = Math.floor((now - d) / 1000);
+      if (diff < 60) return `${diff}초 전`;
+      if (diff < 3600) return `${Math.floor(diff / 60)}분 전`;
+      if (diff < 86400) return `${Math.floor(diff / 3600)}시간 전`;
+      if (diff < 604800) return `${Math.floor(diff / 86400)}일 전`;
+      return d.toLocaleDateString('ko-KR');
+    }
+
+    function formatDateTime(dateStr) {
+      if (!dateStr) return '--';
+      const d = new Date(dateStr);
+      return d.toLocaleString('ko-KR', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '--';
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' });
+    }
+
+    function activityIcon(type) {
+      const icons = {
+        'assignment-submit': ['&#9997;', 'text-sky-400'],
+        'assignment-grade': ['&#10003;', 'text-emerald-400'],
+        'assignment-new': ['&#43;', 'text-yellow-400'],
+        'journal': ['&#128221;', 'text-violet-400'],
+        'portfolio': ['&#127909;', 'text-pink-400'],
+        'attendance': ['&#128203;', 'text-emerald-400'],
+        'diet': ['&#127860;', 'text-amber-400'],
+        'evaluation': ['&#128200;', 'text-cyan-400'],
+      };
+      return icons[type] || ['&#8226;', 'text-slate-400'];
     }
 
     function statusKo(status) {
@@ -670,6 +905,18 @@
       return `<span class="text-xs px-2 py-0.5 rounded ${cls}">${label}</span>`;
     }
 
+    function categoryKo(cat) {
+      const map = { monologue: '독백', scene: '씬', improv: '즉흥', audition_prep: '오디션 준비', other: '기타' };
+      return map[cat] || cat || '-';
+    }
+
+    function formatTimestamp(sec) {
+      if (sec == null) return '';
+      const m = Math.floor(sec / 60);
+      const s = sec % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
     function scoreCell(val) {
       if (val === null || val === undefined) return '<span class="text-slate-600">-</span>';
       const n = Number(val);
@@ -679,10 +926,6 @@
       else if (n >= 5) color = 'text-yellow-400';
       else color = 'text-red-400';
       return `<span class="${color} font-semibold">${n}</span>`;
-    }
-
-    function filterStudents() {
-      renderStudentTable();
     }
 
     // ========================================================================
@@ -701,9 +944,11 @@
 
       try {
         await fetchAllData();
-        renderStats();
-        renderActivityFeed();
-        renderStudentTable();
+        const page = state.currentPage;
+        if (page === 'dashboard') { renderStats(); renderActivityFeed('activityFeedDash'); }
+        if (page === 'students') renderStudentTable();
+        if (page === 'activity') renderActivityFeed('activityFeedFull');
+        if (page === 'invites') renderInviteCodes();
 
         const now = new Date();
         document.getElementById('lastRefresh').textContent =
@@ -724,16 +969,14 @@
 
     function startAutoRefresh() {
       if (refreshTimer) clearInterval(refreshTimer);
-      refreshTimer = setInterval(() => {
-        refreshAll();
-      }, REFRESH_INTERVAL);
+      refreshTimer = setInterval(() => refreshAll(), REFRESH_INTERVAL);
     }
 
     // ========================================================================
     // Slideshow / Idle Detection
     // ========================================================================
-    const IDLE_TIMEOUT = 30000;   // 30 seconds
-    const SLIDE_INTERVAL = 8000;  // 8 seconds per slide
+    const IDLE_TIMEOUT = 30000;
+    const SLIDE_INTERVAL = 8000;
     const TOTAL_SLIDES = 3;
 
     function resetIdle() {
@@ -749,10 +992,8 @@
 
       const overlay = document.getElementById('slideshowOverlay');
       const badge = document.getElementById('autoBadge');
-
       overlay.classList.add('active');
       badge.classList.add('visible');
-
       showSlide(0);
 
       state.slideshowTimer = setInterval(() => {
@@ -768,13 +1009,11 @@
 
       const overlay = document.getElementById('slideshowOverlay');
       const badge = document.getElementById('autoBadge');
-
       overlay.classList.add('fade-out');
       badge.classList.remove('visible');
 
       setTimeout(() => {
         overlay.classList.remove('active', 'fade-out');
-        // Hide all slides
         for (let i = 0; i < TOTAL_SLIDES; i++) {
           document.getElementById('ssSlide' + i).classList.remove('visible');
         }
@@ -782,17 +1021,12 @@
     }
 
     function showSlide(index) {
-      // Hide all slides first
       for (let i = 0; i < TOTAL_SLIDES; i++) {
         document.getElementById('ssSlide' + i).classList.remove('visible');
       }
-
-      // Populate the target slide
       if (index === 0) populateSSStats();
       else if (index === 1) populateSSFeed();
       else if (index === 2) populateSSStudent();
-
-      // Show with a slight delay for fade effect
       setTimeout(() => {
         document.getElementById('ssSlide' + index).classList.add('visible');
       }, 50);
@@ -836,7 +1070,6 @@
           </div>
         `;
       }).join('');
-      // Trigger staggered appearance
       requestAnimationFrame(() => {
         list.querySelectorAll('.ss-feed-item').forEach(el => el.classList.add('shown'));
       });
@@ -898,20 +1131,23 @@
       document.addEventListener('mousemove', resetIdle);
       document.addEventListener('keydown', resetIdle);
       document.addEventListener('click', resetIdle);
-      // Start the first idle timer
       state.idleTimer = setTimeout(startSlideshow, IDLE_TIMEOUT);
     }
 
     // ========================================================================
-    // Initialization
+    // Init
     // ========================================================================
-    function init() {
-      refreshAll();
+    async function init() {
+      await fetchAllData();
+      renderStats();
+      renderActivityFeed('activityFeedDash');
+      const now = new Date();
+      document.getElementById('lastRefresh').textContent =
+        `마지막 갱신: ${now.toLocaleTimeString('ko-KR')}`;
       startAutoRefresh();
       initIdleTracking();
     }
 
-    // Start the app
     init();
   </script>
 </body>
