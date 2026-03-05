@@ -34,6 +34,7 @@ class ClassInfoResponse(BaseModel):
     schedule: Any  # List[ScheduleSlot] or legacy string
     subject_teachers: Dict[str, str]
     student_ids: List[str]
+    generated_lessons_count: Optional[int] = None
 
     class Config:
         from_attributes = True

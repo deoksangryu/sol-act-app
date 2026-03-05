@@ -79,13 +79,15 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
           name, description, schedule: scheduleSlots, subjectTeachers, studentIds: selectedStudentIds,
         });
         setClasses(classes.map(c => c.id === editingClass.id ? updated : c));
-        toast.success('클래스가 수정되었습니다.');
+        const count = (updated as any).generatedLessonsCount;
+        toast.success(count ? `클래스가 수정되었습니다. 수업 ${count}개 재생성됨.` : '클래스가 수정되었습니다.');
       } else {
         const newClass = await classApi.create({
           name, description, schedule: scheduleSlots, subjectTeachers, studentIds: selectedStudentIds,
         });
         setClasses([...classes, newClass]);
-        toast.success('새 클래스가 생성되었습니다.');
+        const count = (newClass as any).generatedLessonsCount;
+        toast.success(count ? `클래스가 생성되었습니다. 수업 ${count}개 자동 등록됨.` : '새 클래스가 생성되었습니다.');
       }
       setIsModalOpen(false);
     } catch {
