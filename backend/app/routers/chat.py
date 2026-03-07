@@ -8,6 +8,7 @@ from app.models.class_info import ClassInfo
 from app.models.user import User
 from app.schemas.chat import ChatMessageCreate, ChatMessageResponse
 from app.utils.auth import get_current_user
+from app.services.notification_service import validate_class_access
 from datetime import datetime
 import uuid
 
@@ -36,6 +37,8 @@ def get_last_messages(
     ids = [cid.strip() for cid in class_ids.split(",") if cid.strip()]
     result = {}
     for class_id in ids:
+        if not validate_class_access(db, class_id, current_user):
+            continue
         msg = (
             db.query(ChatMessage)
             .options(joinedload(ChatMessage.sender))
@@ -54,6 +57,9 @@ def mark_read(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if not validate_class_access(db, class_id, current_user):
+        raise HTTPException(status_code=403, detail="Not a member of this class")
+
     status_row = db.query(ChatReadStatus).filter(
         ChatReadStatus.user_id == current_user.id,
         ChatReadStatus.class_id == class_id,
@@ -76,6 +82,8 @@ def get_unread_counts(
     ids = [cid.strip() for cid in class_ids.split(",") if cid.strip()]
     result = {}
     for class_id in ids:
+        if not validate_class_access(db, class_id, current_user):
+            continue
         read_status = db.query(ChatReadStatus).filter(
             ChatReadStatus.user_id == current_user.id,
             ChatReadStatus.class_id == class_id,
@@ -100,6 +108,9 @@ def list_messages(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    if not validate_class_access(db, class_id, current_user):
+        raise HTTPException(status_code=403, detail="Not a member of this class")
+
     messages = (
         db.query(ChatMessage)
         .options(joinedload(ChatMessage.sender))
@@ -117,6 +128,8 @@ def send_message(data: ChatMessageCreate, db: Session = Depends(get_db), current
     cls = db.query(ClassInfo).filter(ClassInfo.id == data.class_id).first()
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
+    if not validate_class_access(db, data.class_id, current_user):
+        raise HTTPException(status_code=403, detail="Not a member of this class")
 
     message = ChatMessage(
         id=f"msg{uuid.uuid4().hex[:7]}",

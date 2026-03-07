@@ -7,6 +7,11 @@ import toast from 'react-hot-toast';
 import { EmptyState } from './EmptyState';
 import { formatRelativeKo } from '../services/dateUtils';
 
+function toLocalDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 interface DashboardProps {
   user: User;
   onChangeView: (view: ViewState) => void;
@@ -18,11 +23,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
   const [stats, setStats] = useState({ pendingAssignments: 0, todayCalories: 0, todayLessons: 0 });
   const [todayLessonList, setTodayLessonList] = useState<Lesson[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<CompetitionEvent[]>([]);
-  const [directorStats, setDirectorStats] = useState({ totalStudents: 0, totalTeachers: 0, weekLessons: 0, pendingSubmissions: 0 });
+  const [directorStats, setDirectorStats] = useState({ totalStudents: 0, totalTeachers: 0, todayAllLessons: 0, pendingSubmissions: 0 });
   const [recentActivity, setRecentActivity] = useState<{ type: string; text: string; time: string }[]>([]);
 
   const loadData = useCallback(async () => {
-    const today = new Date().toISOString().split('T')[0];
+    const today = toLocalDateStr(new Date());
     try {
       const [assignmentsData, dietData, lessonsData, eventsData] = await Promise.all([
         assignmentApi.list({ status: 'pending' }).catch(() => []),
@@ -54,7 +59,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
         setDirectorStats({
           totalStudents: students.length,
           totalTeachers: teachers.length,
-          weekLessons: lessonsArr.length,
+          todayAllLessons: lessonsArr.length,
           pendingSubmissions: pending,
         });
 
@@ -260,7 +265,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
             </div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
               <h3 className="text-slate-500 text-xs font-bold uppercase">오늘 전체 수업</h3>
-              <p className="text-2xl font-bold text-slate-800 mt-1">{directorStats.weekLessons}개</p>
+              <p className="text-2xl font-bold text-slate-800 mt-1">{directorStats.todayAllLessons}개</p>
             </div>
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100">
               <h3 className="text-slate-500 text-xs font-bold uppercase">미제출 과제</h3>

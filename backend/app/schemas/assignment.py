@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from app.models.assignment import AssignmentStatus
 
@@ -11,7 +11,9 @@ class AssignmentBase(BaseModel):
 
 
 class AssignmentCreate(AssignmentBase):
-    student_id: str
+    student_id: Optional[str] = None       # single student
+    student_ids: Optional[List[str]] = None  # bulk: multiple students or class
+    class_id: Optional[str] = None          # bulk: assign to entire class
 
 
 class AssignmentUpdate(BaseModel):

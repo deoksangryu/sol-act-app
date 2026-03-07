@@ -13,6 +13,7 @@ from .evaluation import Evaluation
 from .portfolio import Portfolio, PortfolioComment
 from .audition import Audition, AuditionChecklist
 from .private_lesson import PrivateLessonRequest
+from .push_subscription import PushSubscription
 
 __all__ = [
     "User",
@@ -34,4 +35,5 @@ __all__ = [
     "Audition",
     "AuditionChecklist",
     "PrivateLessonRequest",
+    "PushSubscription",
 ]

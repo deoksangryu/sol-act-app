@@ -1,7 +1,7 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { userApi, API_URL, getToken, resolveFileUrl } from '../services/api';
+import { userApi, API_URL, getToken, resolveFileUrl, registerPushSubscription } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface ProfileSettingsProps {
@@ -28,6 +28,32 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isChangingPw, setIsChangingPw] = useState(false);
+
+  // Push notification
+  const [pushStatus, setPushStatus] = useState<'loading' | 'unsupported' | 'denied' | 'granted' | 'prompt'>('loading');
+
+  useEffect(() => {
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
+      setPushStatus('unsupported');
+      return;
+    }
+    setPushStatus(Notification.permission as 'denied' | 'granted' | 'prompt');
+  }, []);
+
+  const handleEnablePush = async () => {
+    try {
+      await registerPushSubscription(true);
+      const newStatus = Notification.permission as 'denied' | 'granted' | 'prompt';
+      setPushStatus(newStatus);
+      if (newStatus === 'granted') {
+        toast.success('푸시 알림이 활성화되었습니다.');
+      } else if (newStatus === 'denied') {
+        toast.error('알림 권한이 차단되었습니다. 브라우저 설정에서 허용해주세요.');
+      }
+    } catch {
+      toast.error('알림 설정에 실패했습니다.');
+    }
+  };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -226,6 +252,39 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
             {isChangingPw ? '변경 중...' : '비밀번호 변경'}
           </button>
         </div>
+      </div>
+
+      {/* Push Notification Section */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <h2 className="font-bold text-slate-700 mb-4">푸시 알림</h2>
+        {pushStatus === 'loading' ? (
+          <p className="text-sm text-slate-400">확인 중...</p>
+        ) : pushStatus === 'unsupported' ? (
+          <div className="bg-slate-50 rounded-xl p-4">
+            <p className="text-sm text-slate-600 font-medium">이 브라우저에서는 푸시 알림을 지원하지 않습니다.</p>
+            <p className="text-xs text-slate-400 mt-1">iOS: 홈 화면에 앱을 추가한 후 이용할 수 있습니다.</p>
+          </div>
+        ) : pushStatus === 'granted' ? (
+          <div className="flex items-center gap-3 bg-green-50 rounded-xl p-4">
+            <svg className="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            <p className="text-sm text-green-700 font-medium">푸시 알림이 활성화되어 있습니다.</p>
+          </div>
+        ) : pushStatus === 'denied' ? (
+          <div className="bg-red-50 rounded-xl p-4">
+            <p className="text-sm text-red-700 font-medium">알림이 차단되어 있습니다.</p>
+            <p className="text-xs text-slate-500 mt-1">브라우저 설정 &gt; 사이트 설정 &gt; 알림에서 허용으로 변경해주세요.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">앱을 사용하지 않을 때에도 새 알림을 받을 수 있습니다.</p>
+            <button
+              onClick={handleEnablePush}
+              className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200"
+            >
+              푸시 알림 켜기
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

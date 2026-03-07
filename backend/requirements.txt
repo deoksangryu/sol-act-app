@@ -18,6 +18,9 @@ python-multipart==0.0.20
 google-generativeai==0.8.6
 pillow==11.1.0
 
+# Web Push Notifications
+pywebpush==2.0.1
+
 # Utilities
 python-dotenv==1.0.1
 

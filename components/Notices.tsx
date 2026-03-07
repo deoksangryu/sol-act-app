@@ -20,6 +20,7 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
   const [newContent, setNewContent] = useState('');
   const [newImportant, setNewImportant] = useState(false);
   const [newClassId, setNewClassId] = useState('');
+  const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
   const [deleteNoticeId, setDeleteNoticeId] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
@@ -64,6 +65,37 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
     }
   };
 
+  const handleOpenCreateModal = () => {
+    setEditingNotice(null);
+    setNewTitle(''); setNewContent(''); setNewImportant(false); setNewClassId('');
+    setIsCreateOpen(true);
+  };
+
+  const handleOpenEditModal = (notice: Notice) => {
+    setEditingNotice(notice);
+    setNewTitle(notice.title);
+    setNewContent(notice.content);
+    setNewImportant(notice.important || false);
+    setNewClassId(notice.classId || '');
+    setIsCreateOpen(true);
+  };
+
+  const handleUpdateNotice = async () => {
+    if (!editingNotice || !newTitle.trim() || !newContent.trim()) return;
+    try {
+      await noticeApi.update(editingNotice.id, {
+        title: newTitle,
+        content: newContent,
+        isImportant: newImportant,
+        classId: newClassId || undefined,
+      });
+      toast.success('공지사항이 수정되었습니다.');
+      setIsCreateOpen(false);
+      setEditingNotice(null);
+      await loadData();
+    } catch { toast.error('공지사항 수정에 실패했습니다.'); }
+  };
+
   const handleDeleteNotice = async () => {
     if (!deleteNoticeId) return;
 
@@ -84,7 +116,7 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
         <h2 className="text-2xl font-bold text-slate-800">공지사항</h2>
         {user.role !== UserRole.STUDENT && (
           <button
-            onClick={() => setIsCreateOpen(true)}
+            onClick={handleOpenCreateModal}
             className="px-4 py-2 bg-brand-500 text-white text-sm font-bold rounded-lg hover:bg-brand-600 transition-colors"
           >
             공지 작성
@@ -112,13 +144,16 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
               <p className="text-slate-500 text-sm mt-2 line-clamp-2">{notice.content}</p>
             </div>
             {user.role !== UserRole.STUDENT && (
-              <button
-                onClick={() => setDeleteNoticeId(notice.id)}
-                className="text-red-500 hover:text-red-700 transition-colors font-bold text-lg leading-none mt-1 shrink-0"
-                title="삭제"
-              >
-                ×
-              </button>
+              <div className="flex items-center gap-1 shrink-0">
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleOpenEditModal(notice); }}
+                  className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                >수정</button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setDeleteNoticeId(notice.id); }}
+                  className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                >삭제</button>
+              </div>
             )}
           </div>
         )) : (
@@ -130,7 +165,7 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
       {isCreateOpen && user.role !== UserRole.STUDENT && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
-            <h3 className="text-xl font-bold text-slate-800 mb-4">공지사항 작성</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-4">{editingNotice ? '공지사항 수정' : '공지사항 작성'}</h3>
 
             <div className="space-y-4">
               <div>
@@ -192,10 +227,10 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
                 취소
               </button>
               <button
-                onClick={handleCreateNotice}
+                onClick={editingNotice ? handleUpdateNotice : handleCreateNotice}
                 className="flex-1 px-4 py-2 bg-brand-500 text-white text-sm font-bold rounded-lg hover:bg-brand-600 transition-colors"
               >
-                작성
+                {editingNotice ? '수정' : '작성'}
               </button>
             </div>
           </div>
@@ -203,14 +238,16 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
       )}
 
       {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={deleteNoticeId !== null}
-        title="공지사항 삭제"
-        message="이 공지사항을 삭제하시겠습니까?"
-        onConfirm={handleDeleteNotice}
-        onCancel={() => setDeleteNoticeId(null)}
-        isDangerous
-      />
+      {deleteNoticeId && (
+        <ConfirmDialog
+          title="공지사항 삭제"
+          message="이 공지사항을 삭제하시겠습니까?"
+          variant="danger"
+          confirmLabel="삭제"
+          onConfirm={handleDeleteNotice}
+          onCancel={() => setDeleteNoticeId(null)}
+        />
+      )}
     </div>
   );
 };

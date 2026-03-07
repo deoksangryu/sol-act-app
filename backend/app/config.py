@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # Redis (Optional)
     REDIS_URL: str = "redis://localhost:6379"
 
+    # Web Push (VAPID)
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_CLAIMS_EMAIL: str = "mailto:admin@sol-manager.com"
+
     # CORS
     CORS_ORIGINS: List[str] = [
         "https://sol-manager.com",

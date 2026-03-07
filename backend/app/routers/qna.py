@@ -7,7 +7,7 @@ from app.models.user import User, UserRole
 from app.schemas.qna import QuestionCreate, AnswerCreate, QuestionResponse, AnswerResponse
 from app.utils.auth import get_current_user
 from app.services.ai import ask_ai_tutor
-from app.services.notification_service import notify_user, emit_data_changed
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_teacher_ids_for_student
 import uuid
 
 router = APIRouter()
@@ -65,7 +65,7 @@ def get_question(question_id: str, db: Session = Depends(get_db), current_user: 
 
 
 @router.post("/questions", response_model=QuestionResponse, status_code=status.HTTP_201_CREATED)
-def create_question(
+async def create_question(
     data: QuestionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -80,6 +80,16 @@ def create_question(
     db.add(question)
     db.commit()
     db.refresh(question)
+
+    # Notify teachers when a student posts a question
+    if current_user.role == UserRole.STUDENT:
+        teacher_ids = get_teacher_ids_for_student(db, current_user.id)
+        if teacher_ids:
+            await notify_users(
+                db, teacher_ids,
+                f"새 질문이 등록되었습니다: {data.title}",
+                entity="qna",
+            )
 
     q = (
         db.query(Question)

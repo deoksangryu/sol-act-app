@@ -4,6 +4,19 @@ import { DietLog, User, UserRole } from '../types';
 import { dietApi, uploadApi, API_URL } from '../services/api';
 import toast from 'react-hot-toast';
 import { useDataRefresh } from '../services/useWebSocket';
+import { ConfirmDialog } from './ConfirmDialog';
+
+/** 로컬 날짜를 YYYY-MM-DD 형식으로 반환 */
+function toLocalDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/** 로컬 날짜/시간을 ISO-like 문자열로 반환 (UTC 변환 방지) */
+function toLocalISOString(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+}
 
 interface DietProps {
   user: User;
@@ -32,6 +45,10 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   const [commentingLogId, setCommentingLogId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
+  // Edit/Delete State
+  const [editingLog, setEditingLog] = useState<DietLog | null>(null);
+  const [deleteLogId, setDeleteLogId] = useState<string | null>(null);
+
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
 
   // Load diet logs from API
@@ -52,7 +69,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   const handleToday = () => {
     const today = new Date();
     setCurrentDate(today);
-    setSelectedDate(today.toISOString().split('T')[0]);
+    setSelectedDate(toLocalDateStr(today));
   };
 
   const renderCalendarDays = () => {
@@ -70,7 +87,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
     // Days
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-      const dayLogs = logs.filter(l => l.date.startsWith(dateStr));
+      const dayLogs = logs.filter(l => toLocalDateStr(new Date(l.date)) === dateStr);
       const isSelected = selectedDate === dateStr;
       const totalCalories = dayLogs.reduce((sum, log) => sum + (log.calories || 0), 0);
 
@@ -104,7 +121,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   // Filter Logic
   const filteredLogs = logs.filter(l => {
     if (viewMode === 'calendar' && selectedDate) {
-      return l.date.startsWith(selectedDate);
+      return toLocalDateStr(new Date(l.date)) === selectedDate;
     }
     return true;
   }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -154,14 +171,14 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
       let logDate = new Date();
       if (selectedDate) {
-        logDate = new Date(selectedDate);
+        logDate = new Date(selectedDate + 'T12:00:00');
         const now = new Date();
         logDate.setHours(now.getHours(), now.getMinutes());
       }
 
       const newLog = await dietApi.create({
         studentId: user.id,
-        date: logDate.toISOString(),
+        date: toLocalISOString(logDate),
         mealType: newMealType,
         description: newMeal || '사진으로 기록된 식단',
         imageUrl,
@@ -177,10 +194,63 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   };
 
   const handleOpenModal = () => {
+    setEditingLog(null);
     setNewMeal('');
+    setNewMealType('lunch');
     setSelectedImage(null);
     setSelectedFile(null);
     setIsModalOpen(true);
+  };
+
+  const handleOpenEditModal = (log: DietLog) => {
+    setEditingLog(log);
+    setNewMeal(log.description);
+    setNewMealType(log.mealType as any);
+    setSelectedImage(log.imageUrl ? (log.imageUrl.startsWith('/') ? `${API_URL}${log.imageUrl}` : log.imageUrl) : null);
+    setSelectedFile(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditMeal = async () => {
+    if (!editingLog) return;
+    if (!newMeal.trim() && !selectedFile && !selectedImage) return;
+    setIsAnalyzing(true);
+    try {
+      let imageUrl = editingLog.imageUrl;
+      if (selectedFile) {
+        try {
+          const uploaded = await uploadApi.upload(selectedFile, undefined, 'diet');
+          imageUrl = uploaded.url;
+        } catch {
+          toast.error('이미지 업로드에 실패했습니다.');
+          setIsAnalyzing(false);
+          return;
+        }
+      } else if (!selectedImage) {
+        imageUrl = undefined as any;
+      }
+
+      const updated = await dietApi.update(editingLog.id, {
+        mealType: newMealType,
+        description: newMeal || editingLog.description,
+        imageUrl,
+      });
+      setLogs(logs.map(l => l.id === editingLog.id ? { ...l, ...updated } : l));
+      setIsModalOpen(false);
+      setEditingLog(null);
+      toast.success('식단이 수정되었습니다.');
+    } catch { toast.error('식단 수정에 실패했습니다.'); }
+    finally { setIsAnalyzing(false); }
+  };
+
+  const handleDeleteLog = async () => {
+    if (!deleteLogId) return;
+    try {
+      await dietApi.delete(deleteLogId);
+      setLogs(logs.filter(l => l.id !== deleteLogId));
+      setDeleteLogId(null);
+      toast.success('식단이 삭제되었습니다.');
+    } catch { toast.error('식단 삭제에 실패했습니다.'); }
   };
 
   const handleSaveComment = async (logId: string) => {
@@ -330,9 +400,17 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                             }`}>
                                 {log.mealType === 'breakfast' ? '아침' : log.mealType === 'lunch' ? '점심' : log.mealType === 'dinner' ? '저녁' : '간식'}
                             </span>
-                            <span className="text-xs text-slate-400">
+                            <div className="flex items-center gap-1">
+                              {!isStaff && log.studentId === user.id && (
+                                <>
+                                  <button onClick={() => handleOpenEditModal(log)} className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">수정</button>
+                                  <button onClick={() => setDeleteLogId(log.id)} className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">삭제</button>
+                                </>
+                              )}
+                              <span className="text-xs text-slate-400 ml-1">
                                 {new Date(log.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                            </span>
+                              </span>
+                            </div>
                             </div>
 
                             <div className="flex flex-col md:flex-row gap-4">
@@ -428,7 +506,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
             </button>
 
             <h3 className="text-xl font-bold text-slate-800 mb-2">
-                {selectedDate ? `${selectedDate} 식단 기록` : '오늘의 식단 기록'}
+                {editingLog ? '식단 수정' : selectedDate ? `${selectedDate} 식단 기록` : '오늘의 식단 기록'}
             </h3>
 
             {/* Meal Type Selector */}
@@ -489,7 +567,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
             <div className="flex gap-3 mt-2">
               <button
-                onClick={handleAddMeal}
+                onClick={editingLog ? handleEditMeal : handleAddMeal}
                 disabled={isAnalyzing}
                 className="w-full py-3.5 rounded-xl bg-green-500 text-white font-bold hover:bg-green-600 transition-colors shadow-lg shadow-green-200 disabled:opacity-70 flex justify-center items-center gap-2 text-sm"
               >
@@ -498,7 +576,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                      AI 분석 중...
                    </>
-                ) : '기록하기'}
+                ) : editingLog ? '수정하기' : '기록하기'}
               </button>
             </div>
             <p className="text-[10px] text-center text-slate-400 mt-4">
@@ -506,6 +584,17 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
             </p>
           </div>
         </div>
+      )}
+
+      {deleteLogId && (
+        <ConfirmDialog
+          title="식단 삭제"
+          message="이 식단 기록을 삭제하시겠습니까?"
+          variant="danger"
+          confirmLabel="삭제"
+          onConfirm={handleDeleteLog}
+          onCancel={() => setDeleteLogId(null)}
+        />
       )}
     </div>
   );

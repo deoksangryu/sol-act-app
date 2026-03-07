@@ -10,7 +10,7 @@ from app.schemas.portfolio import (
 )
 from app.utils.auth import get_current_user
 from app.services.ai import analyze_portfolio
-from app.services.notification_service import notify_user, emit_data_changed, get_teacher_ids_for_student
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_teacher_ids_for_student, get_teacher_student_ids
 import uuid
 
 router = APIRouter()
@@ -55,6 +55,10 @@ def list_practice_groups(
         joinedload(Portfolio.student),
         joinedload(Portfolio.comments).joinedload(PortfolioComment.author)
     ).filter(Portfolio.practice_group.isnot(None))
+    # Teacher: only see portfolios for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        query = query.filter(Portfolio.student_id.in_(my_student_ids))
     if student_id:
         query = query.filter(Portfolio.student_id == student_id)
     portfolios = query.order_by(Portfolio.created_at.asc()).all()
@@ -79,6 +83,10 @@ def list_portfolios(
         joinedload(Portfolio.student),
         joinedload(Portfolio.comments).joinedload(PortfolioComment.author)
     )
+    # Teacher: only see portfolios for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        query = query.filter(Portfolio.student_id.in_(my_student_ids))
     if student_id:
         query = query.filter(Portfolio.student_id == student_id)
     if category:
@@ -139,7 +147,11 @@ async def create_portfolio(
 
     teacher_ids = get_teacher_ids_for_student(db, current_user.id)
     if teacher_ids:
-        await emit_data_changed(teacher_ids, "portfolios")
+        await notify_users(
+            db, teacher_ids,
+            f"{current_user.name}님이 새 포트폴리오를 등록했습니다: {data.title}",
+            entity="portfolios",
+        )
 
     return portfolio_to_response(p)
 
@@ -183,7 +195,7 @@ async def update_portfolio(
 
 
 @router.post("/{portfolio_id}/ai-feedback")
-def request_ai_feedback(
+async def request_ai_feedback(
     portfolio_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -195,6 +207,14 @@ def request_ai_feedback(
     feedback = analyze_portfolio(p.title, p.description, p.category.value)
     p.ai_feedback = feedback
     db.commit()
+
+    if p.student_id != current_user.id:
+        await notify_user(
+            db, p.student_id,
+            "포트폴리오에 AI 피드백이 생성되었습니다.",
+            entity="portfolios",
+        )
+
     return {"ai_feedback": feedback}
 
 

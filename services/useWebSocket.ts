@@ -153,8 +153,10 @@ export function useNotificationWebSocket(
 
   useEffect(() => {
     return wsClient.on('new_notification', (parsed) => {
-      const notif = convertKeys(parsed.data) as Notification;
-      onNotifRef.current(notif);
+      const raw = convertKeys(parsed.data);
+      // Map createdAt → date to match frontend Notification type
+      if (raw.createdAt && !raw.date) raw.date = raw.createdAt;
+      onNotifRef.current(raw as Notification);
     });
   }, []);
 }

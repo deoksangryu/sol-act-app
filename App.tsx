@@ -15,7 +15,7 @@ import { ProfileSettings } from './components/ProfileSettings';
 import { Notifications } from './components/Notifications';
 import { InstallPrompt } from './components/InstallPrompt';
 import { Toaster } from 'react-hot-toast';
-import { getSavedUser, clearAuth, userApi, classApi, notificationApi, resolveFileUrl } from './services/api';
+import { getSavedUser, clearAuth, userApi, classApi, notificationApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
 import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
 
 const App: React.FC = () => {
@@ -68,6 +68,8 @@ const App: React.FC = () => {
       setAllUsers(usersData);
       setClasses(classesData);
       setNotifications(notifsData);
+      // Register Web Push subscription (non-blocking)
+      registerPushSubscription();
     } catch (err) {
       console.error('Failed to load app data:', err);
     } finally {
@@ -83,6 +85,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    unregisterPushSubscription();
     clearAuth();
     setUser(null);
     setAllUsers([]);
@@ -124,7 +127,7 @@ const App: React.FC = () => {
       case 'lessons':
         return <Lessons user={user!} classes={classes} allUsers={allUsers} />;
       case 'assignments':
-        return <Assignments user={user!} allUsers={allUsers} />;
+        return <Assignments user={user!} allUsers={allUsers} classes={classes} />;
       case 'growth':
         return <Growth user={user!} allUsers={allUsers} classes={classes} />;
       case 'diet':

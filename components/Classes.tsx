@@ -30,7 +30,8 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
   const [description, setDescription] = useState('');
   const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  const [subjectTeachers, setSubjectTeachers] = useState<Partial<Record<Subject, string>>>({});
+  const [teacherId, setTeacherId] = useState('');
+  const [subject, setSubject] = useState<Subject>(Subject.ACTING);
 
   if (user.role === UserRole.STUDENT) {
     return <div className="p-4 text-center text-slate-500">접근 권한이 없습니다.</div>;
@@ -58,14 +59,22 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
         setScheduleSlots([]);
       }
       setSelectedStudentIds(cls.studentIds);
-      setSubjectTeachers(cls.subjectTeachers || {});
+      const entries = Object.entries(cls.subjectTeachers || {});
+      if (entries.length > 0) {
+        setSubject(entries[0][0] as Subject);
+        setTeacherId(entries[0][1]);
+      } else {
+        setSubject(Subject.ACTING);
+        setTeacherId('');
+      }
     } else {
       setEditingClass(null);
       setName('');
       setDescription('');
       setScheduleSlots([]);
       setSelectedStudentIds([]);
-      setSubjectTeachers({});
+      setTeacherId('');
+      setSubject(Subject.ACTING);
     }
     setIsModalOpen(true);
   };
@@ -75,6 +84,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
     setSaving(true);
     try {
       if (editingClass) {
+        const subjectTeachers = teacherId ? { [subject]: teacherId } : {};
         const updated = await classApi.update(editingClass.id, {
           name, description, schedule: scheduleSlots, subjectTeachers, studentIds: selectedStudentIds,
         });
@@ -82,6 +92,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
         const count = (updated as any).generatedLessonsCount;
         toast.success(count ? `클래스가 수정되었습니다. 수업 ${count}개 재생성됨.` : '클래스가 수정되었습니다.');
       } else {
+        const subjectTeachers = teacherId ? { [subject]: teacherId } : {};
         const newClass = await classApi.create({
           name, description, schedule: scheduleSlots, subjectTeachers, studentIds: selectedStudentIds,
         });
@@ -179,10 +190,11 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
              {Object.keys(cls.subjectTeachers || {}).length > 0 && (
                <div className="mb-3">
                  <p className="text-xs text-slate-400">
-                   {Object.entries(cls.subjectTeachers).map(([subject, teacherId]) => {
-                     const teacher = allUsers.find(u => u.id === teacherId);
-                     return teacher ? `${SUBJECT_LABELS[subject as Subject]}: ${teacher.name}` : null;
-                   }).filter(Boolean).join(' | ')}
+                   {(() => {
+                     const [subj, tid] = Object.entries(cls.subjectTeachers)[0] || [];
+                     const teacher = allUsers.find(u => u.id === tid);
+                     return teacher ? `${SUBJECT_LABELS[subj as Subject]} | ${teacher.name} 선생님` : null;
+                   })()}
                  </p>
                </div>
              )}
@@ -302,35 +314,30 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                 </div>
 
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-2">과목별 담당 선생님</label>
-                   <div className="space-y-2">
-                     {Object.values(Subject).map(subject => (
-                       <div key={subject} className="flex items-center gap-3">
-                         <span className="text-sm text-slate-700 w-16 shrink-0">{SUBJECT_LABELS[subject]}</span>
-                         <select
-                           value={subjectTeachers[subject] || ''}
-                           onChange={(e) => {
-                             const val = e.target.value;
-                             setSubjectTeachers(prev => {
-                               const next = { ...prev };
-                               if (val) {
-                                 next[subject] = val;
-                               } else {
-                                 delete next[subject];
-                               }
-                               return next;
-                             });
-                           }}
-                           className="flex-1 p-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-500 transition-colors"
-                         >
-                           <option value="">미지정</option>
-                           {teachers.map(t => (
-                             <option key={t.id} value={t.id}>{t.name}</option>
-                           ))}
-                         </select>
-                       </div>
+                   <label className="block text-xs font-bold text-slate-500 mb-2">과목</label>
+                   <select
+                     value={subject}
+                     onChange={(e) => setSubject(e.target.value as Subject)}
+                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-500 transition-colors"
+                   >
+                     {Object.values(Subject).map(s => (
+                       <option key={s} value={s}>{SUBJECT_LABELS[s]}</option>
                      ))}
-                   </div>
+                   </select>
+                </div>
+
+                <div>
+                   <label className="block text-xs font-bold text-slate-500 mb-2">담당 선생님</label>
+                   <select
+                     value={teacherId}
+                     onChange={(e) => setTeacherId(e.target.value)}
+                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-500 transition-colors"
+                   >
+                     <option value="">선생님을 선택하세요</option>
+                     {teachers.map(t => (
+                       <option key={t.id} value={t.id}>{t.name}</option>
+                     ))}
+                   </select>
                 </div>
 
                 <div>

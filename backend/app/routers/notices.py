@@ -93,9 +93,16 @@ async def update_notice(
     db.commit()
     db.refresh(notice)
 
-    student_ids = get_all_student_ids(db)
+    if notice.class_id:
+        student_ids = get_class_student_ids(db, notice.class_id)
+    else:
+        student_ids = get_all_student_ids(db)
     if student_ids:
-        await emit_data_changed(student_ids, "notices")
+        await notify_users(
+            db, student_ids,
+            f"공지사항이 수정되었습니다: {notice.title}",
+            entity="notices",
+        )
 
     return notice
 

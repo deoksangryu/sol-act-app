@@ -8,11 +8,20 @@ from app.models.class_info import ClassInfo
 from app.models.user import User, UserRole
 from app.schemas.lesson import LessonCreate, BulkLessonCreate, LessonUpdate, LessonResponse
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_users, get_class_student_ids, emit_data_changed
+from app.services.notification_service import notify_users, get_class_student_ids, emit_data_changed, get_teacher_class_ids
 from app.models.notification import NotificationType
 import uuid
 
 router = APIRouter()
+
+
+def _check_teacher_lesson_access(db: Session, lesson: Lesson, teacher_id: str):
+    """Raise 403 if teacher doesn't have access to this lesson's class."""
+    my_class_ids = get_teacher_class_ids(db, teacher_id)
+    if lesson.class_id and lesson.class_id not in my_class_ids:
+        raise HTTPException(status_code=403, detail="Cannot modify lessons for classes you don't teach")
+    if not lesson.class_id and lesson.teacher_id != teacher_id:
+        raise HTTPException(status_code=403, detail="Cannot modify other teacher's private lessons")
 
 
 def lesson_to_response(l: Lesson) -> dict:
@@ -51,6 +60,10 @@ def list_lessons(
         joinedload(Lesson.class_info),
         joinedload(Lesson.teacher)
     )
+    # Teacher: only see lessons for their classes
+    if current_user.role == UserRole.TEACHER:
+        my_class_ids = get_teacher_class_ids(db, current_user.id)
+        query = query.filter(Lesson.class_id.in_(my_class_ids))
     if class_id:
         query = query.filter(Lesson.class_id == class_id)
     if teacher_id:
@@ -88,6 +101,12 @@ async def create_lesson(
 ):
     if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    # Teacher: validate class belongs to them
+    if current_user.role == UserRole.TEACHER and data.class_id:
+        my_class_ids = get_teacher_class_ids(db, current_user.id)
+        if data.class_id not in my_class_ids:
+            raise HTTPException(status_code=403, detail="Cannot create lessons for classes you don't teach")
 
     lesson = Lesson(
         id=f"lsn{uuid.uuid4().hex[:7]}",
@@ -138,6 +157,12 @@ async def create_bulk_lessons(
     if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    # Teacher: validate class belongs to them
+    if current_user.role == UserRole.TEACHER and data.class_id:
+        my_class_ids = get_teacher_class_ids(db, current_user.id)
+        if data.class_id not in my_class_ids:
+            raise HTTPException(status_code=403, detail="Cannot create lessons for classes you don't teach")
+
     lessons = []
     current = data.start_date
     while current <= data.end_date:
@@ -170,7 +195,11 @@ async def create_bulk_lessons(
     if data.class_id and lessons:
         student_ids = get_class_student_ids(db, data.class_id)
         if student_ids:
-            await emit_data_changed(student_ids, "lessons")
+            await notify_users(
+                db, student_ids,
+                f"새 수업 {len(lessons)}건이 등록되었습니다.",
+                entity="lessons",
+            )
     await emit_data_changed([current_user.id], "lessons")
 
     return result
@@ -192,6 +221,8 @@ async def update_lesson(
     ).filter(Lesson.id == lesson_id).first()
     if not l:
         raise HTTPException(status_code=404, detail="Lesson not found")
+    if current_user.role == UserRole.TEACHER:
+        _check_teacher_lesson_access(db, l, current_user.id)
 
     for field, value in update_data.model_dump(exclude_unset=True).items():
         setattr(l, field, value)
@@ -205,7 +236,11 @@ async def update_lesson(
     elif l.private_student_ids:
         affected_ids = l.private_student_ids
     if affected_ids:
-        await emit_data_changed(affected_ids, "lessons")
+        await notify_users(
+            db, affected_ids,
+            f"수업 정보가 변경되었습니다. ({l.date} {l.start_time})",
+            entity="lessons",
+        )
 
     return lesson_to_response(l)
 
@@ -225,6 +260,8 @@ async def cancel_lesson(
     ).filter(Lesson.id == lesson_id).first()
     if not l:
         raise HTTPException(status_code=404, detail="Lesson not found")
+    if current_user.role == UserRole.TEACHER:
+        _check_teacher_lesson_access(db, l, current_user.id)
 
     l.status = LessonStatus.CANCELLED
     db.commit()
@@ -265,6 +302,8 @@ async def complete_lesson(
     ).filter(Lesson.id == lesson_id).first()
     if not l:
         raise HTTPException(status_code=404, detail="Lesson not found")
+    if current_user.role == UserRole.TEACHER:
+        _check_teacher_lesson_access(db, l, current_user.id)
 
     l.status = LessonStatus.COMPLETED
     db.commit()
@@ -276,7 +315,11 @@ async def complete_lesson(
     elif l.private_student_ids:
         affected_ids = l.private_student_ids
     if affected_ids:
-        await emit_data_changed(affected_ids, "lessons")
+        await notify_users(
+            db, affected_ids,
+            f"수업이 완료 처리되었습니다. ({l.date} {l.start_time})",
+            entity="lessons",
+        )
 
     return lesson_to_response(l)
 
@@ -293,6 +336,8 @@ async def delete_lesson(
     l = db.query(Lesson).filter(Lesson.id == lesson_id).first()
     if not l:
         raise HTTPException(status_code=404, detail="Lesson not found")
+    if current_user.role == UserRole.TEACHER:
+        _check_teacher_lesson_access(db, l, current_user.id)
 
     affected_ids = []
     if l.class_id:

@@ -8,7 +8,7 @@ from app.models.user import User, UserRole
 from app.schemas.lesson_journal import LessonJournalCreate, LessonJournalUpdate, LessonJournalResponse
 from app.utils.auth import get_current_user
 from app.services.ai import generate_journal_feedback
-from app.services.notification_service import notify_user, emit_data_changed, get_class_student_ids
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_class_student_ids, get_teacher_class_ids, validate_class_access
 import uuid
 
 router = APIRouter()
@@ -43,6 +43,13 @@ def list_journals(
     query = db.query(LessonJournal).options(
         joinedload(LessonJournal.author), joinedload(LessonJournal.lesson)
     )
+    # Teacher: only see journals for lessons in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_class_ids = get_teacher_class_ids(db, current_user.id)
+        lesson_ids_in_classes = [
+            l.id for l in db.query(Lesson.id).filter(Lesson.class_id.in_(my_class_ids)).all()
+        ]
+        query = query.filter(LessonJournal.lesson_id.in_(lesson_ids_in_classes))
     if lesson_id:
         query = query.filter(LessonJournal.lesson_id == lesson_id)
     if author_id:
@@ -80,6 +87,16 @@ async def create_journal(
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
 
+    # Validate user has access to this lesson
+    if lesson.class_id:
+        if not validate_class_access(db, lesson.class_id, current_user):
+            raise HTTPException(status_code=403, detail="Not a member of this lesson's class")
+    elif lesson.is_private:
+        if current_user.role == UserRole.STUDENT and current_user.id not in (lesson.private_student_ids or []):
+            raise HTTPException(status_code=403, detail="Not a participant of this private lesson")
+        if current_user.role == UserRole.TEACHER and lesson.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not the teacher of this private lesson")
+
     journal = LessonJournal(
         id=f"jrn{uuid.uuid4().hex[:7]}",
         lesson_id=data.lesson_id,
@@ -100,15 +117,22 @@ async def create_journal(
         .first()
     )
 
-    # Notify the lesson's teacher if a student wrote the journal, or students if teacher wrote
+    # Notify the other party about the new journal
     if lesson.teacher_id and lesson.teacher_id != current_user.id:
-        await emit_data_changed([lesson.teacher_id], "journals")
+        await notify_user(
+            db, lesson.teacher_id,
+            f"{current_user.name}님이 수업일지를 작성했습니다.",
+            entity="journals",
+        )
     elif lesson.class_id:
-        from app.services.notification_service import get_class_student_ids
         student_ids = get_class_student_ids(db, lesson.class_id)
         student_ids = [sid for sid in student_ids if sid != current_user.id]
         if student_ids:
-            await emit_data_changed(student_ids, "journals")
+            await notify_users(
+                db, student_ids,
+                "선생님이 수업일지를 작성했습니다.",
+                entity="journals",
+            )
 
     return journal_to_response(j)
 

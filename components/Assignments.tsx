@@ -1,9 +1,15 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Assignment, User, UserRole } from '../types';
+import { Assignment, User, UserRole, ClassInfo } from '../types';
 import { assignmentApi, uploadApi, API_URL } from '../services/api';
 import toast from 'react-hot-toast';
 import { useDataRefresh } from '../services/useWebSocket';
+import { ConfirmDialog } from './ConfirmDialog';
+
+function toLocalDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 const VIDEO_EXTS = ['.mp4', '.mov', '.webm'];
 function isVideoUrl(url: string): boolean {
@@ -28,9 +34,10 @@ const GRADE_COLORS: Record<string, string> = {
 interface AssignmentsProps {
   user: User;
   allUsers: User[];
+  classes: ClassInfo[];
 }
 
-export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
+export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classes }) => {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -60,12 +67,18 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
   const [filterStudentId, setFilterStudentId] = useState('');
   const [filterTeacherId, setFilterTeacherId] = useState('');
 
-  // Create Assignment State
+  // Create/Edit Assignment State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [editingAssignment, setEditingAssignment] = useState<Assignment | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [newDate, setNewDate] = useState('');
   const [newStudentId, setNewStudentId] = useState('');
+  const [assignTarget, setAssignTarget] = useState<'student' | 'class'>('student');
+  const [newClassId, setNewClassId] = useState('');
+
+  // Delete Assignment State
+  const [deleteAssignmentId, setDeleteAssignmentId] = useState<string | null>(null);
 
   const selectedAssignment = assignments.find(a => a.id === selectedId);
 
@@ -114,7 +127,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
   const handleToday = () => {
     const today = new Date();
     setCurrentDate(today);
-    setSelectedDate(today.toISOString().split('T')[0]);
+    setSelectedDate(toLocalDateStr(today));
   };
 
   const renderCalendarDays = () => {
@@ -244,19 +257,68 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
   };
 
   const handleCreateAssignment = async () => {
-    if (!newTitle.trim() || !newStudentId) return;
+    if (!newTitle.trim()) return;
+    if (assignTarget === 'student' && !newStudentId) return;
+    if (assignTarget === 'class' && !newClassId) return;
     try {
-      const newAsgn = await assignmentApi.create({
+      const payload: any = {
         title: newTitle,
         description: newDesc || '추가 설명 없음',
-        dueDate: newDate || new Date().toISOString().split('T')[0],
-        studentId: newStudentId,
-      });
-      setAssignments([newAsgn, ...assignments]);
+        dueDate: newDate || toLocalDateStr(new Date()),
+      };
+      if (assignTarget === 'class') {
+        payload.classId = newClassId;
+      } else {
+        payload.studentId = newStudentId;
+      }
+      const newAsgns = await assignmentApi.create(payload);
+      setAssignments([...newAsgns, ...assignments]);
       setIsCreateModalOpen(false);
-      setNewTitle(''); setNewDesc(''); setNewDate(''); setNewStudentId('');
-      toast.success('새 과제가 등록되었습니다.');
+      setNewTitle(''); setNewDesc(''); setNewDate(''); setNewStudentId(''); setNewClassId('');
+      toast.success(`과제가 ${newAsgns.length}명에게 등록되었습니다.`);
     } catch { toast.error('과제 등록에 실패했습니다.'); }
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditingAssignment(null);
+    setNewTitle(''); setNewDesc(''); setNewDate(''); setNewStudentId(''); setNewClassId('');
+    setAssignTarget('student');
+    setIsCreateModalOpen(true);
+  };
+
+  const handleOpenEditModal = (a: Assignment) => {
+    setEditingAssignment(a);
+    setNewTitle(a.title);
+    setNewDesc(a.description || '');
+    setNewDate(a.dueDate || '');
+    setNewStudentId(a.studentId || '');
+    setIsCreateModalOpen(true);
+  };
+
+  const handleUpdateAssignment = async () => {
+    if (!editingAssignment || !newTitle.trim()) return;
+    try {
+      const updated = await assignmentApi.update(editingAssignment.id, {
+        title: newTitle,
+        description: newDesc || '추가 설명 없음',
+        dueDate: newDate || editingAssignment.dueDate,
+      });
+      setAssignments(prev => prev.map(a => a.id === editingAssignment.id ? updated : a));
+      setIsCreateModalOpen(false);
+      setEditingAssignment(null);
+      toast.success('과제가 수정되었습니다.');
+    } catch { toast.error('과제 수정에 실패했습니다.'); }
+  };
+
+  const handleDeleteAssignment = async () => {
+    if (!deleteAssignmentId) return;
+    try {
+      await assignmentApi.delete(deleteAssignmentId);
+      setAssignments(prev => prev.filter(a => a.id !== deleteAssignmentId));
+      if (selectedId === deleteAssignmentId) setSelectedId(null);
+      setDeleteAssignmentId(null);
+      toast.success('과제가 삭제되었습니다.');
+    } catch { toast.error('과제 삭제에 실패했습니다.'); }
   };
 
   const handleAiFeedback = async () => {
@@ -322,7 +384,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
             <h2 className="font-bold text-slate-800">과제 관리</h2>
             {isStaff && (
               <button
-                onClick={() => setIsCreateModalOpen(true)}
+                onClick={handleOpenCreateModal}
                 className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-brand-50 hover:text-brand-500 hover:border-brand-200 transition-colors shadow-sm"
               >
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -445,6 +507,12 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
                 </div>
                 <h3 className="font-bold text-slate-700 text-sm truncate">{a.title}</h3>
                 {isStaff && <p className="text-xs text-slate-400 mt-1">{a.studentName}</p>}
+                {isStudent && a.status === 'pending' && (
+                  <div className="mt-2 flex items-center gap-1.5 text-brand-500">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                    <span className="text-xs font-bold">탭하여 제출하기</span>
+                  </div>
+                )}
               </div>
             )) : (
               <div className="p-8 text-center text-slate-400 text-xs">
@@ -479,6 +547,18 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
                         <span className="block text-sm font-bold text-brand-500">{selectedAssignment.dueDate}</span>
                      </div>
                   </div>
+                  {isStaff && selectedAssignment.status === 'pending' && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => handleOpenEditModal(selectedAssignment)}
+                        className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      >수정</button>
+                      <button
+                        onClick={() => setDeleteAssignmentId(selectedAssignment.id)}
+                        className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      >삭제</button>
+                    </div>
+                  )}
                </div>
             </div>
 
@@ -705,22 +785,54 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
              </button>
 
-             <h3 className="text-xl font-bold text-slate-800 mb-2">새 과제 부여</h3>
-             <p className="text-xs text-slate-500 mb-6">학생에게 새로운 과제를 부여합니다.</p>
+             <h3 className="text-xl font-bold text-slate-800 mb-2">{editingAssignment ? '과제 수정' : '새 과제 부여'}</h3>
+             <p className="text-xs text-slate-500 mb-6">{editingAssignment ? '과제 내용을 수정합니다.' : '학생 또는 반 전체에 과제를 부여합니다.'}</p>
 
              <div className="space-y-4">
+                {/* Target selector: student or class */}
+                {!editingAssignment && (
+                  <div className="bg-slate-100 p-1 rounded-xl flex text-xs font-bold">
+                    <button
+                      onClick={() => { setAssignTarget('student'); setNewClassId(''); }}
+                      className={`flex-1 py-2.5 rounded-lg transition-all ${assignTarget === 'student' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500'}`}
+                    >개별 학생</button>
+                    <button
+                      onClick={() => { setAssignTarget('class'); setNewStudentId(''); }}
+                      className={`flex-1 py-2.5 rounded-lg transition-all ${assignTarget === 'class' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500'}`}
+                    >반 전체</button>
+                  </div>
+                )}
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">학생 선택</label>
-                   <select
-                     value={newStudentId}
-                     onChange={(e) => setNewStudentId(e.target.value)}
-                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors"
-                   >
-                     <option value="">학생을 선택하세요</option>
-                     {allUsers.filter(u => u.role === UserRole.STUDENT).map(u => (
-                       <option key={u.id} value={u.id}>{u.name}</option>
-                     ))}
-                   </select>
+                   {assignTarget === 'class' && !editingAssignment ? (
+                     <>
+                       <label className="block text-xs font-bold text-slate-500 mb-1">반 선택</label>
+                       <select
+                         value={newClassId}
+                         onChange={(e) => setNewClassId(e.target.value)}
+                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors"
+                       >
+                         <option value="">반을 선택하세요</option>
+                         {classes.map(c => (
+                           <option key={c.id} value={c.id}>{c.name} ({c.studentIds.length}명)</option>
+                         ))}
+                       </select>
+                     </>
+                   ) : (
+                     <>
+                       <label className="block text-xs font-bold text-slate-500 mb-1">학생 선택</label>
+                       <select
+                         value={newStudentId}
+                         onChange={(e) => setNewStudentId(e.target.value)}
+                         disabled={!!editingAssignment}
+                         className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors disabled:opacity-50"
+                       >
+                         <option value="">학생을 선택하세요</option>
+                         {allUsers.filter(u => u.role === UserRole.STUDENT).map(u => (
+                           <option key={u.id} value={u.id}>{u.name}</option>
+                         ))}
+                       </select>
+                     </>
+                   )}
                 </div>
                 <div>
                    <label className="block text-xs font-bold text-slate-500 mb-1">과제명</label>
@@ -751,15 +863,26 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers }) => {
                 </div>
 
                 <button
-                  onClick={handleCreateAssignment}
-                  disabled={!newStudentId || !newTitle.trim()}
+                  onClick={editingAssignment ? handleUpdateAssignment : handleCreateAssignment}
+                  disabled={(!editingAssignment && assignTarget === 'student' && !newStudentId) || (!editingAssignment && assignTarget === 'class' && !newClassId) || !newTitle.trim()}
                   className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  등록하기
+                  {editingAssignment ? '수정하기' : '등록하기'}
                 </button>
              </div>
           </div>
         </div>
+      )}
+
+      {deleteAssignmentId && (
+        <ConfirmDialog
+          title="과제 삭제"
+          message="이 과제를 삭제하시겠습니까? 제출된 내용도 함께 삭제됩니다."
+          variant="danger"
+          confirmLabel="삭제"
+          onConfirm={handleDeleteAssignment}
+          onCancel={() => setDeleteAssignmentId(null)}
+        />
       )}
     </div>
   );

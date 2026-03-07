@@ -9,7 +9,8 @@ from app.models.class_info import ClassInfo
 from app.schemas.evaluation import EvaluationCreate, EvaluationUpdate, EvaluationResponse
 from app.utils.auth import get_current_user
 from app.services.ai import generate_evaluation_summary
-from app.services.notification_service import notify_user, emit_data_changed
+from app.models.notification import NotificationType
+from app.services.notification_service import notify_user, emit_data_changed, get_teacher_student_ids, get_teacher_class_ids
 import uuid
 
 router = APIRouter()
@@ -53,6 +54,10 @@ def list_evaluations(
         joinedload(Evaluation.evaluator),
         joinedload(Evaluation.class_info)
     )
+    # Teacher: only see evaluations for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        query = query.filter(Evaluation.student_id.in_(my_student_ids))
     if student_id:
         query = query.filter(Evaluation.student_id == student_id)
     if class_id:
@@ -74,6 +79,11 @@ def get_student_report(student_id: str, db: Session = Depends(get_db), current_u
     # Students can only view their own report
     if current_user.role == UserRole.STUDENT and current_user.id != student_id:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    # Teachers can only view reports for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        if student_id not in my_student_ids:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     student = db.query(User).filter(User.id == student_id).first()
     if not student:
@@ -135,6 +145,12 @@ async def create_evaluation(
 ):
     if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    # Teacher: validate student is in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        if data.student_id not in my_student_ids:
+            raise HTTPException(status_code=403, detail="Cannot evaluate students outside your classes")
 
     evaluation = Evaluation(
         id=f"eval{uuid.uuid4().hex[:7]}",
@@ -251,9 +267,15 @@ async def delete_evaluation(
         raise HTTPException(status_code=404, detail="Evaluation not found")
 
     student_id = e.student_id
+    period = e.period
     db.delete(e)
     db.commit()
 
-    await emit_data_changed([student_id], "evaluations")
+    await notify_user(
+        db, student_id,
+        f"평가가 삭제되었습니다. ({period})",
+        NotificationType.WARNING,
+        entity="evaluations",
+    )
 
     return {"message": "Evaluation deleted"}

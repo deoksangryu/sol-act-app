@@ -5,13 +5,12 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.models.assignment import Assignment, AssignmentStatus
 from app.models.user import User, UserRole
-from app.models.class_info import ClassInfo
-from app.models.notification import Notification, NotificationType
+from app.models.notification import NotificationType
 from app.schemas.assignment import AssignmentCreate, AssignmentUpdate, AssignmentResponse
 from app.utils.auth import get_current_user
 from app.services.ai import analyze_monologue
-from app.services.websocket_manager import manager
-from app.services.notification_service import notify_user, emit_data_changed
+from app.models.class_info import ClassInfo
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_teacher_ids_for_student, get_teacher_student_ids, get_class_student_ids
 import uuid
 
 router = APIRouter()
@@ -46,6 +45,10 @@ def list_assignments(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(Assignment).options(joinedload(Assignment.student))
+    # Teacher: only see assignments for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        query = query.filter(Assignment.student_id.in_(my_student_ids))
     if student_id:
         query = query.filter(Assignment.student_id == student_id)
     if assigned_by:
@@ -68,7 +71,7 @@ def get_assignment(assignment_id: str, db: Session = Depends(get_db), current_us
     return assignment_to_response(a)
 
 
-@router.post("/", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=List[AssignmentResponse], status_code=status.HTTP_201_CREATED)
 async def create_assignment(
     data: AssignmentCreate,
     db: Session = Depends(get_db),
@@ -77,32 +80,51 @@ async def create_assignment(
     if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Only teachers and directors can create assignments")
 
-    student = db.query(User).filter(User.id == data.student_id).first()
-    if not student:
-        raise HTTPException(status_code=404, detail="Student not found")
+    # Resolve target student IDs: class_id > student_ids > student_id
+    target_ids: List[str] = []
+    if data.class_id:
+        target_ids = get_class_student_ids(db, data.class_id)
+    elif data.student_ids:
+        target_ids = data.student_ids
+    elif data.student_id:
+        target_ids = [data.student_id]
+    if not target_ids:
+        raise HTTPException(status_code=400, detail="No target students specified")
 
-    assignment = Assignment(
-        id=f"asgn{uuid.uuid4().hex[:7]}",
-        title=data.title,
-        description=data.description,
-        due_date=data.due_date,
-        student_id=data.student_id,
-        assigned_by=current_user.id,
-        status=AssignmentStatus.PENDING,
-    )
-    db.add(assignment)
+    # Teacher: validate all targets are in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = set(get_teacher_student_ids(db, current_user.id))
+        invalid = [sid for sid in target_ids if sid not in my_student_ids]
+        if invalid:
+            raise HTTPException(status_code=403, detail="Cannot assign to students outside your classes")
+
+    assignments = []
+    for sid in target_ids:
+        assignment = Assignment(
+            id=f"asgn{uuid.uuid4().hex[:7]}",
+            title=data.title,
+            description=data.description,
+            due_date=data.due_date,
+            student_id=sid,
+            assigned_by=current_user.id,
+            status=AssignmentStatus.PENDING,
+        )
+        db.add(assignment)
+        assignments.append(assignment)
     db.commit()
-    db.refresh(assignment)
 
-    await notify_user(
-        db, data.student_id,
+    await notify_users(
+        db, target_ids,
         f"새 과제가 등록되었습니다: '{data.title}'",
         entity="assignments",
     )
     await emit_data_changed([current_user.id], "assignments")
 
-    a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment.id).first()
-    return assignment_to_response(a)
+    result = []
+    for assignment in assignments:
+        a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment.id).first()
+        result.append(assignment_to_response(a))
+    return result
 
 
 @router.put("/{assignment_id}", response_model=AssignmentResponse)
@@ -125,7 +147,11 @@ async def update_assignment(
     db.commit()
     db.refresh(a)
 
-    await emit_data_changed([a.student_id], "assignments")
+    await notify_user(
+        db, a.student_id,
+        f"과제가 수정되었습니다: '{a.title}'",
+        entity="assignments",
+    )
 
     return assignment_to_response(a)
 
@@ -158,39 +184,13 @@ async def submit_assignment(
     db.refresh(a)
 
     # Notify teachers about submission
-    teacher_ids = set()
-    classes = db.query(ClassInfo).all()
-    for cls in classes:
-        student_ids = [s.id for s in cls.students]
-        if a.student_id in student_ids and cls.subject_teachers:
-            for tid in cls.subject_teachers.values():
-                if tid:
-                    teacher_ids.add(tid)
-    directors = db.query(User).filter(User.role == UserRole.DIRECTOR).all()
-    for d in directors:
-        teacher_ids.add(d.id)
-
+    teacher_ids = get_teacher_ids_for_student(db, a.student_id)
     student_name = a.student.name if a.student else "학생"
-    msg = f"{student_name}님이 과제 '{a.title}'을 제출했습니다."
-    for tid in teacher_ids:
-        notif = Notification(
-            id=f"noti{uuid.uuid4().hex[:7]}",
-            user_id=tid,
-            type=NotificationType.INFO,
-            message=msg,
-        )
-        db.add(notif)
-        db.commit()
-        db.refresh(notif)
-        await manager.send_to_user(tid, {
-            "type": "new_notification",
-            "data": {
-                "id": notif.id, "type": notif.type.value,
-                "message": notif.message, "read": notif.read,
-                "created_at": notif.created_at.isoformat(),
-            },
-        })
-    await emit_data_changed(list(teacher_ids), "assignments")
+    await notify_users(
+        db, teacher_ids,
+        f"{student_name}님이 과제 '{a.title}'을 제출했습니다.",
+        entity="assignments",
+    )
 
     return assignment_to_response(a)
 
@@ -222,25 +222,12 @@ async def grade_assignment(
     db.refresh(a)
 
     # Notify student about grading
-    msg = f"과제 '{a.title}'이 채점되었습니다. 등급: {data.grade}"
-    notif = Notification(
-        id=f"noti{uuid.uuid4().hex[:7]}",
-        user_id=a.student_id,
-        type=NotificationType.SUCCESS,
-        message=msg,
+    await notify_user(
+        db, a.student_id,
+        f"과제 '{a.title}'이 채점되었습니다. 등급: {data.grade}",
+        NotificationType.SUCCESS,
+        entity="assignments",
     )
-    db.add(notif)
-    db.commit()
-    db.refresh(notif)
-    await manager.send_to_user(a.student_id, {
-        "type": "new_notification",
-        "data": {
-            "id": notif.id, "type": notif.type.value,
-            "message": notif.message, "read": notif.read,
-            "created_at": notif.created_at.isoformat(),
-        },
-    })
-    await emit_data_changed([a.student_id], "assignments")
 
     return assignment_to_response(a)
 

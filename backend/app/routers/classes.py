@@ -8,7 +8,8 @@ from app.models.lesson import Lesson, LessonStatus, LessonType, Subject
 from app.models.user import User, UserRole
 from app.schemas.class_info import ClassInfoCreate, ClassInfoUpdate, ClassInfoResponse
 from app.utils.auth import get_current_user
-from app.services.notification_service import emit_data_changed
+from app.services.notification_service import notify_user, emit_data_changed
+from app.models.notification import NotificationType
 from datetime import date, timedelta
 import uuid
 
@@ -93,7 +94,10 @@ def list_classes(
     if student_id:
         query = query.filter(ClassInfo.students.any(User.id == student_id))
     classes = query.all()
-    if teacher_id:
+    # Teacher: only see their own classes
+    if current_user.role == UserRole.TEACHER:
+        classes = [c for c in classes if current_user.id in (c.subject_teachers or {}).values()]
+    elif teacher_id:
         classes = [c for c in classes if teacher_id in (c.subject_teachers or {}).values()]
     return [class_to_response(c) for c in classes]
 
@@ -254,6 +258,11 @@ async def add_student(
         if cls.subject_teachers:
             member_ids.extend([tid for tid in cls.subject_teachers.values() if tid])
         await emit_data_changed(list(set(member_ids)), "classes")
+        await notify_user(
+            db, data.student_id,
+            f"'{cls.name}' 클래스에 등록되었습니다.",
+            entity="classes",
+        )
 
     return class_to_response(cls)
 
@@ -281,5 +290,11 @@ async def remove_student(
         if cls.subject_teachers:
             member_ids.extend([tid for tid in cls.subject_teachers.values() if tid])
         await emit_data_changed(list(set(member_ids)), "classes")
+        await notify_user(
+            db, student_id,
+            f"'{cls.name}' 클래스에서 제외되었습니다.",
+            NotificationType.WARNING,
+            entity="classes",
+        )
 
     return class_to_response(cls)

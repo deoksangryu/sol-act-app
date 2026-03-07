@@ -4,6 +4,7 @@ import { User, UserRole, Evaluation, PortfolioItem, PortfolioComment, Competitio
 import toast from 'react-hot-toast';
 import { evaluationApi, portfolioApi, auditionApi, API_URL, getToken } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface GrowthProps {
   user: User;
@@ -61,6 +62,10 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
   const [newPfPracticeGroup, setNewPfPracticeGroup] = useState('');
   const [newPfPracticeGroupCustom, setNewPfPracticeGroupCustom] = useState('');
 
+  // Evaluation edit/delete
+  const [editingEval, setEditingEval] = useState<Evaluation | null>(null);
+  const [deleteEvalId, setDeleteEvalId] = useState<string | null>(null);
+
   // Events
   const [events, setEvents] = useState<CompetitionEvent[]>([]);
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
@@ -68,6 +73,13 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
   const [newEventDate, setNewEventDate] = useState('');
   const [newEventLocation, setNewEventLocation] = useState('');
   const [newEventDesc, setNewEventDesc] = useState('');
+
+  // Event edit/delete
+  const [editingEvent, setEditingEvent] = useState<CompetitionEvent | null>(null);
+  const [deleteEventId, setDeleteEventId] = useState<string | null>(null);
+
+  // Portfolio delete (ConfirmDialog instead of window.confirm)
+  const [deletePortfolioId, setDeletePortfolioId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
 
@@ -132,6 +144,24 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
   );
 
   // Handlers
+  const handleOpenCreateEval = () => {
+    setEditingEval(null);
+    setEvalStudentId(''); setEvalPeriod(''); setEvalComment(''); setEvalSubject('');
+    setEvalScores({ acting: 3, expression: 3, creativity: 3, teamwork: 3, effort: 3 });
+    setIsEvalModalOpen(true);
+  };
+
+  const handleOpenEditEval = (ev: Evaluation) => {
+    setEditingEval(ev);
+    setEvalStudentId(ev.studentId);
+    setEvalSubject(ev.subject as Subject);
+    setEvalPeriod(ev.period);
+    setEvalScores({ ...ev.scores });
+    setEvalComment(ev.comment || '');
+    setEvalClassId(ev.classId || '');
+    setIsEvalModalOpen(true);
+  };
+
   const handleCreateEvaluation = async () => {
     if (!evalStudentId || !evalPeriod || !evalSubject) return;
     try {
@@ -149,6 +179,31 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       setEvalScores({ acting: 3, expression: 3, creativity: 3, teamwork: 3, effort: 3 });
       toast.success('평가가 등록되었습니다.');
     } catch { toast.error('평가 등록에 실패했습니다.'); }
+  };
+
+  const handleUpdateEvaluation = async () => {
+    if (!editingEval || !evalPeriod) return;
+    try {
+      const updated = await evaluationApi.update(editingEval.id, {
+        scores: { ...evalScores },
+        comment: evalComment,
+        period: evalPeriod,
+      });
+      setEvaluations(prev => prev.map(e => e.id === editingEval.id ? updated : e));
+      setIsEvalModalOpen(false);
+      setEditingEval(null);
+      toast.success('평가가 수정되었습니다.');
+    } catch { toast.error('평가 수정에 실패했습니다.'); }
+  };
+
+  const handleDeleteEvaluation = async () => {
+    if (!deleteEvalId) return;
+    try {
+      await evaluationApi.delete(deleteEvalId);
+      setEvaluations(prev => prev.filter(e => e.id !== deleteEvalId));
+      setDeleteEvalId(null);
+      toast.success('평가가 삭제되었습니다.');
+    } catch { toast.error('평가 삭제에 실패했습니다.'); }
   };
 
   const handlePfVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -200,12 +255,13 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
     } catch { toast.error('포트폴리오 등록에 실패했습니다.'); }
   };
 
-  const handleDeletePortfolio = async (id: string) => {
-    if (!window.confirm('포트폴리오를 삭제하시겠습니까?')) return;
+  const handleDeletePortfolio = async () => {
+    if (!deletePortfolioId) return;
     try {
-      await portfolioApi.delete(id);
-      setPortfolios(prev => prev.filter(p => p.id !== id));
-      setSelectedPortfolioId(null);
+      await portfolioApi.delete(deletePortfolioId);
+      setPortfolios(prev => prev.filter(p => p.id !== deletePortfolioId));
+      if (selectedPortfolioId === deletePortfolioId) setSelectedPortfolioId(null);
+      setDeletePortfolioId(null);
       toast.success('포트폴리오가 삭제되었습니다.');
     } catch { toast.error('삭제에 실패했습니다.'); }
   };
@@ -240,6 +296,21 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
     }
   };
 
+  const handleOpenCreateEvent = () => {
+    setEditingEvent(null);
+    setNewEventTitle(''); setNewEventDate(''); setNewEventLocation(''); setNewEventDesc('');
+    setIsEventModalOpen(true);
+  };
+
+  const handleOpenEditEvent = (ev: CompetitionEvent) => {
+    setEditingEvent(ev);
+    setNewEventTitle(ev.title);
+    setNewEventDate(ev.date);
+    setNewEventLocation(ev.location || '');
+    setNewEventDesc(ev.description || '');
+    setIsEventModalOpen(true);
+  };
+
   const handleCreateEvent = async () => {
     if (!newEventTitle.trim() || !newEventDate) return;
     try {
@@ -255,6 +326,32 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       setNewEventTitle(''); setNewEventDate(''); setNewEventLocation(''); setNewEventDesc('');
       toast.success('대회/행사가 등록되었습니다.');
     } catch { toast.error('대회/행사 등록에 실패했습니다.'); }
+  };
+
+  const handleUpdateEvent = async () => {
+    if (!editingEvent || !newEventTitle.trim()) return;
+    try {
+      const updated = await auditionApi.update(editingEvent.id, {
+        title: newEventTitle,
+        description: newEventDesc,
+        date: newEventDate,
+        location: newEventLocation,
+      });
+      setEvents(prev => prev.map(e => e.id === editingEvent.id ? updated : e));
+      setIsEventModalOpen(false);
+      setEditingEvent(null);
+      toast.success('대회/행사가 수정되었습니다.');
+    } catch { toast.error('대회/행사 수정에 실패했습니다.'); }
+  };
+
+  const handleDeleteEvent = async () => {
+    if (!deleteEventId) return;
+    try {
+      await auditionApi.delete(deleteEventId);
+      setEvents(prev => prev.filter(e => e.id !== deleteEventId));
+      setDeleteEventId(null);
+      toast.success('대회/행사가 삭제되었습니다.');
+    } catch { toast.error('대회/행사 삭제에 실패했습니다.'); }
   };
 
   const handleToggleChecklist = async (eventId: string, checkId: string) => {
@@ -328,7 +425,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
           {isStaff && (
             <div className="flex justify-end">
               <button
-                onClick={() => setIsEvalModalOpen(true)}
+                onClick={handleOpenCreateEval}
                 className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -364,7 +461,21 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                   </div>
                   <p className="text-xs text-slate-400">{ev.className} • 평가자: {ev.evaluatorName}</p>
                 </div>
-                <span className="text-xs text-slate-400">{ev.date}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                  {isStaff && (
+                    <>
+                      <button
+                        onClick={() => handleOpenEditEval(ev)}
+                        className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      >수정</button>
+                      <button
+                        onClick={() => setDeleteEvalId(ev.id)}
+                        className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                      >삭제</button>
+                    </>
+                  )}
+                  <span className="text-xs text-slate-400 ml-1">{ev.date}</span>
+                </div>
               </div>
 
               {/* Score Bars */}
@@ -547,7 +658,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
           {isStaff && (
             <div className="flex justify-end">
               <button
-                onClick={() => setIsEventModalOpen(true)}
+                onClick={handleOpenCreateEvent}
                 className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -569,7 +680,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                   return (
                     <div key={ev.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                       <div className="flex justify-between items-start mb-3">
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <h4 className="font-bold text-lg text-slate-800">{ev.title}</h4>
                           <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
                             <span>{ev.date}</span>
@@ -578,9 +689,23 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                           </div>
                           {ev.description && <p className="text-sm text-slate-500 mt-2">{ev.description}</p>}
                         </div>
-                        <span className="bg-brand-100 text-brand-600 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
-                          D-{Math.max(0, Math.ceil((new Date(ev.date).getTime() - Date.now()) / 86400000))}
-                        </span>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {isStaff && (
+                            <>
+                              <button
+                                onClick={() => handleOpenEditEvent(ev)}
+                                className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                              >수정</button>
+                              <button
+                                onClick={() => setDeleteEventId(ev.id)}
+                                className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                              >삭제</button>
+                            </>
+                          )}
+                          <span className="bg-brand-100 text-brand-600 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
+                            D-{Math.max(0, Math.ceil((new Date(ev.date).getTime() - Date.now()) / 86400000))}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Progress */}
@@ -626,11 +751,19 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                 {pastEvents.map(ev => (
                   <div key={ev.id} className="bg-slate-50 rounded-xl border border-slate-100 p-4">
                     <div className="flex justify-between items-start">
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-slate-600">{ev.title}</h4>
                         <p className="text-xs text-slate-400">{ev.date} • {ev.location}</p>
                       </div>
-                      <span className="bg-green-100 text-green-600 text-[10px] font-bold px-2 py-1 rounded-full">완료</span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isStaff && (
+                          <button
+                            onClick={() => setDeleteEventId(ev.id)}
+                            className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                          >삭제</button>
+                        )}
+                        <span className="bg-green-100 text-green-600 text-[10px] font-bold px-2 py-1 rounded-full">완료</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -655,18 +788,18 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
             <button onClick={() => setIsEvalModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <h3 className="text-xl font-bold text-slate-800 mb-6">학생 평가 작성</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-6">{editingEval ? '평가 수정' : '학생 평가 작성'}</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">학생</label>
-                <select value={evalStudentId} onChange={e => setEvalStudentId(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500">
+                <select value={evalStudentId} onChange={e => setEvalStudentId(e.target.value)} disabled={!!editingEval} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 disabled:opacity-50">
                   <option value="">학생 선택</option>
                   {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">과목</label>
-                <select value={evalSubject} onChange={e => setEvalSubject(e.target.value as Subject)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500">
+                <select value={evalSubject} onChange={e => setEvalSubject(e.target.value as Subject)} disabled={!!editingEval} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 disabled:opacity-50">
                   <option value="">과목 선택</option>
                   {Object.values(Subject).map(s => <option key={s} value={s}>{SUBJECT_LABELS[s]}</option>)}
                 </select>
@@ -688,7 +821,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                 <label className="block text-xs font-bold text-slate-500 mb-1">코멘트</label>
                 <textarea value={evalComment} onChange={e => setEvalComment(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-24" placeholder="학생에 대한 종합 피드백을 작성하세요." />
               </div>
-              <button onClick={handleCreateEvaluation} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200">등록하기</button>
+              <button onClick={editingEval ? handleUpdateEvaluation : handleCreateEvaluation} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200">{editingEval ? '수정하기' : '등록하기'}</button>
             </div>
           </div>
         </div>
@@ -705,8 +838,8 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
               <h3 className="text-xl font-bold text-slate-800">{selectedPortfolio.title}</h3>
               {(isStaff || selectedPortfolio.studentId === user.id) && (
                 <button
-                  onClick={() => handleDeletePortfolio(selectedPortfolio.id)}
-                  className="text-xs text-red-400 hover:text-red-600 font-medium shrink-0"
+                  onClick={() => setDeletePortfolioId(selectedPortfolio.id)}
+                  className="text-xs text-red-400 hover:text-red-600 font-medium shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
                   삭제
                 </button>
@@ -901,7 +1034,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
             <button onClick={() => setIsEventModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <h3 className="text-xl font-bold text-slate-800 mb-6">대회/행사 등록</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-6">{editingEvent ? '대회/행사 수정' : '대회/행사 등록'}</h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">행사명</label>
@@ -919,10 +1052,43 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                 <label className="block text-xs font-bold text-slate-500 mb-1">설명 (선택)</label>
                 <textarea value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-20" placeholder="행사에 대한 설명" />
               </div>
-              <button onClick={handleCreateEvent} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200">등록하기</button>
+              <button onClick={editingEvent ? handleUpdateEvent : handleCreateEvent} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200">{editingEvent ? '수정하기' : '등록하기'}</button>
             </div>
           </div>
         </div>
+      )}
+
+      {deleteEvalId && (
+        <ConfirmDialog
+          title="평가 삭제"
+          message="이 평가를 삭제하시겠습니까?"
+          variant="danger"
+          confirmLabel="삭제"
+          onConfirm={handleDeleteEvaluation}
+          onCancel={() => setDeleteEvalId(null)}
+        />
+      )}
+
+      {deletePortfolioId && (
+        <ConfirmDialog
+          title="포트폴리오 삭제"
+          message="이 포트폴리오를 삭제하시겠습니까?"
+          variant="danger"
+          confirmLabel="삭제"
+          onConfirm={handleDeletePortfolio}
+          onCancel={() => setDeletePortfolioId(null)}
+        />
+      )}
+
+      {deleteEventId && (
+        <ConfirmDialog
+          title="대회/행사 삭제"
+          message="이 대회/행사를 삭제하시겠습니까?"
+          variant="danger"
+          confirmLabel="삭제"
+          onConfirm={handleDeleteEvent}
+          onCancel={() => setDeleteEventId(null)}
+        />
       )}
     </div>
   );

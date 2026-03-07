@@ -3,11 +3,12 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.invite_code import InviteCode
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
-from app.utils.auth import verify_password, get_password_hash, create_access_token
+from app.utils.auth import verify_password, get_password_hash, create_access_token, get_current_user
 from app.services.notification_service import emit_data_changed, get_all_user_ids
+from typing import Optional, List
 import uuid
 import secrets
 import string
@@ -23,6 +24,11 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="유효하지 않은 인증코드입니다.")
     if invite.used:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용된 인증코드입니다.")
+    # 90일 만료 체크
+    if invite.created_at:
+        from datetime import datetime, timedelta
+        if datetime.utcnow() - invite.created_at > timedelta(days=90):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="만료된 인증코드입니다. (90일 초과)")
     if invite.role != user_data.role:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="인증코드의 역할이 일치하지 않습니다.")
 
@@ -117,6 +123,10 @@ def verify_code(data: VerifyCodeRequest, db: Session = Depends(get_db)):
     invite = db.query(InviteCode).filter(InviteCode.code == data.code.upper()).first()
     if not invite or invite.used:
         raise HTTPException(status_code=400, detail="유효하지 않은 인증코드입니다.")
+    if invite.created_at:
+        from datetime import datetime, timedelta
+        if datetime.utcnow() - invite.created_at > timedelta(days=90):
+            raise HTTPException(status_code=400, detail="만료된 인증코드입니다. (90일 초과)")
     return {"valid": True, "role": invite.role.value}
 
 
@@ -164,10 +174,111 @@ def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
     if not user:
         raise HTTPException(status_code=404, detail="이메일과 이름이 일치하는 계정을 찾을 수 없습니다.")
 
-    # 임시 비밀번호 생성 (영문+숫자+특수문자 포함 10자)
-    alphabet = string.ascii_letters + string.digits
-    temp_pw = ''.join(secrets.choice(alphabet) for _ in range(8)) + secrets.choice("!@#$%") + secrets.choice(string.digits)
+    # 임시 비밀번호 생성 (영문+숫자+특수문자 각각 1개 이상 보장, 총 10자)
+    guaranteed = [
+        secrets.choice(string.ascii_lowercase),
+        secrets.choice(string.ascii_uppercase),
+        secrets.choice(string.digits),
+        secrets.choice("!@#$%"),
+    ]
+    filler = [secrets.choice(string.ascii_letters + string.digits) for _ in range(6)]
+    pw_chars = guaranteed + filler
+    # secrets 기반 셔플로 패턴 예측 방지
+    for i in range(len(pw_chars) - 1, 0, -1):
+        j = secrets.randbelow(i + 1)
+        pw_chars[i], pw_chars[j] = pw_chars[j], pw_chars[i]
+    temp_pw = ''.join(pw_chars)
     user.hashed_password = get_password_hash(temp_pw)
     db.commit()
 
     return {"temp_password": temp_pw}
+
+
+# --- 초대 코드 관리 (원장 전용) ---
+
+class InviteCodeCreate(BaseModel):
+    role: str  # "student" or "teacher"
+    count: int = 1
+    memo: Optional[str] = None
+
+
+class InviteCodeResponse(BaseModel):
+    code: str
+    role: str
+    used: bool
+    used_by: Optional[str] = None
+    memo: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+def _generate_invite_code(length: int = 8) -> str:
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    return ''.join(secrets.choice(alphabet) for _ in range(length))
+
+
+@router.post("/invite-codes", response_model=List[InviteCodeResponse])
+def create_invite_codes(
+    data: InviteCodeCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="원장만 초대 코드를 생성할 수 있습니다.")
+    if data.role not in ("student", "teacher"):
+        raise HTTPException(status_code=400, detail="역할은 student 또는 teacher만 가능합니다.")
+    if data.count < 1 or data.count > 20:
+        raise HTTPException(status_code=400, detail="1~20개까지 생성 가능합니다.")
+
+    codes = []
+    for _ in range(data.count):
+        while True:
+            code = _generate_invite_code()
+            if not db.query(InviteCode).filter(InviteCode.code == code).first():
+                break
+        invite = InviteCode(
+            code=code,
+            role=UserRole(data.role),
+            memo=data.memo,
+        )
+        db.add(invite)
+        codes.append(invite)
+    db.commit()
+
+    return [
+        {
+            "code": c.code,
+            "role": c.role.value,
+            "used": c.used,
+            "used_by": c.used_by,
+            "memo": c.memo,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in codes
+    ]
+
+
+@router.get("/invite-codes", response_model=List[InviteCodeResponse])
+def list_invite_codes(
+    unused_only: bool = False,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.role != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="원장만 조회할 수 있습니다.")
+
+    query = db.query(InviteCode).order_by(InviteCode.created_at.desc())
+    if unused_only:
+        query = query.filter(InviteCode.used == False)
+    codes = query.all()
+
+    return [
+        {
+            "code": c.code,
+            "role": c.role.value,
+            "used": c.used,
+            "used_by": c.used_by,
+            "memo": c.memo,
+            "created_at": c.created_at.isoformat() if c.created_at else None,
+        }
+        for c in codes
+    ]

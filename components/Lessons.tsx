@@ -4,6 +4,12 @@ import { User, UserRole, Lesson, LessonJournal, AttendanceRecord, ClassInfo, Sub
 import toast from 'react-hot-toast';
 import { lessonApi, journalApi, attendanceApi, privateLessonApi, API_URL, getToken, resolveFileUrl } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
+import { ConfirmDialog } from './ConfirmDialog';
+
+function toLocalDateStr(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 interface LessonsProps {
   user: User;
@@ -68,6 +74,14 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   const [isRequestsPanelOpen, setIsRequestsPanelOpen] = useState(false);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
+
+  // Lesson edit/delete
+  const [editingLesson, setEditingLesson] = useState<Lesson | null>(null);
+  const [deleteLessonId, setDeleteLessonId] = useState<string | null>(null);
+
+  // Journal edit/delete
+  const [editingJournal, setEditingJournal] = useState<LessonJournal | null>(null);
+  const [deleteJournalId, setDeleteJournalId] = useState<string | null>(null);
 
   // Journal overview (teacher/director - all journals)
   const [isJournalOverviewOpen, setIsJournalOverviewOpen] = useState(false);
@@ -140,15 +154,16 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   const handleToday = () => {
     const t = new Date();
     setCurrentDate(t);
-    setSelectedDate(t.toISOString().split('T')[0]);
+    setSelectedDate(toLocalDateStr(t));
   };
 
-  // Auto-fill teacher from class + subject
+  // Auto-fill teacher from class
   const autoTeacherId = (() => {
-    if (!newClassId || !newSubject) return '';
+    if (!newClassId) return '';
     const cls = classes.find(c => c.id === newClassId);
     if (!cls) return '';
-    return cls.subjectTeachers[newSubject as Subject] || '';
+    const [, tid] = Object.entries(cls.subjectTeachers)[0] || [];
+    return tid || '';
   })();
 
   const autoTeacherName = (() => {
@@ -172,7 +187,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
       const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
       const dayLessons = myLessons.filter(l => l.date === dateStr);
       const isSelected = selectedDate === dateStr;
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = toLocalDateStr(new Date());
       const isToday = dateStr === todayStr;
 
       days.push(
@@ -261,6 +276,87 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
       console.error('Failed to cancel lesson:', err);
       toast.error('수업 취소에 실패했습니다.');
     }
+  };
+
+  // Lesson edit/delete handlers
+  const handleOpenEditLesson = (lesson: Lesson) => {
+    setEditingLesson(lesson);
+    setNewDate(lesson.date);
+    setNewStartTime(lesson.startTime || '');
+    setNewEndTime(lesson.endTime || '');
+    setNewLocation(lesson.location || '');
+    setIsCreateModalOpen(true);
+  };
+
+  const handleUpdateLesson = async () => {
+    if (!editingLesson) return;
+    try {
+      const updated = await lessonApi.update(editingLesson.id, {
+        date: newDate || editingLesson.date,
+        startTime: newStartTime || editingLesson.startTime,
+        endTime: newEndTime || editingLesson.endTime,
+        location: newLocation || editingLesson.location,
+      });
+      setLessons(prev => prev.map(l => l.id === editingLesson.id ? updated : l));
+      setIsCreateModalOpen(false);
+      setEditingLesson(null);
+      toast.success('수업이 수정되었습니다.');
+    } catch { toast.error('수업 수정에 실패했습니다.'); }
+  };
+
+  const handleDeleteLesson = async () => {
+    if (!deleteLessonId) return;
+    try {
+      await lessonApi.delete(deleteLessonId);
+      setLessons(prev => prev.filter(l => l.id !== deleteLessonId));
+      if (selectedLessonId === deleteLessonId) setSelectedLessonId(null);
+      setDeleteLessonId(null);
+      toast.success('수업이 삭제되었습니다.');
+    } catch { toast.error('수업 삭제에 실패했습니다.'); }
+  };
+
+  // Journal edit/delete handlers
+  const handleOpenEditJournal = (journal: LessonJournal) => {
+    setEditingJournal(journal);
+    setJournalContent(journal.content);
+    setJournalObjectives(journal.objectives || '');
+    setJournalNextPlan(journal.nextPlan || '');
+    setJournalMediaUrls(journal.mediaUrls || []);
+  };
+
+  const handleCancelEditJournal = () => {
+    setEditingJournal(null);
+    setJournalContent('');
+    setJournalObjectives('');
+    setJournalNextPlan('');
+    setJournalMediaUrls([]);
+  };
+
+  const handleUpdateJournal = async () => {
+    if (!editingJournal || !journalContent.trim()) return;
+    try {
+      const updated = await journalApi.update(editingJournal.id, {
+        content: journalContent,
+        objectives: journalObjectives || undefined,
+        nextPlan: journalNextPlan || undefined,
+        mediaUrls: journalMediaUrls.length > 0 ? journalMediaUrls : undefined,
+      });
+      setJournals(prev => prev.map(j => j.id === editingJournal.id ? updated : j));
+      setEditingJournal(null);
+      setJournalContent(''); setJournalObjectives(''); setJournalNextPlan('');
+      setJournalMediaUrls([]);
+      toast.success('수업일지가 수정되었습니다.');
+    } catch { toast.error('수업일지 수정에 실패했습니다.'); }
+  };
+
+  const handleDeleteJournal = async () => {
+    if (!deleteJournalId) return;
+    try {
+      await journalApi.delete(deleteJournalId);
+      setJournals(prev => prev.filter(j => j.id !== deleteJournalId));
+      setDeleteJournalId(null);
+      toast.success('수업일지가 삭제되었습니다.');
+    } catch { toast.error('수업일지 삭제에 실패했습니다.'); }
   };
 
   // Journal media upload handler
@@ -505,7 +601,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                   <span>전체 수업일지</span>
                 </button>
                 <button
-                  onClick={() => setIsCreateModalOpen(true)}
+                  onClick={() => { setEditingLesson(null); setNewClassId(''); setNewDate(''); setNewStartTime(''); setNewEndTime(''); setNewLocation(''); setNewSubject(''); setIsCreateModalOpen(true); }}
                   className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-brand-50 hover:text-brand-500 hover:border-brand-200 transition-colors shadow-sm"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -659,15 +755,21 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                         <>
                           <button
                             onClick={() => handleCompleteLesson(selectedLesson.id)}
-                            className="text-xs bg-green-50 text-green-600 px-3 py-1.5 rounded-lg font-bold hover:bg-green-100"
+                            className="text-xs bg-green-50 text-green-600 px-3 py-1.5 rounded-lg font-bold hover:bg-green-100 min-h-[44px] flex items-center"
                           >
                             수업 완료
                           </button>
                           <button
-                            onClick={() => handleCancelLesson(selectedLesson.id)}
-                            className="text-xs bg-red-50 text-red-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-100"
+                            onClick={() => handleOpenEditLesson(selectedLesson)}
+                            className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
                           >
-                            취소
+                            수정
+                          </button>
+                          <button
+                            onClick={() => setDeleteLessonId(selectedLesson.id)}
+                            className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                          >
+                            삭제
                           </button>
                         </>
                       )}
@@ -718,10 +820,22 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                         <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${j.journalType === 'teacher' ? 'bg-blue-500' : 'bg-slate-400'}`}>
                           {j.journalType === 'teacher' ? 'T' : 'S'}
                         </div>
-                        <div>
+                        <div className="flex-1">
                           <p className="text-xs font-bold text-slate-700">{j.authorName}</p>
                           <p className="text-[10px] text-slate-400">{new Date(j.date).toLocaleDateString('ko-KR')}</p>
                         </div>
+                        {(j.authorId === user.id || isStaff) && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleOpenEditJournal(j)}
+                              className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            >수정</button>
+                            <button
+                              onClick={() => setDeleteJournalId(j.id)}
+                              className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
+                            >삭제</button>
+                          </div>
+                        )}
                       </div>
                       <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{j.content}</p>
 
@@ -795,7 +909,15 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
                   {/* Journal Form */}
                   <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
-                    <h4 className="text-sm font-bold text-slate-700">수업일지 작성</h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-sm font-bold text-slate-700">{editingJournal ? '수업일지 수정' : '수업일지 작성'}</h4>
+                      {editingJournal && (
+                        <button
+                          onClick={handleCancelEditJournal}
+                          className="text-xs text-slate-400 hover:text-slate-600 font-medium"
+                        >취소</button>
+                      )}
+                    </div>
                     {isStaff && (
                       <input
                         value={journalObjectives}
@@ -894,11 +1016,11 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                     </div>
 
                     <button
-                      onClick={handleAddJournal}
+                      onClick={editingJournal ? handleUpdateJournal : handleAddJournal}
                       disabled={isJournalUploading}
                       className="w-full bg-brand-500 text-white py-2.5 rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors shadow-md shadow-brand-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      일지 등록
+                      {editingJournal ? '일지 수정' : '일지 등록'}
                     </button>
                   </div>
                 </>
@@ -996,47 +1118,53 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
 
-            <h3 className="text-xl font-bold text-slate-800 mb-2">수업 등록</h3>
-            <p className="text-xs text-slate-500 mb-6">새 수업을 캘린더에 추가합니다.</p>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">{editingLesson ? '수업 수정' : '수업 등록'}</h3>
+            <p className="text-xs text-slate-500 mb-6">{editingLesson ? '수업 정보를 수정합니다.' : '새 수업을 캘린더에 추가합니다.'}</p>
 
             <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">클래스</label>
-                <select
-                  value={newClassId}
-                  onChange={e => { setNewClassId(e.target.value); setNewSubject(''); }}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500"
-                >
-                  <option value="">클래스 선택</option>
-                  {classes.filter(c => {
-                    if (user.role === UserRole.DIRECTOR) return true;
-                    // Teacher sees classes where they teach any subject
-                    return Object.values(c.subjectTeachers).includes(user.id);
-                  }).map(c => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">과목</label>
-                <select
-                  value={newSubject}
-                  onChange={e => setNewSubject(e.target.value as Subject | '')}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500"
-                >
-                  <option value="">과목 선택</option>
-                  {newClassId && (() => {
-                    const cls = classes.find(c => c.id === newClassId);
-                    if (!cls) return null;
-                    return (Object.keys(cls.subjectTeachers) as Subject[]).map(sub => (
-                      <option key={sub} value={sub}>{SUBJECT_LABELS[sub]}</option>
-                    ));
-                  })()}
-                </select>
-              </div>
-              {autoTeacherName && (
+              {!editingLesson && (
+                <>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">클래스</label>
+                    <select
+                      value={newClassId}
+                      onChange={e => {
+                        const classId = e.target.value;
+                        setNewClassId(classId);
+                        const cls = classes.find(c => c.id === classId);
+                        if (cls) {
+                          const [subj] = Object.keys(cls.subjectTeachers) as Subject[];
+                          setNewSubject(subj || '');
+                        } else {
+                          setNewSubject('');
+                        }
+                      }}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500"
+                    >
+                      <option value="">클래스 선택</option>
+                      {classes.filter(c => {
+                        if (user.role === UserRole.DIRECTOR) return true;
+                        return Object.values(c.subjectTeachers).includes(user.id);
+                      }).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  {newSubject && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-600">
+                      <span className="text-xs font-bold text-slate-500">과목: </span>{SUBJECT_LABELS[newSubject as Subject] || newSubject}
+                    </div>
+                  )}
+                  {autoTeacherName && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-600">
+                      <span className="text-xs font-bold text-slate-500">담당 교사: </span>{autoTeacherName}
+                    </div>
+                  )}
+                </>
+              )}
+              {editingLesson && (
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-sm text-slate-600">
-                  <span className="text-xs font-bold text-slate-500">담당 교사: </span>{autoTeacherName}
+                  <span className="text-xs font-bold text-slate-500">클래스: </span>{editingLesson.className}
                 </div>
               )}
               <div>
@@ -1058,10 +1186,10 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 <input value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" placeholder="예: 301호" />
               </div>
               <button
-                onClick={handleCreateLesson}
+                onClick={editingLesson ? handleUpdateLesson : handleCreateLesson}
                 className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200 mt-2"
               >
-                등록하기
+                {editingLesson ? '수정하기' : '등록하기'}
               </button>
             </div>
           </div>
@@ -1332,6 +1460,28 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
             </div>
           </div>
         </div>
+      )}
+
+      {deleteLessonId && (
+        <ConfirmDialog
+          title="수업 삭제"
+          message="이 수업을 삭제하시겠습니까? 관련 수업일지와 출석 기록도 함께 삭제됩니다."
+          variant="danger"
+          confirmLabel="삭제"
+          onConfirm={handleDeleteLesson}
+          onCancel={() => setDeleteLessonId(null)}
+        />
+      )}
+
+      {deleteJournalId && (
+        <ConfirmDialog
+          title="수업일지 삭제"
+          message="이 수업일지를 삭제하시겠습니까?"
+          variant="danger"
+          confirmLabel="삭제"
+          onConfirm={handleDeleteJournal}
+          onCancel={() => setDeleteJournalId(null)}
+        />
       )}
     </div>
   );

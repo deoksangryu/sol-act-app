@@ -5,7 +5,7 @@ from app.database import get_db
 from app.models.user import User, UserRole
 from app.schemas.user import UserResponse, UserUpdate, PasswordChange
 from app.utils.auth import get_current_user, verify_password, get_password_hash
-from app.services.notification_service import emit_data_changed, get_all_user_ids
+from app.services.notification_service import emit_data_changed, get_all_user_ids, get_teacher_student_ids
 
 router = APIRouter()
 
@@ -17,6 +17,11 @@ def list_users(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(User)
+    # Teacher: only see students in their classes (+ self)
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        visible_ids = set(my_student_ids) | {current_user.id}
+        query = query.filter(User.id.in_(visible_ids))
     if role:
         try:
             user_role = UserRole(role)

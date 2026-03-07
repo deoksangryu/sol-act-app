@@ -7,7 +7,7 @@ from app.models.diet import DietLog
 from app.models.user import User, UserRole
 from app.schemas.diet import DietLogCreate, DietLogUpdate, DietLogResponse
 from app.services.ai import analyze_diet as ai_analyze_diet
-from app.services.notification_service import emit_data_changed, get_teacher_ids_for_student
+from app.services.notification_service import notify_users, emit_data_changed, get_teacher_ids_for_student, get_teacher_student_ids
 from app.utils.auth import get_current_user
 import uuid
 
@@ -40,6 +40,12 @@ def list_diet_logs(
     query = db.query(DietLog).options(joinedload(DietLog.student))
     if current_user.role == UserRole.STUDENT:
         query = query.filter(DietLog.student_id == current_user.id)
+    elif current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        if student_id:
+            query = query.filter(DietLog.student_id == student_id)
+        else:
+            query = query.filter(DietLog.student_id.in_(my_student_ids))
     elif student_id:
         query = query.filter(DietLog.student_id == student_id)
     if date:
@@ -96,7 +102,12 @@ async def create_diet_log(
 
     teacher_ids = get_teacher_ids_for_student(db, data.student_id)
     if teacher_ids:
-        await emit_data_changed(teacher_ids, "diet")
+        student_name = student.name if student else "학생"
+        await notify_users(
+            db, teacher_ids,
+            f"{student_name}님이 식단을 기록했습니다.",
+            entity="diet",
+        )
 
     d = db.query(DietLog).options(joinedload(DietLog.student)).filter(DietLog.id == log.id).first()
     return diet_to_response(d)
@@ -116,7 +127,12 @@ async def update_diet_log(
     if current_user.role == UserRole.STUDENT and d.student_id != current_user.id:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
-    for field, value in update_data.model_dump(exclude_unset=True).items():
+    updates = update_data.model_dump(exclude_unset=True)
+    # Teachers can only add comments, not modify the diet entry itself
+    if current_user.role == UserRole.TEACHER:
+        updates = {k: v for k, v in updates.items() if k == "teacher_comment"}
+
+    for field, value in updates.items():
         setattr(d, field, value)
 
     db.commit()
@@ -141,6 +157,8 @@ async def delete_diet_log(
 
     if current_user.role == UserRole.STUDENT and d.student_id != current_user.id:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if current_user.role == UserRole.TEACHER:
+        raise HTTPException(status_code=403, detail="Teachers cannot delete student diet records")
 
     student_id = d.student_id
     db.delete(d)

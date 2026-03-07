@@ -164,6 +164,17 @@ export const authApi = {
       body: JSON.stringify({ email, name }),
     });
   },
+
+  async createInviteCodes(data: { role: string; count: number; memo?: string }): Promise<{ code: string; role: string }[]> {
+    return apiRequest('/api/auth/invite-codes', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async listInviteCodes(unusedOnly = false): Promise<{ code: string; role: string; used: boolean; usedBy?: string; memo?: string; createdAt?: string }[]> {
+    return apiRequest(`/api/auth/invite-codes?unused_only=${unusedOnly}`);
+  },
 };
 
 // --- User API ---
@@ -186,6 +197,9 @@ export const userApi = {
       method: 'PUT',
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     });
+  },
+  delete(id: string): Promise<void> {
+    return apiRequest(`/api/users/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -365,7 +379,7 @@ export const assignmentApi = {
   get(id: string): Promise<Assignment> {
     return apiRequest(`/api/assignments/${id}`);
   },
-  create(data: any): Promise<Assignment> {
+  create(data: any): Promise<Assignment[]> {
     return apiRequest('/api/assignments', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
@@ -791,6 +805,92 @@ export const uploadApi = {
     });
   },
 };
+
+// --- Push Notification API ---
+export const pushApi = {
+  getVapidPublicKey(): Promise<{ publicKey: string }> {
+    return apiRequest('/api/push/vapid-public-key');
+  },
+  subscribe(endpoint: string, p256dh: string, auth: string): Promise<{ ok: boolean }> {
+    return apiRequest('/api/push/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ endpoint, p256dh, auth }),
+    });
+  },
+  unsubscribe(endpoint: string, p256dh: string, auth: string): Promise<{ ok: boolean }> {
+    return apiRequest('/api/push/unsubscribe', {
+      method: 'DELETE',
+      body: JSON.stringify({ endpoint, p256dh, auth }),
+    });
+  },
+};
+
+/**
+ * Register the browser for Web Push notifications.
+ * Safe to call multiple times — no-ops if already subscribed or not supported.
+ *
+ * On auto-login: only subscribes if permission is already 'granted' (no popup).
+ * From settings page: call with requestPermission=true to show the permission prompt
+ * (must be triggered by user gesture on iOS).
+ */
+export async function registerPushSubscription(requestPermission = false): Promise<void> {
+  try {
+    if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+    if (requestPermission) {
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') return;
+    } else {
+      if (Notification.permission !== 'granted') return;
+    }
+
+    const reg = await navigator.serviceWorker.ready;
+
+    const { publicKey } = await pushApi.getVapidPublicKey();
+    if (!publicKey) return;
+
+    // Convert VAPID public key from URL-safe base64 to Uint8Array
+    const rawKey = atob(publicKey.replace(/-/g, '+').replace(/_/g, '/'));
+    const applicationServerKey = new Uint8Array(rawKey.length);
+    for (let i = 0; i < rawKey.length; i++) {
+      applicationServerKey[i] = rawKey.charCodeAt(i);
+    }
+
+    let subscription = await reg.pushManager.getSubscription();
+    if (!subscription) {
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey,
+      });
+    }
+
+    const subJson = subscription.toJSON();
+    if (subJson.endpoint && subJson.keys?.p256dh && subJson.keys?.auth) {
+      await pushApi.subscribe(subJson.endpoint, subJson.keys.p256dh, subJson.keys.auth);
+    }
+  } catch (err) {
+    console.warn('Push subscription failed:', err);
+  }
+}
+
+/**
+ * Unregister push subscription from server (call on logout).
+ */
+export async function unregisterPushSubscription(): Promise<void> {
+  try {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    const reg = await navigator.serviceWorker.ready;
+    const subscription = await reg.pushManager.getSubscription();
+    if (!subscription) return;
+    const subJson = subscription.toJSON();
+    if (subJson.endpoint && subJson.keys?.p256dh && subJson.keys?.auth) {
+      await pushApi.unsubscribe(subJson.endpoint, subJson.keys.p256dh, subJson.keys.auth);
+    }
+    await subscription.unsubscribe();
+  } catch (err) {
+    console.warn('Push unsubscription failed:', err);
+  }
+}
 
 // ── Demo mode override ──
 if (DEMO_MODE) {

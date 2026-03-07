@@ -27,7 +27,7 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onC
               className={`p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${notif.read ? 'opacity-60' : 'bg-brand-50/30'}`}
             >
               <div className="flex gap-3">
-                <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notif.read ? 'bg-slate-300' : 'bg-brand-500'}`} />
+                <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notif.read ? 'bg-slate-300' : notif.type === 'warning' ? 'bg-red-500' : notif.type === 'success' ? 'bg-green-500' : 'bg-brand-500'}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-700 leading-snug break-keep">{notif.message}</p>
                   <p className="text-[10px] text-slate-400 mt-1">{new Date(notif.date).toLocaleDateString()} {new Date(notif.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>

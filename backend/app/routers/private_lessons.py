@@ -45,6 +45,14 @@ def list_requests(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(PrivateLessonRequest)
+
+    # Role-based scoping
+    if current_user.role == UserRole.STUDENT:
+        query = query.filter(PrivateLessonRequest.student_id == current_user.id)
+    elif current_user.role == UserRole.TEACHER:
+        query = query.filter(PrivateLessonRequest.teacher_id == current_user.id)
+    # Director sees all
+
     if student_id:
         query = query.filter(PrivateLessonRequest.student_id == student_id)
     if teacher_id:

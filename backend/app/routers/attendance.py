@@ -11,7 +11,7 @@ from app.schemas.attendance import (
     AttendanceResponse, AttendanceStats
 )
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_user, emit_data_changed
+from app.services.notification_service import notify_user, emit_data_changed, get_teacher_class_ids
 import uuid
 
 router = APIRouter()
@@ -104,6 +104,12 @@ async def bulk_create_attendance(
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
 
+    # Teacher: validate lesson belongs to their class
+    if current_user.role == UserRole.TEACHER and lesson.class_id:
+        my_class_ids = get_teacher_class_ids(db, current_user.id)
+        if lesson.class_id not in my_class_ids:
+            raise HTTPException(status_code=403, detail="Cannot mark attendance for classes you don't teach")
+
     created = []
     for record in data.records:
         # Update existing or create new
@@ -157,6 +163,14 @@ async def create_attendance(
     if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
+    # Teacher: validate lesson belongs to their class
+    if current_user.role == UserRole.TEACHER:
+        lesson = db.query(Lesson).filter(Lesson.id == data.lesson_id).first()
+        if lesson and lesson.class_id:
+            my_class_ids = get_teacher_class_ids(db, current_user.id)
+            if lesson.class_id not in my_class_ids:
+                raise HTTPException(status_code=403, detail="Cannot mark attendance for classes you don't teach")
+
     att = Attendance(
         id=f"att{uuid.uuid4().hex[:7]}",
         lesson_id=data.lesson_id,
@@ -188,6 +202,14 @@ async def update_attendance(
     a = db.query(Attendance).options(joinedload(Attendance.student)).filter(Attendance.id == attendance_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Attendance record not found")
+
+    # Teacher: validate lesson belongs to their class
+    if current_user.role == UserRole.TEACHER:
+        lesson = db.query(Lesson).filter(Lesson.id == a.lesson_id).first()
+        if lesson and lesson.class_id:
+            my_class_ids = get_teacher_class_ids(db, current_user.id)
+            if lesson.class_id not in my_class_ids:
+                raise HTTPException(status_code=403, detail="Cannot mark attendance for classes you don't teach")
 
     for field, value in update_data.model_dump(exclude_unset=True).items():
         setattr(a, field, value)
