@@ -206,20 +206,22 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
               {/* AI Banner if no answers or manual trigger */}
               <div className="flex justify-between items-center px-2 mb-2">
                 <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">답변 {selectedQuestion.answers.length}</h4>
-                <button
-                  onClick={handleAiHelp}
-                  disabled={isAiLoading}
-                  className="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-full font-bold hover:bg-purple-100 transition-colors flex items-center gap-1"
-                >
-                   {isAiLoading ? (
-                     <span className="animate-pulse">AI 작성 중...</span>
-                   ) : (
-                     <>
-                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                       AI 답변 요청
-                     </>
-                   )}
-                </button>
+                {isTeacher && (
+                  <button
+                    onClick={handleAiHelp}
+                    disabled={isAiLoading}
+                    className="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-full font-bold hover:bg-purple-100 transition-colors flex items-center gap-1"
+                  >
+                     {isAiLoading ? (
+                       <span className="animate-pulse">AI 작성 중...</span>
+                     ) : (
+                       <>
+                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                         AI 답변 요청
+                       </>
+                     )}
+                  </button>
+                )}
               </div>
 
               {/* Answers */}
@@ -249,7 +251,7 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
                           <p className="text-[10px] text-slate-400">{formatDate(answer.date)}</p>
                         </div>
                       </div>
-                      {!answer.isAi && isTeacher && (
+                      {!answer.isAi && (answer.authorId === user.id || user.role === UserRole.DIRECTOR) && (
                         <button onClick={async () => {
                           if (!confirm('이 답변을 삭제하시겠습니까?')) return;
                           try {
