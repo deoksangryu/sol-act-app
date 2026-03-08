@@ -32,6 +32,11 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
   // Push notification
   const [pushStatus, setPushStatus] = useState<'loading' | 'unsupported' | 'denied' | 'granted' | 'prompt'>('loading');
 
+  // PWA install
+  const [isStandalone, setIsStandalone] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isIOS, setIsIOS] = useState(false);
+
   useEffect(() => {
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       setPushStatus('unsupported');
@@ -39,6 +44,29 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
     }
     setPushStatus(Notification.permission as 'denied' | 'granted' | 'prompt');
   }, []);
+
+  useEffect(() => {
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
+    const ua = navigator.userAgent;
+    setIsIOS(/iphone|ipad|ipod/i.test(ua) && !(window as any).MSStream);
+
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+      setIsStandalone(true);
+    }
+  };
 
   const handleEnablePush = async () => {
     try {
@@ -283,6 +311,49 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
             >
               푸시 알림 켜기
             </button>
+          </div>
+        )}
+      </div>
+
+      {/* App Install Section */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+        <h2 className="font-bold text-slate-700 mb-4">앱 설치</h2>
+        {isStandalone ? (
+          <div className="flex items-center gap-3 bg-green-50 rounded-xl p-4">
+            <svg className="w-5 h-5 text-green-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+            <p className="text-sm text-green-700 font-medium">앱이 설치되어 있습니다.</p>
+          </div>
+        ) : deferredPrompt ? (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">홈 화면에 앱을 추가하면 더 빠르게 실행할 수 있습니다.</p>
+            <button
+              onClick={handleInstallApp}
+              className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold text-sm hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200"
+            >
+              홈 화면에 추가
+            </button>
+          </div>
+        ) : isIOS ? (
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">아래 단계를 따라 홈 화면에 앱을 추가하세요.</p>
+            <ol className="space-y-2">
+              <li className="flex items-start gap-2 text-sm text-slate-700">
+                <span className="bg-brand-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">1</span>
+                <span>하단의 <span className="font-bold">공유 버튼</span>을 탭하세요.</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-slate-700">
+                <span className="bg-brand-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">2</span>
+                <span><span className="font-bold">홈 화면에 추가</span>를 탭하세요.</span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-slate-700">
+                <span className="bg-brand-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">3</span>
+                <span>오른쪽 상단의 <span className="font-bold">추가</span>를 탭하세요.</span>
+              </li>
+            </ol>
+          </div>
+        ) : (
+          <div className="bg-slate-50 rounded-xl p-4">
+            <p className="text-sm text-slate-600">브라우저 메뉴에서 <span className="font-bold">홈 화면에 추가</span> 또는 <span className="font-bold">앱 설치</span>를 선택하세요.</p>
           </div>
         )}
       </div>

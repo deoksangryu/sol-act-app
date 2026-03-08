@@ -46,7 +46,9 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
   const [newPfTags, setNewPfTags] = useState('');
   const [newPfVideoUrl, setNewPfVideoUrl] = useState('');
   const [isPfVideoUploading, setIsPfVideoUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const pfVideoInputRef = useRef<HTMLInputElement>(null);
+  const pendingVideoPortfolioIdRef = useRef<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
   // Portfolio view toggle (grid vs timeline)
@@ -206,30 +208,59 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
     } catch { toast.error('평가 삭제에 실패했습니다.'); }
   };
 
-  const handlePfVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePfVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
     setIsPfVideoUploading(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const token = getToken();
-      const res = await fetch(`${API_URL}/api/upload?subfolder=portfolios`, {
-        method: 'POST',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (!res.ok) throw new Error('Upload failed');
-      const result = await res.json();
-      setNewPfVideoUrl(result.url);
-      toast.success('영상이 업로드되었습니다.');
-    } catch { toast.error('영상 업로드에 실패했습니다.'); }
-    finally { setIsPfVideoUploading(false); if (pfVideoInputRef.current) pfVideoInputRef.current.value = ''; }
+    setUploadProgress(0);
+
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (evt) => {
+      if (evt.lengthComputable) {
+        setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
+      }
+    });
+    xhr.addEventListener('load', async () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          const url: string = result.url;
+          setNewPfVideoUrl(url);
+          const pendingId = pendingVideoPortfolioIdRef.current;
+          if (pendingId) {
+            pendingVideoPortfolioIdRef.current = null;
+            const updated = await portfolioApi.update(pendingId, { videoUrl: url });
+            setPortfolios(prev => prev.map(p => p.id === pendingId ? updated : p));
+            toast.success('영상이 포트폴리오에 저장되었습니다.');
+          }
+        } catch {
+          toast.error('영상 업로드에 실패했습니다.');
+        }
+      } else {
+        toast.error('영상 업로드에 실패했습니다.');
+      }
+      setIsPfVideoUploading(false);
+      setUploadProgress(null);
+    });
+    xhr.addEventListener('error', () => {
+      toast.error('영상 업로드에 실패했습니다.');
+      setIsPfVideoUploading(false);
+      setUploadProgress(null);
+    });
+
+    xhr.open('POST', `${API_URL}/api/upload?subfolder=portfolios`);
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.send(formData);
   };
 
   const handleCreatePortfolio = async () => {
-    if (!newPfTitle.trim() || !newPfVideoUrl) {
-      toast.error('제목과 영상을 모두 입력해주세요.');
+    if (!newPfTitle.trim()) {
+      toast.error('제목을 입력해주세요.');
       return;
     }
     try {
@@ -241,17 +272,22 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       const newPf = await portfolioApi.create({
         title: newPfTitle,
         description: newPfDesc,
-        videoUrl: newPfVideoUrl,
+        videoUrl: newPfVideoUrl || '',
         category: newPfCategory || '기타',
         tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
         practiceGroup,
       });
-      setPortfolios([...portfolios, newPf]);
+      setPortfolios(prev => [...prev, newPf]);
       setIsPortfolioModalOpen(false);
       setNewPfTitle(''); setNewPfDesc(''); setNewPfCategory(''); setNewPfTags('');
       setNewPfVideoUrl('');
       setNewPfPracticeGroup(''); setNewPfPracticeGroupCustom('');
-      toast.success('포트폴리오가 등록되었습니다.');
+      if (isPfVideoUploading) {
+        pendingVideoPortfolioIdRef.current = newPf.id;
+        toast.success('포트폴리오가 등록되었습니다. 영상 업로드 완료 후 자동 저장됩니다.');
+      } else {
+        toast.success('포트폴리오가 등록되었습니다.');
+      }
     } catch { toast.error('포트폴리오 등록에 실패했습니다.'); }
   };
 
@@ -558,9 +594,16 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                   >
                     {/* Video Thumbnail Placeholder */}
                     <div className="aspect-video bg-slate-100 relative flex items-center justify-center">
-                      <div className="w-14 h-14 rounded-full bg-black/30 flex items-center justify-center group-hover:bg-brand-500/80 transition-colors">
-                        <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                      </div>
+                      {pf.videoUrl ? (
+                        <div className="w-14 h-14 rounded-full bg-black/30 flex items-center justify-center group-hover:bg-brand-500/80 transition-colors">
+                          <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-1 text-slate-400">
+                          <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                          <span className="text-[10px] font-medium">영상 업로드 중</span>
+                        </div>
+                      )}
                       <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">{pf.category}</span>
                     </div>
                     <div className="p-4">
@@ -849,15 +892,22 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
             {/* Video Player */}
             <div className="aspect-video bg-black rounded-xl mb-4 overflow-hidden">
-              <video
-                ref={videoRef}
-                src={selectedPortfolio.videoUrl.startsWith('/') ? `${API_URL}${selectedPortfolio.videoUrl}` : selectedPortfolio.videoUrl}
-                controls
-                className="w-full h-full object-contain"
-                preload="metadata"
-              >
-                <source src={selectedPortfolio.videoUrl.startsWith('/') ? `${API_URL}${selectedPortfolio.videoUrl}` : selectedPortfolio.videoUrl} />
-              </video>
+              {selectedPortfolio.videoUrl ? (
+                <video
+                  ref={videoRef}
+                  src={selectedPortfolio.videoUrl.startsWith('/') ? `${API_URL}${selectedPortfolio.videoUrl}` : selectedPortfolio.videoUrl}
+                  controls
+                  className="w-full h-full object-contain"
+                  preload="metadata"
+                >
+                  <source src={selectedPortfolio.videoUrl.startsWith('/') ? `${API_URL}${selectedPortfolio.videoUrl}` : selectedPortfolio.videoUrl} />
+                </video>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-white/60 gap-2">
+                  <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                  <span className="text-sm">영상 업로드 중...</span>
+                </div>
+              )}
             </div>
 
             <div className="flex gap-2 mb-3 flex-wrap">
@@ -960,23 +1010,27 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                       <button onClick={() => setNewPfVideoUrl('')} className="ml-auto text-xs text-red-400 hover:text-red-600">변경</button>
                     </div>
                   </div>
+                ) : isPfVideoUploading ? (
+                  <div className="border border-brand-200 rounded-xl bg-brand-50 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-bold text-brand-600">업로드 중...</span>
+                      <span className="text-sm font-bold text-brand-600">{uploadProgress ?? 0}%</span>
+                    </div>
+                    <div className="w-full bg-brand-100 rounded-full h-2">
+                      <div
+                        className="bg-brand-500 h-2 rounded-full transition-all duration-200"
+                        style={{ width: `${uploadProgress ?? 0}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-brand-400">업로드 중에도 바로 등록할 수 있습니다.</p>
+                  </div>
                 ) : (
                   <button
                     onClick={() => pfVideoInputRef.current?.click()}
-                    disabled={isPfVideoUploading}
-                    className="w-full flex items-center justify-center gap-2 p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-brand-300 transition-colors disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-brand-300 transition-colors"
                   >
-                    {isPfVideoUploading ? (
-                      <>
-                        <svg className="animate-spin w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                        <span className="text-xs font-bold text-brand-500">업로드 중...</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                        <span className="text-xs font-bold text-slate-500">클릭하여 영상을 선택하세요</span>
-                      </>
-                    )}
+                    <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                    <span className="text-xs font-bold text-slate-500">클릭하여 영상을 선택하세요</span>
                   </button>
                 )}
               </div>
