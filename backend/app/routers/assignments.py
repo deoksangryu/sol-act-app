@@ -195,6 +195,30 @@ async def submit_assignment(
     return assignment_to_response(a)
 
 
+@router.patch("/{assignment_id}/file", response_model=AssignmentResponse)
+async def patch_submission_file(
+    assignment_id: str,
+    file_url: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Patch the submission file URL after an async upload completes.
+
+    Called when a background upload finishes after the initial submission.
+    Does not change status or re-notify teachers.
+    """
+    a = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not a:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    if current_user.id != a.student_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    a.submission_file_url = file_url
+    db.commit()
+    db.refresh(a)
+    return assignment_to_response(a)
+
+
 class GradeData(BaseModel):
     grade: str
     feedback: str

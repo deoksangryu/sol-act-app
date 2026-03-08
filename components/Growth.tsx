@@ -54,6 +54,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
   const [newPfCategory, setNewPfCategory] = useState('');
   const [newPfTags, setNewPfTags] = useState('');
   const [newPfVideoUrl, setNewPfVideoUrl] = useState('');
+  const [newPfVideoFile, setNewPfVideoFile] = useState<File | null>(null);
   const [isPfVideoUploading, setIsPfVideoUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const pfVideoInputRef = useRef<HTMLInputElement>(null);
@@ -239,12 +240,23 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
+    setNewPfVideoFile(file);
+  };
+
+  const startPfVideoUpload = (file: File, portfolioId: string) => {
     setIsPfVideoUploading(true);
     setUploadProgress(0);
+    pendingVideoPortfolioIdRef.current = portfolioId;
 
     const token = getToken();
     const formData = new FormData();
     formData.append('file', file);
+
+    const params = new URLSearchParams({
+      subfolder: 'portfolios',
+      target_type: 'portfolio',
+      target_id: portfolioId,
+    });
 
     const xhr = new XMLHttpRequest();
     xhr.upload.addEventListener('progress', (evt) => {
@@ -257,7 +269,6 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
         try {
           const result = JSON.parse(xhr.responseText);
           const url: string = result.url;
-          setNewPfVideoUrl(url);
           const pendingId = pendingVideoPortfolioIdRef.current;
           if (pendingId) {
             pendingVideoPortfolioIdRef.current = null;
@@ -280,7 +291,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       setUploadProgress(null);
     });
 
-    xhr.open('POST', `${API_URL}/api/upload?subfolder=portfolios`);
+    xhr.open('POST', `${API_URL}/api/upload?${params}`);
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.send(formData);
   };
@@ -299,19 +310,24 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       const newPf = await portfolioApi.create({
         title: newPfTitle,
         description: newPfDesc,
-        videoUrl: newPfVideoUrl || undefined,
+        videoUrl: undefined,  // always empty on create; file uploads after
         category: newPfCategory || 'other',
         tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
         practiceGroup,
       });
       setPortfolios(prev => [...prev, newPf]);
+
+      // Close modal and reset form
+      const fileToUpload = newPfVideoFile;
       setIsPortfolioModalOpen(false);
       setNewPfTitle(''); setNewPfDesc(''); setNewPfCategory(''); setNewPfTags('');
-      setNewPfVideoUrl('');
+      setNewPfVideoUrl(''); setNewPfVideoFile(null);
       setNewPfPracticeGroup(''); setNewPfPracticeGroupCustom('');
-      if (isPfVideoUploading) {
-        pendingVideoPortfolioIdRef.current = newPf.id;
-        toast.success('포트폴리오가 등록되었습니다. 영상 업로드 완료 후 자동 저장됩니다.');
+
+      // Start upload after portfolio is created (ID now known → server can patch DB directly)
+      if (fileToUpload) {
+        startPfVideoUpload(fileToUpload, newPf.id);
+        toast.success('포트폴리오가 등록되었습니다. 영상 업로드 중...');
       } else {
         toast.success('포트폴리오가 등록되었습니다.');
       }
@@ -1038,27 +1054,14 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
               <div>
                 <label className="block text-xs font-bold text-slate-500 mb-1">영상 파일</label>
                 <input ref={pfVideoInputRef} type="file" className="hidden" accept="video/*" onChange={handlePfVideoUpload} />
-                {newPfVideoUrl ? (
-                  <div className="relative rounded-xl overflow-hidden border border-green-200 bg-green-50 p-3">
+                {newPfVideoFile ? (
+                  <div className="relative rounded-xl overflow-hidden border border-brand-200 bg-brand-50 p-3">
                     <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                      <span className="text-sm font-bold text-green-700">영상 업로드 완료</span>
-                      <button onClick={() => setNewPfVideoUrl('')} className="ml-auto text-xs text-red-400 hover:text-red-600">변경</button>
+                      <svg className="w-5 h-5 text-brand-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                      <span className="text-sm font-medium text-brand-700 truncate">{newPfVideoFile.name}</span>
+                      <button onClick={() => { setNewPfVideoFile(null); }} className="ml-auto text-xs text-red-400 hover:text-red-600 shrink-0">변경</button>
                     </div>
-                  </div>
-                ) : isPfVideoUploading ? (
-                  <div className="border border-brand-200 rounded-xl bg-brand-50 p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-brand-600">업로드 중...</span>
-                      <span className="text-sm font-bold text-brand-600">{uploadProgress ?? 0}%</span>
-                    </div>
-                    <div className="w-full bg-brand-100 rounded-full h-2">
-                      <div
-                        className="bg-brand-500 h-2 rounded-full transition-all duration-200"
-                        style={{ width: `${uploadProgress ?? 0}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-brand-400">업로드 중에도 바로 등록할 수 있습니다.</p>
+                    <p className="text-xs text-brand-400 mt-1">등록 후 업로드가 시작됩니다.</p>
                   </div>
                 ) : (
                   <button

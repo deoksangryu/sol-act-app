@@ -397,6 +397,9 @@ export const assignmentApi = {
       body: JSON.stringify(toSnake(data)),
     });
   },
+  patchFile(id: string, fileUrl: string): Promise<Assignment> {
+    return apiRequest(`/api/assignments/${id}/file?file_url=${encodeURIComponent(fileUrl)}`, { method: 'PATCH' });
+  },
   grade(id: string, data: { grade: string; feedback: string }): Promise<Assignment> {
     return apiRequest(`/api/assignments/${id}/grade`, {
       method: 'PUT',
@@ -757,15 +760,23 @@ export const privateLessonApi = {
 
 // --- Upload API ---
 export const uploadApi = {
-  upload(file: File, onProgress?: (pct: number) => void, subfolder?: string): Promise<{ url: string; filename: string }> {
+  upload(
+    file: File,
+    onProgress?: (pct: number) => void,
+    subfolder?: string,
+    targetType?: string,
+    targetId?: string,
+  ): Promise<{ url: string; filename: string }> {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       const formData = new FormData();
       formData.append('file', file);
 
-      const uploadUrl = subfolder
-        ? `${API_URL}/api/upload?subfolder=${subfolder}`
-        : `${API_URL}/api/upload`;
+      const params = new URLSearchParams();
+      if (subfolder) params.set('subfolder', subfolder);
+      if (targetType) params.set('target_type', targetType);
+      if (targetId) params.set('target_id', targetId);
+      const uploadUrl = `${API_URL}/api/upload?${params.toString()}`;
       xhr.open('POST', uploadUrl);
 
       const token = getToken();

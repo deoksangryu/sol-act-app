@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { User, UserRole } from '../types';
-import { userApi, API_URL, getToken, resolveFileUrl, registerPushSubscription } from '../services/api';
+import { userApi, uploadApi, resolveFileUrl, registerPushSubscription } from '../services/api';
 import toast from 'react-hot-toast';
 
 interface ProfileSettingsProps {
@@ -88,19 +88,9 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
     if (!file) return;
     setIsUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const token = getToken();
-      const res = await fetch(`${API_URL}/api/upload?subfolder=avatars`, {
-        method: 'POST',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (!res.ok) throw new Error('Upload failed');
-      const result = await res.json();
-      const avatarUrl = result.url; // store relative path, resolve to full URL at display time
-      const updated = await userApi.update(user.id, { avatar: avatarUrl });
-      onUserUpdate({ ...user, avatar: updated.avatar || avatarUrl });
+      const result = await uploadApi.upload(file, undefined, 'avatars');
+      const updated = await userApi.update(user.id, { avatar: result.url });
+      onUserUpdate({ ...user, avatar: updated.avatar || result.url });
       toast.success('프로필 사진이 변경되었습니다.');
     } catch { toast.error('사진 업로드에 실패했습니다.'); }
     finally { setIsUploading(false); if (fileInputRef.current) fileInputRef.current.value = ''; }

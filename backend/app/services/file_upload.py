@@ -49,12 +49,20 @@ CHUNK_SIZE = 4 * 1024 * 1024  # 4MB chunks
 _compression_semaphore = threading.Semaphore(3)
 
 
-async def save_file(file: UploadFile, subfolder: str = "assignments") -> Tuple[str, str]:
-    """Save uploaded file and return (relative_url, original_filename)."""
+async def save_file(
+    file: UploadFile,
+    subfolder: str = "assignments",
+    user_id: Optional[str] = None,
+) -> Tuple[str, str]:
+    """Save uploaded file and return (relative_url, original_filename).
+
+    Files are stored under UPLOAD_DIR/subfolder/user_id/ when user_id is provided,
+    making it easy to identify file ownership from the filesystem.
+    """
     validate_file(file)
 
     unique_name = f"{uuid.uuid4().hex[:12]}_{file.filename}"
-    target_dir = UPLOAD_DIR / subfolder
+    target_dir = UPLOAD_DIR / subfolder / user_id if user_id else UPLOAD_DIR / subfolder
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / unique_name
 
@@ -75,7 +83,8 @@ async def save_file(file: UploadFile, subfolder: str = "assignments") -> Tuple[s
         target_path.unlink(missing_ok=True)
         raise
 
-    relative_url = f"/uploads/{subfolder}/{unique_name}"
+    url_path = f"{subfolder}/{user_id}/{unique_name}" if user_id else f"{subfolder}/{unique_name}"
+    relative_url = f"/uploads/{url_path}"
     return relative_url, file.filename
 
 

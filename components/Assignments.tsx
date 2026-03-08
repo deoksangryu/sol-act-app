@@ -50,6 +50,8 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
   const [uploadProgress, setUploadProgress] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Tracks assignment ID pending a background file upload (async pattern)
+  const pendingFileAssignmentIdRef = useRef<string | null>(null);
 
   // Grading state (for staff)
   const [gradeValue, setGradeValue] = useState('');
@@ -113,6 +115,21 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
   }, [loadData]);
 
   useDataRefresh('assignments', loadData);
+
+  // Warn before page close and expose global flag when upload is in progress
+  useEffect(() => {
+    if (!isUploading) {
+      (window as any).__solact_uploading = false;
+      return;
+    }
+    (window as any).__solact_uploading = true;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', handler);
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+      (window as any).__solact_uploading = false;
+    };
+  }, [isUploading]);
 
   // --- Calendar Logic ---
   const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -209,31 +226,41 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
 
   const handleSubmit = async (id: string) => {
     try {
-      let fileUrl: string | undefined;
-
-      if (uploadFile) {
-        setIsUploading(true);
-        setUploadProgress(0);
-        try {
-          const result = await uploadApi.upload(uploadFile, (pct) => setUploadProgress(pct));
-          fileUrl = result.url;
-        } catch (err: any) {
-          toast.error(err.message || '파일 업로드에 실패했습니다.');
-          setIsUploading(false);
-          return;
-        }
-        setIsUploading(false);
-      }
-
-      const updated = await assignmentApi.submit(id, {
-        submissionText: submissionText || '(파일 제출)',
-        submissionFileUrl: fileUrl,
+      // Submit immediately (without waiting for file upload)
+      const submitted = await assignmentApi.submit(id, {
+        submissionText: submissionText || '(파일 첨부 중)',
+        submissionFileUrl: undefined,
       });
-      setAssignments(prev => prev.map(a => a.id === id ? updated : a));
+      setAssignments(prev => prev.map(a => a.id === id ? submitted : a));
       setSubmissionText('');
-      setUploadFile(null);
-      setUploadProgress(0);
-      toast.success('과제가 성공적으로 제출되었습니다!');
+      toast.success('과제가 제출되었습니다.');
+
+      // If a file was selected, upload it in the background and patch when done
+      if (uploadFile) {
+        const fileToUpload = uploadFile;
+        setUploadFile(null);
+        setUploadProgress(0);
+        setIsUploading(true);
+        pendingFileAssignmentIdRef.current = id;
+
+        // Pass target_type + target_id so server patches DB directly on upload completion
+        // This ensures the file URL is saved even if the client disconnects before the patch call
+        uploadApi.upload(fileToUpload, (pct) => setUploadProgress(pct), 'assignments', 'assignment', id).then(async (result) => {
+          const pendingId = pendingFileAssignmentIdRef.current;
+          if (pendingId) {
+            pendingFileAssignmentIdRef.current = null;
+            const patched = await assignmentApi.patchFile(pendingId, result.url);
+            setAssignments(prev => prev.map(a => a.id === pendingId ? patched : a));
+            toast.success('파일이 과제에 첨부되었습니다.');
+          }
+        }).catch((err: any) => {
+          toast.error(err.message || '파일 업로드에 실패했습니다.');
+          pendingFileAssignmentIdRef.current = null;
+        }).finally(() => {
+          setIsUploading(false);
+          setUploadProgress(0);
+        });
+      }
     } catch {
       toast.error('과제 제출에 실패했습니다.');
     }
@@ -582,13 +609,13 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                           ref={fileInputRef}
                           type="file"
                           className="hidden"
-                          accept=".mp4,.mov,.webm,.pdf,.jpg,.jpeg,.png"
+                          accept=".mp4,.mov,.webm,.mp3,.m4a,.wav,.pdf,.jpg,.jpeg,.png"
                           onChange={handleFileSelect}
                         />
                         <div className="text-center">
                           <svg className="w-8 h-8 text-slate-300 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                           <span className="text-xs text-slate-500 block">파일 첨부 (영상/문서)</span>
-                          <span className="text-[10px] text-slate-400">MP4, MOV, WebM, PDF, JPG, PNG</span>
+                          <span className="text-[10px] text-slate-400">MP4, MOV, WebM, MP3, M4A, WAV, PDF, JPG, PNG</span>
                         </div>
                       </label>
                     ) : (
@@ -630,10 +657,10 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
 
                     <button
                       onClick={() => handleSubmit(selectedAssignment.id)}
-                      disabled={isUploading || (!submissionText.trim() && !uploadFile)}
+                      disabled={!submissionText.trim() && !uploadFile}
                       className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-md shadow-brand-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {isUploading ? '업로드 중...' : '과제 제출하기'}
+                      과제 제출하기
                     </button>
                   </div>
                 ) : (
@@ -648,7 +675,20 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                     )}
 
                     {/* Video player or file link */}
-                    {selectedAssignment.submissionFileUrl && renderFileAttachment(selectedAssignment.submissionFileUrl)}
+                    {selectedAssignment.submissionFileUrl
+                      ? renderFileAttachment(selectedAssignment.submissionFileUrl)
+                      : pendingFileAssignmentIdRef.current === selectedAssignment.id && isUploading && (
+                        <div className="mt-3 flex flex-col gap-1">
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <svg className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                            <span>파일 업로드 중 {uploadProgress}%</span>
+                          </div>
+                          <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                          </div>
+                        </div>
+                      )
+                    }
 
                     {/* Stamp for completed */}
                     {(selectedAssignment.status === 'graded' || selectedAssignment.status === 'submitted') && (

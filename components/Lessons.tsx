@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Lesson, LessonJournal, AttendanceRecord, ClassInfo, Subject, SUBJECT_LABELS, PrivateLessonRequest } from '../types';
 import toast from 'react-hot-toast';
-import { lessonApi, journalApi, attendanceApi, privateLessonApi, API_URL, getToken, resolveFileUrl } from '../services/api';
+import { lessonApi, journalApi, attendanceApi, privateLessonApi, uploadApi, API_URL, resolveFileUrl } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
 
@@ -51,6 +51,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   const [journalNextPlan, setJournalNextPlan] = useState('');
   const [journalMediaUrls, setJournalMediaUrls] = useState<string[]>([]);
   const [isJournalUploading, setIsJournalUploading] = useState(false);
+  const [journalUploadProgress, setJournalUploadProgress] = useState<number | null>(null);
   const journalFileInputRef = useRef<HTMLInputElement>(null);
 
   // Create lesson form
@@ -365,36 +366,17 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
     if (!file) return;
 
     setIsJournalUploading(true);
+    setJournalUploadProgress(0);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const token = getToken();
-      const response = await fetch(`${API_URL}/api/upload?subfolder=journals`, {
-        method: 'POST',
-        headers: {
-          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-          'ngrok-skip-browser-warning': 'true',
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ detail: 'Upload failed' }));
-        throw new Error(err.detail || 'Upload failed');
-      }
-
-      const result = await response.json();
-      // The backend returns { url: "/uploads/journals/filename", filename: "..." }
-      const url = result.url;
-      setJournalMediaUrls(prev => [...prev, url]);
+      const result = await uploadApi.upload(file, (pct) => setJournalUploadProgress(pct), 'journals');
+      setJournalMediaUrls(prev => [...prev, result.url]);
       toast.success('파일이 첨부되었습니다.');
     } catch (err) {
       console.error('Failed to upload journal media:', err);
       toast.error('파일 업로드에 실패했습니다.');
     } finally {
       setIsJournalUploading(false);
-      // Reset file input so the same file can be selected again
+      setJournalUploadProgress(null);
       if (journalFileInputRef.current) {
         journalFileInputRef.current.value = '';
       }
@@ -960,10 +942,17 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                         className="flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-brand-500 hover:border-brand-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {isJournalUploading ? (
-                          <>
-                            <div className="w-4 h-4 border-2 border-slate-300 border-t-brand-400 rounded-full animate-spin"></div>
-                            <span>업로드 중...</span>
-                          </>
+                          <div className="flex flex-col items-start gap-1 w-full">
+                            <div className="flex items-center gap-2">
+                              <div className="w-4 h-4 border-2 border-slate-300 border-t-brand-400 rounded-full animate-spin shrink-0"></div>
+                              <span>{journalUploadProgress !== null ? `${journalUploadProgress}%` : '업로드 중...'}</span>
+                            </div>
+                            {journalUploadProgress !== null && (
+                              <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${journalUploadProgress}%` }} />
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <>
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
