@@ -242,7 +242,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                  </button>
                  <div>
                    <h3 className="font-bold text-slate-800">{currentClass.name}</h3>
-                   <p className="text-xs text-slate-400">{currentClass.studentIds.length}명 참여 중</p>
+                   <p className="text-xs text-slate-400">{currentClass.studentIds.length + Object.values(currentClass.subjectTeachers || {}).filter(Boolean).length}명 참여 중</p>
                  </div>
                </div>
                <button
@@ -316,7 +316,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
 
                     <div className="mb-6">
                        <div className="flex justify-between items-center mb-3">
-                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Members ({currentClass.studentIds.length + 1})</h4>
+                         <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Members ({currentClass.studentIds.length + Object.values(currentClass.subjectTeachers || {}).filter(Boolean).length})</h4>
                          {isStaff && (
                            <button
                              onClick={() => setIsInviteOpen(true)}
@@ -327,14 +327,20 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                          )}
                        </div>
                        <div className="space-y-3">
-                          {/* Teacher */}
-                          <div className="flex items-center gap-2">
-                             <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold">T</div>
-                             <div>
-                               <p className="text-sm font-bold text-slate-700">담당 선생님</p>
-                               <p className="text-[10px] text-slate-400">Teacher</p>
-                             </div>
-                          </div>
+                          {/* Teachers */}
+                          {Object.entries(currentClass.subjectTeachers || {}).map(([subject, teacherId]) => {
+                            const teacher = allUsers.find(u => u.id === teacherId);
+                            if (!teacher) return null;
+                            return (
+                              <div key={teacherId} className="flex items-center gap-2">
+                                <img src={resolveFileUrl(teacher.avatar)} alt={teacher.name} className="w-8 h-8 rounded-full bg-slate-200" />
+                                <div>
+                                  <p className="text-sm font-bold text-slate-700">{teacher.name}</p>
+                                  <p className="text-[10px] text-slate-400">선생님 · {subject}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
                           {/* Students */}
                           {currentClass.studentIds.map(sid => {
                             const student = allUsers.find(u => u.id === sid);

@@ -8,7 +8,7 @@ from app.models.lesson import Lesson, LessonStatus, LessonType, Subject
 from app.models.user import User, UserRole
 from app.schemas.class_info import ClassInfoCreate, ClassInfoUpdate, ClassInfoResponse
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_user, emit_data_changed
+from app.services.notification_service import notify_user, notify_users, emit_data_changed
 from app.models.notification import NotificationType
 from datetime import date, timedelta
 import uuid
@@ -140,6 +140,15 @@ async def create_class(
 
     await emit_data_changed([current_user.id], "classes")
     await emit_data_changed([current_user.id], "lessons")
+
+    # Notify enrolled students
+    enrolled_ids = [s.id for s in new_class.students]
+    if enrolled_ids:
+        await notify_users(
+            db, enrolled_ids,
+            f"'{new_class.name}' 클래스에 등록되었습니다.",
+            entity="classes",
+        )
 
     resp = class_to_response(new_class)
     resp["generated_lessons_count"] = generated

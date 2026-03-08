@@ -7,7 +7,7 @@ from app.models.diet import DietLog
 from app.models.user import User, UserRole
 from app.schemas.diet import DietLogCreate, DietLogUpdate, DietLogResponse
 from app.services.ai import analyze_diet as ai_analyze_diet
-from app.services.notification_service import notify_users, emit_data_changed, get_teacher_ids_for_student, get_teacher_student_ids
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_teacher_ids_for_student, get_teacher_student_ids
 from app.utils.auth import get_current_user
 import uuid
 
@@ -138,9 +138,21 @@ async def update_diet_log(
     db.commit()
     db.refresh(d)
 
-    teacher_ids = get_teacher_ids_for_student(db, d.student_id)
-    if teacher_ids:
-        await emit_data_changed(teacher_ids, "diet")
+    if current_user.role in (UserRole.TEACHER, UserRole.DIRECTOR):
+        # Teacher added/updated comment — notify the student
+        if updates.get("teacher_comment"):
+            await notify_user(
+                db, d.student_id,
+                f"선생님이 식단에 코멘트를 남겼습니다.",
+                entity="diet",
+            )
+        else:
+            await emit_data_changed([d.student_id], "diet")
+    else:
+        # Student updated their entry — refresh teacher views
+        teacher_ids = get_teacher_ids_for_student(db, d.student_id)
+        if teacher_ids:
+            await emit_data_changed(teacher_ids, "diet")
 
     return diet_to_response(d)
 

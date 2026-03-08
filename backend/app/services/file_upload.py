@@ -115,9 +115,15 @@ def _do_compress(src: Path, user_id: Optional[str]) -> None:
     tmp_out = src.with_suffix(".tmp.mp4")
     cmd = [
         "ffmpeg", "-y", "-threads", "3", "-i", str(src),
+        # Select only the first video and first audio stream.
+        # This skips unknown/unsupported streams (e.g. Apple apac codec, data tracks)
+        # that would cause ffmpeg to fail on iPhone .mov files.
+        "-map", "0:v:0", "-map", "0:a:0?",
         "-c:v", "libx264", "-preset", "fast", "-crf", "28",
         "-threads", "3",
-        "-vf", "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease",
+        # Landscape: cap width at 1280 (auto height). Portrait: cap height at 1280 (auto width).
+        # -2 ensures the auto-calculated dimension is divisible by 2 (required by libx264).
+        "-vf", "scale='if(gte(iw,ih),min(1280,iw),-2)':'if(gte(iw,ih),-2,min(1280,ih))'",
         "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart",
         str(tmp_out),
