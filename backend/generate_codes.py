@@ -13,6 +13,7 @@ import secrets
 import string
 import sys
 import os
+from typing import Optional
 
 # 프로젝트 루트를 path에 추가
 sys.path.insert(0, os.path.dirname(__file__))
@@ -28,7 +29,7 @@ def generate_code(length=8) -> str:
     return ''.join(secrets.choice(alphabet) for _ in range(length))
 
 
-def create_codes(role: str, count: int, memo: str | None = None):
+def create_codes(role: str, count: int, memo: Optional[str] = None):
     db = SessionLocal()
     try:
         codes = []
