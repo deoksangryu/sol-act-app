@@ -15,6 +15,15 @@ interface GrowthProps {
 type GrowthTab = 'evaluation' | 'portfolio' | 'competition';
 type PortfolioView = 'grid' | 'timeline';
 
+const PORTFOLIO_CATEGORY_LABELS: Record<string, string> = {
+  monologue: '독백',
+  scene: '장면연기',
+  musical: '뮤지컬',
+  improv: '즉흥연기',
+  audition_prep: '오디션 준비',
+  other: '기타',
+};
+
 /** Format seconds to mm:ss string */
 function formatTimestamp(sec: number): string {
   const m = Math.floor(sec / 60);
@@ -109,6 +118,24 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
   }, [user.id]);
 
   useDataRefresh(['evaluations', 'portfolios', 'auditions'], loadData);
+
+  // Warn before page close and expose global flag when upload is in progress
+  useEffect(() => {
+    if (!isPfVideoUploading) {
+      (window as any).__solact_uploading = false;
+      return;
+    }
+    (window as any).__solact_uploading = true;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => {
+      window.removeEventListener('beforeunload', handler);
+      (window as any).__solact_uploading = false;
+    };
+  }, [isPfVideoUploading]);
 
   // Load practice groups when timeline view is selected
   useEffect(() => {
@@ -272,8 +299,8 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       const newPf = await portfolioApi.create({
         title: newPfTitle,
         description: newPfDesc,
-        videoUrl: newPfVideoUrl || '',
-        category: newPfCategory || '기타',
+        videoUrl: newPfVideoUrl || undefined,
+        category: newPfCategory || 'other',
         tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
         practiceGroup,
       });
@@ -604,7 +631,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                           <span className="text-[10px] font-medium">영상 업로드 중</span>
                         </div>
                       )}
-                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">{pf.category}</span>
+                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">{PORTFOLIO_CATEGORY_LABELS[pf.category] || pf.category}</span>
                     </div>
                     <div className="p-4">
                       <h3 className="font-bold text-sm text-slate-800 line-clamp-1">{pf.title}</h3>
@@ -911,7 +938,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
             </div>
 
             <div className="flex gap-2 mb-3 flex-wrap">
-              <span className="text-[10px] bg-brand-100 text-brand-600 px-2 py-0.5 rounded-full font-bold">{selectedPortfolio.category}</span>
+              <span className="text-[10px] bg-brand-100 text-brand-600 px-2 py-0.5 rounded-full font-bold">{PORTFOLIO_CATEGORY_LABELS[selectedPortfolio.category] || selectedPortfolio.category}</span>
               {selectedPortfolio.practiceGroup && (
                 <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-bold">{selectedPortfolio.practiceGroup}</span>
               )}
@@ -1038,11 +1065,11 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                 <label className="block text-xs font-bold text-slate-500 mb-1">카테고리</label>
                 <select value={newPfCategory} onChange={e => setNewPfCategory(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500">
                   <option value="">선택</option>
-                  <option value="독백">독백</option>
-                  <option value="장면연기">장면연기</option>
-                  <option value="뮤지컬">뮤지컬</option>
-                  <option value="즉흥연기">즉흥연기</option>
-                  <option value="기타">기타</option>
+                  <option value="monologue">독백</option>
+                  <option value="scene">장면연기</option>
+                  <option value="musical">뮤지컬</option>
+                  <option value="improv">즉흥연기</option>
+                  <option value="other">기타</option>
                 </select>
               </div>
               <div>

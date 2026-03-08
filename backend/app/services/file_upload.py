@@ -4,6 +4,8 @@ import uuid
 import subprocess
 import shutil
 import asyncio
+import threading
+import aiofiles
 import logging
 from typing import Optional, Tuple
 
@@ -41,11 +43,16 @@ def is_video(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_VIDEO
 
 
+CHUNK_SIZE = 4 * 1024 * 1024  # 4MB chunks
+
+# Limit concurrent ffmpeg processes to prevent CPU/memory overload
+_compression_semaphore = threading.Semaphore(3)
+
+
 async def save_file(file: UploadFile, subfolder: str = "assignments") -> Tuple[str, str]:
     """Save uploaded file and return (relative_url, original_filename)."""
     validate_file(file)
 
-    ext = Path(file.filename).suffix.lower()
     unique_name = f"{uuid.uuid4().hex[:12]}_{file.filename}"
     target_dir = UPLOAD_DIR / subfolder
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -53,17 +60,20 @@ async def save_file(file: UploadFile, subfolder: str = "assignments") -> Tuple[s
 
     max_size = get_max_size(file.filename)
     total = 0
-    with open(target_path, "wb") as f:
-        while chunk := await file.read(1024 * 1024):  # 1MB chunks
-            total += len(chunk)
-            if total > max_size:
-                target_path.unlink(missing_ok=True)
-                max_mb = max_size // (1024 * 1024)
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"File too large. Maximum size: {max_mb}MB",
-                )
-            f.write(chunk)
+    try:
+        async with aiofiles.open(target_path, "wb") as f:
+            while chunk := await file.read(CHUNK_SIZE):
+                total += len(chunk)
+                if total > max_size:
+                    max_mb = max_size // (1024 * 1024)
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"File too large. Maximum size: {max_mb}MB",
+                    )
+                await f.write(chunk)
+    except HTTPException:
+        target_path.unlink(missing_ok=True)
+        raise
 
     relative_url = f"/uploads/{subfolder}/{unique_name}"
     return relative_url, file.filename
@@ -84,11 +94,20 @@ def compress_video_sync(file_path: str, user_id: Optional[str] = None) -> None:
         logger.warning("ffmpeg not installed, skipping video compression")
         return
 
+    # Throttle: wait if 3 compressions already running
+    logger.info(f"Waiting for compression slot: {src.name}")
+    with _compression_semaphore:
+        _do_compress(src, user_id)
+
+
+def _do_compress(src: Path, user_id: Optional[str]) -> None:
+    """Internal: run ffmpeg and notify on completion."""
     # Output to temp file, then swap
     tmp_out = src.with_suffix(".tmp.mp4")
     cmd = [
-        "ffmpeg", "-y", "-i", str(src),
+        "ffmpeg", "-y", "-threads", "3", "-i", str(src),
         "-c:v", "libx264", "-preset", "fast", "-crf", "28",
+        "-threads", "3",
         "-vf", "scale='min(1280,iw)':'min(720,ih)':force_original_aspect_ratio=decrease",
         "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart",
@@ -125,7 +144,7 @@ def compress_video_sync(file_path: str, user_id: Optional[str] = None) -> None:
             _notify_file_ready(user_id)
 
     except subprocess.TimeoutExpired:
-        logger.error(f"ffmpeg timeout for {file_path}")
+        logger.error(f"ffmpeg timeout for {src}")
         tmp_out.unlink(missing_ok=True)
     except Exception as e:
         logger.error(f"compress_video error: {e}")
@@ -133,7 +152,7 @@ def compress_video_sync(file_path: str, user_id: Optional[str] = None) -> None:
 
 
 def _notify_file_ready(user_id: str) -> None:
-    """Send WS notification that video compression is done."""
+    """Send WS notification and push that video compression is done."""
     try:
         from app.services.websocket_manager import manager
         loop = asyncio.get_event_loop()
@@ -143,4 +162,18 @@ def _notify_file_ready(user_id: str) -> None:
                 "data": {"message": "영상 최적화가 완료되었습니다."},
             }))
     except Exception as e:
-        logger.warning(f"Failed to send file_ready notification: {e}")
+        logger.warning(f"Failed to send file_ready WS: {e}")
+    # Create DB notification + send Web Push in a background thread
+    threading.Thread(
+        target=_push_file_ready,
+        args=(user_id,),
+        daemon=True,
+    ).start()
+
+
+def _push_file_ready(user_id: str) -> None:
+    try:
+        from app.services.notification_service import notify_user_sync
+        notify_user_sync(user_id, "영상 최적화가 완료되었습니다.")
+    except Exception as e:
+        logger.warning(f"Failed to push file_ready: {e}")

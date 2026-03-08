@@ -85,6 +85,11 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+    if ((window as any).__solact_uploading) {
+      if (!window.confirm('영상을 업로드 중입니다. 로그아웃하면 업로드가 중단됩니다. 계속하시겠습니까?')) {
+        return;
+      }
+    }
     unregisterPushSubscription();
     clearAuth();
     setUser(null);

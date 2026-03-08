@@ -126,7 +126,7 @@ async def create_portfolio(
         student_id=current_user.id,
         title=data.title,
         description=data.description,
-        video_url=data.video_url,
+        video_url=data.video_url or '',
         category=data.category,
         tags=data.tags,
         practice_group=data.practice_group,

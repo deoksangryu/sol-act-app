@@ -8,6 +8,7 @@ import enum
 class PortfolioCategory(str, enum.Enum):
     MONOLOGUE = "monologue"
     SCENE = "scene"
+    MUSICAL = "musical"
     IMPROV = "improv"
     AUDITION_PREP = "audition_prep"
     OTHER = "other"

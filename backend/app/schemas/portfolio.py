@@ -7,7 +7,7 @@ from app.models.portfolio import PortfolioCategory
 class PortfolioCreate(BaseModel):
     title: str
     description: str
-    video_url: str
+    video_url: Optional[str] = None
     category: PortfolioCategory
     tags: Optional[str] = None
     practice_group: Optional[str] = None
@@ -45,7 +45,7 @@ class PortfolioResponse(BaseModel):
     student_name: str
     title: str
     description: str
-    video_url: str
+    video_url: Optional[str] = None
     category: PortfolioCategory
     tags: Optional[str] = None
     ai_feedback: Optional[str] = None

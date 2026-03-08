@@ -197,6 +197,40 @@ async def emit_data_changed(user_ids: List[str], entity: str) -> None:
             pass
 
 
+def notify_user_sync(
+    user_id: str,
+    message: str,
+    notif_type: "NotificationType" = None,
+) -> None:
+    """Synchronous version of notify_user — safe to call from background threads.
+
+    Creates a DB notification record and sends a Web Push.
+    Does NOT send a WebSocket message (caller must handle that separately).
+    """
+    if notif_type is None:
+        notif_type = NotificationType.INFO
+    try:
+        from app.database import SessionLocal
+        db = SessionLocal()
+        try:
+            notif = Notification(
+                id=f"noti{uuid.uuid4().hex[:7]}",
+                user_id=user_id,
+                type=notif_type,
+                message=message,
+            )
+            db.add(notif)
+            db.commit()
+        except Exception as e:
+            logger.error(f"notify_user_sync: failed to save notification: {e}")
+            db.rollback()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"notify_user_sync error: {e}")
+    _send_web_push_sync(user_id, message)
+
+
 def get_class_student_ids(db: Session, class_id: str) -> List[str]:
     """Get all student IDs in a class."""
     cls = db.query(ClassInfo).filter(ClassInfo.id == class_id).first()
