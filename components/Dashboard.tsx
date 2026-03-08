@@ -186,6 +186,36 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
         </div>
       </div>
 
+      {/* Student Quick Actions */}
+      {isStudent && (
+        <div className="grid grid-cols-2 gap-4">
+          <button
+            onClick={() => onChangeView('growth')}
+            className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all group text-left flex items-center gap-4"
+          >
+            <div className="w-12 h-12 rounded-xl bg-pink-50 text-pink-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm">연습영상 올리기</h3>
+              <p className="text-xs text-slate-400 mt-0.5">나의 연습 기록을 남겨보세요</p>
+            </div>
+          </button>
+          <button
+            onClick={() => onChangeView('lessons')}
+            className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all group text-left flex items-center gap-4"
+          >
+            <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 text-sm">연습일지 쓰기</h3>
+              <p className="text-xs text-slate-400 mt-0.5">오늘 연습을 기록해보세요</p>
+            </div>
+          </button>
+        </div>
+      )}
+
       {/* Main Feature Area */}
       <div className="grid md:grid-cols-2 gap-6">
         {/* Today's Lessons */}
