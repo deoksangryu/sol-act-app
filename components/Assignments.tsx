@@ -107,7 +107,10 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
       if (filterStudentId) params.studentId = filterStudentId;
       if (filterTeacherId) params.assignedBy = filterTeacherId;
     }
-    return assignmentApi.list(params).then(setAssignments).catch(console.error);
+    return assignmentApi.list(params).then(setAssignments).catch((err) => {
+      console.error('Failed to load assignments:', err);
+      toast.error(err.message || '과제를 불러오지 못했습니다.');
+    });
   }, [user.id, filterStudentId, filterTeacherId, isStudent]);
 
   useEffect(() => {
@@ -156,7 +159,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
     const days = [];
 
     for (let i = 0; i < firstDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-14 md:h-20 bg-slate-50/30 border border-slate-50"></div>);
+      days.push(<div key={`empty-${i}`} className="h-16 md:h-20 bg-slate-50/30 border border-slate-50"></div>);
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
@@ -170,9 +173,9 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
         <div
           key={d}
           onClick={() => setSelectedDate(dateStr === selectedDate ? null : dateStr)}
-          className={`h-14 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-brand-50 ring-1 ring-brand-200 z-10' : 'bg-white'}`}
+          className={`h-16 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-brand-50 ring-1 ring-brand-200 z-10' : 'bg-white'}`}
         >
-          <div className={`text-[10px] md:text-xs font-bold mb-1 ${isSelected ? 'text-brand-600' : 'text-slate-700'}`}>
+          <div className={`text-xs font-bold mb-1 ${isSelected ? 'text-brand-600' : 'text-slate-700'}`}>
             {d}
           </div>
           <div className="flex flex-wrap gap-1 content-start">
@@ -401,7 +404,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
   }
 
   return (
-    <div className="grid md:grid-cols-3 gap-6 h-full min-h-0">
+    <div className="grid md:grid-cols-3 gap-4 md:gap-6 h-full min-h-0">
       {/* Left Column: Calendar/List Toggle + Content */}
       <div className={`md:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-full ${selectedId ? 'hidden md:flex' : 'flex'}`}>
 
@@ -477,7 +480,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                 </button>
                 <div className="text-center cursor-pointer hover:bg-slate-50 px-3 py-1 rounded-lg" onClick={handleToday}>
                   <h3 className="text-sm font-bold text-slate-800">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
-                  {selectedDate && <p className="text-[10px] text-brand-500">선택됨: {selectedDate}</p>}
+                  {selectedDate && <p className="text-xs text-brand-500">선택됨: {selectedDate}</p>}
                 </div>
                 <button onClick={handleNextMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -486,7 +489,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
 
               <div className="grid grid-cols-7 mb-1 text-center">
                 {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-                  <div key={day} className="text-[10px] font-bold text-slate-400 uppercase">{day}</div>
+                  <div key={day} className="text-xs font-bold text-slate-400 uppercase">{day}</div>
                 ))}
               </div>
 
@@ -494,7 +497,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                 {renderCalendarDays()}
               </div>
 
-              <div className="mt-4 px-2 flex justify-between items-center text-[10px] text-slate-400">
+              <div className="mt-4 px-2 flex justify-between items-center text-xs text-slate-400">
                 <div className="flex gap-2">
                   <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-brand-400"></div>진행중</span>
                   <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div>완료</span>
@@ -523,7 +526,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                 }`}
               >
                 <div className="flex justify-between items-start mb-1">
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide ${
                     a.status === 'submitted' ? 'bg-blue-100 text-blue-600' :
                     a.status === 'graded' ? 'bg-green-100 text-green-600' :
                     'bg-slate-100 text-slate-500'
@@ -615,7 +618,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                         <div className="text-center">
                           <svg className="w-8 h-8 text-slate-300 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                           <span className="text-xs text-slate-500 block">파일 첨부 (영상/문서)</span>
-                          <span className="text-[10px] text-slate-400">MP4, MOV, WebM, MP3, M4A, WAV, PDF, JPG, PNG</span>
+                          <span className="text-xs text-slate-400">MP4, MOV, WebM, MP3, M4A, WAV, PDF, JPG, PNG</span>
                         </div>
                       </label>
                     ) : (
@@ -631,7 +634,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                             </svg>
                             <div className="min-w-0">
                               <p className="text-xs font-bold text-slate-700 truncate">{uploadFile.name}</p>
-                              <p className="text-[10px] text-slate-400">{formatFileSize(uploadFile.size)}</p>
+                              <p className="text-xs text-slate-400">{formatFileSize(uploadFile.size)}</p>
                             </div>
                           </div>
                           {!isUploading && (
@@ -649,7 +652,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                                 style={{ width: `${uploadProgress}%` }}
                               />
                             </div>
-                            <p className="text-[10px] text-brand-500 font-bold mt-1 text-right">{uploadProgress}%</p>
+                            <p className="text-xs text-brand-500 font-bold mt-1 text-right">{uploadProgress}%</p>
                           </div>
                         )}
                       </div>
@@ -694,7 +697,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                     {(selectedAssignment.status === 'graded' || selectedAssignment.status === 'submitted') && (
                        <div className="absolute top-2 right-2 opacity-20">
                           <div className={`border-2 ${selectedAssignment.status === 'graded' ? 'border-green-500 text-green-500' : 'border-blue-500 text-blue-500'} rounded-full p-2 w-16 h-16 flex items-center justify-center -rotate-12`}>
-                            <span className="text-[10px] font-black uppercase text-center">
+                            <span className="text-xs font-black uppercase text-center">
                               {selectedAssignment.status === 'graded' ? 'GRADED' : 'DONE'}
                             </span>
                           </div>
@@ -816,8 +819,8 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
 
       {/* Create Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
              <button
                onClick={() => setIsCreateModalOpen(false)}
                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"

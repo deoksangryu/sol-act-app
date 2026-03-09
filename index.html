@@ -57,6 +57,21 @@
       .animate-slide-up {
         animation: slide-up 0.3s ease-out;
       }
+      /* Scroll hint: fade gradient on right edge of horizontal scroll areas */
+      .scroll-hint {
+        position: relative;
+      }
+      .scroll-hint::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 32px;
+        background: linear-gradient(to right, transparent, white);
+        pointer-events: none;
+        z-index: 1;
+      }
     </style>
   <script type="importmap">
 {

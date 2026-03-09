@@ -26,6 +26,19 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  // Online/Offline detection
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Unified WebSocket connection (single connection for chat + notifications)
   useWebSocketConnection(user?.id ?? null);
@@ -187,7 +200,14 @@ const App: React.FC = () => {
   const isAppView = ['assignments', 'diet', 'lessons', 'community', 'academy'].includes(currentView);
 
   return (
-    <div className="flex h-[100dvh] bg-slate-50 text-slate-800 overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-slate-50 text-slate-800 overflow-hidden">
+      {/* Offline Banner */}
+      {isOffline && (
+        <div className="bg-red-500 text-white text-center py-2 text-sm font-medium shrink-0 z-50">
+          인터넷 연결이 끊어졌습니다. 연결 상태를 확인해주세요.
+        </div>
+      )}
+      <div className="flex flex-1 min-h-0">
       {/* Sidebar for Desktop */}
       <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 shadow-sm z-20">
         <Sidebar
@@ -217,7 +237,7 @@ const App: React.FC = () => {
 
              <div className="text-right">
                 <p className="text-xs font-bold text-slate-700">{user.name}</p>
-                <p className="text-[10px] text-slate-400">{getRoleLabel(user.role)}</p>
+                <p className="text-xs text-slate-400">{getRoleLabel(user.role)}</p>
              </div>
              <img src={resolveFileUrl(user.avatar)} alt="Profile" className="w-8 h-8 rounded-full border border-slate-100 cursor-pointer hover:ring-2 hover:ring-brand-300" onClick={() => setCurrentView('profile')} />
              <button
@@ -245,7 +265,7 @@ const App: React.FC = () => {
            </div>
         </div>
 
-        <div className={`flex-1 flex flex-col ${isAppView ? 'overflow-hidden pb-20 md:pb-8' : 'overflow-y-auto pb-48 md:pb-8'} p-4 md:p-8 scroll-smooth`}>
+        <div className={`flex-1 flex flex-col ${isAppView ? 'overflow-hidden pb-20 md:pb-8' : 'overflow-y-auto pb-24 md:pb-8'} p-4 md:p-8 scroll-smooth`}>
           <div className={`max-w-5xl mx-auto w-full flex-1 flex flex-col ${isAppView ? 'h-full min-h-0' : ''}`}>
             {renderView()}
           </div>
@@ -278,6 +298,7 @@ const App: React.FC = () => {
           },
         }}
       />
+    </div>
     </div>
   );
 };

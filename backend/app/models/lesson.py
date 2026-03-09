@@ -27,14 +27,14 @@ class Lesson(Base):
     __tablename__ = "lessons"
 
     id = Column(String, primary_key=True, index=True)
-    class_id = Column(String, ForeignKey("classes.id"), nullable=True)
-    date = Column(Date, nullable=False)
+    class_id = Column(String, ForeignKey("classes.id"), nullable=True, index=True)
+    date = Column(Date, nullable=False, index=True)
     start_time = Column(String, nullable=False)
     end_time = Column(String, nullable=False)
     status = Column(SQLEnum(LessonStatus), default=LessonStatus.SCHEDULED, nullable=False)
     lesson_type = Column(SQLEnum(LessonType), default=LessonType.REGULAR, nullable=False)
     subject = Column(SQLEnum(Subject), default=Subject.ACTING, nullable=False)
-    teacher_id = Column(String, ForeignKey("users.id"), nullable=True)
+    teacher_id = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     location = Column(String, nullable=True)
     memo = Column(Text, nullable=True)
     is_private = Column(Boolean, default=False, nullable=False)

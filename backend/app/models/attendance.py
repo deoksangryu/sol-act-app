@@ -16,8 +16,8 @@ class Attendance(Base):
     __tablename__ = "attendances"
 
     id = Column(String, primary_key=True, index=True)
-    lesson_id = Column(String, ForeignKey("lessons.id"), nullable=False)
-    student_id = Column(String, ForeignKey("users.id"), nullable=False)
+    lesson_id = Column(String, ForeignKey("lessons.id"), nullable=False, index=True)
+    student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     status = Column(SQLEnum(AttendanceStatus), nullable=False)
     note = Column(String, nullable=True)
     marked_by = Column(String, ForeignKey("users.id"), nullable=False)

@@ -59,6 +59,9 @@ def list_practice_groups(
     if current_user.role == UserRole.TEACHER:
         my_student_ids = get_teacher_student_ids(db, current_user.id)
         query = query.filter(Portfolio.student_id.in_(my_student_ids))
+    # Student: only see own portfolios
+    elif current_user.role == UserRole.STUDENT:
+        query = query.filter(Portfolio.student_id == current_user.id)
     if student_id:
         query = query.filter(Portfolio.student_id == student_id)
     portfolios = query.order_by(Portfolio.created_at.asc()).all()
@@ -87,6 +90,9 @@ def list_portfolios(
     if current_user.role == UserRole.TEACHER:
         my_student_ids = get_teacher_student_ids(db, current_user.id)
         query = query.filter(Portfolio.student_id.in_(my_student_ids))
+    # Student: only see own portfolios
+    elif current_user.role == UserRole.STUDENT:
+        query = query.filter(Portfolio.student_id == current_user.id)
     if student_id:
         query = query.filter(Portfolio.student_id == student_id)
     if category:
@@ -112,6 +118,14 @@ def get_portfolio(portfolio_id: str, db: Session = Depends(get_db), current_user
     )
     if not p:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+    # Student: can only view own portfolios
+    if current_user.role == UserRole.STUDENT and p.student_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    # Teacher: can only view portfolios for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        if p.student_id not in my_student_ids:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
     return portfolio_to_response(p)
 
 

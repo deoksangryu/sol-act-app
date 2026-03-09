@@ -20,6 +20,7 @@ interface DashboardProps {
 export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
   const isStudent = user.role === UserRole.STUDENT;
 
+  const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ pendingAssignments: 0, todayCalories: 0, todayLessons: 0 });
   const [todayLessonList, setTodayLessonList] = useState<Lesson[]>([]);
   const [upcomingEvents, setUpcomingEvents] = useState<CompetitionEvent[]>([]);
@@ -106,7 +107,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
     }
   }, [user.role]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadData().finally(() => setLoading(false)); }, [loadData]);
 
   useDataRefresh(['assignments', 'lessons', 'auditions', 'diet'], loadData);
 
@@ -135,7 +136,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
           </div>
           <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">오늘 수업</h3>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{stats.todayLessons} <span className="text-xs font-normal text-slate-400">개</span></p>
+          {loading ? <div className="h-8 w-16 bg-slate-100 rounded animate-pulse mt-1" /> : <p className="text-2xl font-bold text-slate-800 mt-1">{stats.todayLessons} <span className="text-xs font-normal text-slate-400">개</span></p>}
         </div>
 
         <div onClick={() => onChangeView('assignments')} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-shadow group">
@@ -143,7 +144,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
           </div>
           <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">{isStudent ? '진행 중인 과제' : '미완료 과제'}</h3>
-          <p className="text-2xl font-bold text-slate-800 mt-1">{stats.pendingAssignments} <span className="text-xs font-normal text-slate-400">개</span></p>
+          {loading ? <div className="h-8 w-16 bg-slate-100 rounded animate-pulse mt-1" /> : <p className="text-2xl font-bold text-slate-800 mt-1">{stats.pendingAssignments} <span className="text-xs font-normal text-slate-400">개</span></p>}
         </div>
 
         {isStudent ? (
@@ -152,7 +153,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
             </div>
             <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">오늘의 식단</h3>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{stats.todayCalories.toLocaleString()} <span className="text-xs font-normal text-slate-400">kcal</span></p>
+            {loading ? <div className="h-8 w-16 bg-slate-100 rounded animate-pulse mt-1" /> : <p className="text-2xl font-bold text-slate-800 mt-1">{stats.todayCalories.toLocaleString()} <span className="text-xs font-normal text-slate-400">kcal</span></p>}
           </div>
         ) : (
           <div onClick={() => onChangeView('growth')} className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 cursor-pointer hover:shadow-md transition-shadow group">
@@ -160,7 +161,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
             </div>
             <h3 className="text-slate-500 text-xs font-bold uppercase tracking-wider">성장 관리</h3>
-            <p className="text-2xl font-bold text-slate-800 mt-1">{upcomingEvents.length} <span className="text-xs font-normal text-slate-400">건 일정</span></p>
+            {loading ? <div className="h-8 w-16 bg-slate-100 rounded animate-pulse mt-1" /> : <p className="text-2xl font-bold text-slate-800 mt-1">{upcomingEvents.length} <span className="text-xs font-normal text-slate-400">건 일정</span></p>}
           </div>
         )}
 
@@ -217,7 +218,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
       )}
 
       {/* Main Feature Area */}
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-4 md:gap-6">
         {/* Today's Lessons */}
         <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-6">
           <div className="flex justify-between items-center mb-6">
@@ -236,7 +237,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
                   <h4 className="font-bold text-slate-700 text-sm truncate">{l.className}</h4>
                   <p className="text-xs text-slate-400">{l.location} • {l.isPrivate ? '(개인) ' : ''}{SUBJECT_LABELS[l.subject]}</p>
                 </div>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                   l.status === 'completed' ? 'bg-green-100 text-green-600' : 'bg-brand-100 text-brand-600'
                 }`}>
                   {l.status === 'completed' ? '완료' : '예정'}
@@ -269,7 +270,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
                     <p className="text-xs text-slate-400">{ev.date} • {ev.location}</p>
                   </div>
                   {total > 0 && (
-                    <span className="text-[10px] font-bold text-slate-400">{done}/{total}</span>
+                    <span className="text-xs font-bold text-slate-400">{done}/{total}</span>
                   )}
                 </div>
               );

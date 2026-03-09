@@ -81,7 +81,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
     // Empty cells
     for (let i = 0; i < firstDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-14 md:h-20 bg-slate-50/30 border border-slate-50"></div>);
+      days.push(<div key={`empty-${i}`} className="h-16 md:h-20 bg-slate-50/30 border border-slate-50"></div>);
     }
 
     // Days
@@ -95,9 +95,9 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
         <div
           key={d}
           onClick={() => setSelectedDate(dateStr === selectedDate ? null : dateStr)}
-          className={`h-14 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-green-50 ring-1 ring-green-200 z-10' : 'bg-white'}`}
+          className={`h-16 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-green-50 ring-1 ring-green-200 z-10' : 'bg-white'}`}
         >
-          <div className={`text-[10px] md:text-xs font-bold mb-1 ${isSelected ? 'text-green-600' : 'text-slate-700'}`}>
+          <div className={`text-xs font-bold mb-1 ${isSelected ? 'text-green-600' : 'text-slate-700'}`}>
             {d}
           </div>
 
@@ -109,7 +109,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                     <div key={l.id} className="w-1.5 h-1.5 rounded-full bg-green-400"></div>
                 ))}
                </div>
-               <p className="hidden md:block text-[9px] text-slate-400 mt-1 font-medium">{totalCalories} kcal</p>
+               <p className="hidden md:block text-xs text-slate-400 mt-1 font-medium">{totalCalories} kcal</p>
             </div>
           )}
         </div>
@@ -274,7 +274,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   }
 
   return (
-    <div className="grid md:grid-cols-3 gap-6 h-full min-h-0">
+    <div className="grid md:grid-cols-3 gap-4 md:gap-6 h-full min-h-0">
 
       {/* LEFT COLUMN: Calendar / List Toggle */}
       <div className={`md:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-full ${selectedDate || viewMode === 'list' ? 'hidden md:flex' : 'flex'}`}>
@@ -318,9 +318,9 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                         <button onClick={handlePrevMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                         </button>
-                        <div className="text-center cursor-pointer hover:bg-slate-50 px-3 py-1 rounded-lg" onClick={handleToday}>
+                        <div className="text-center cursor-pointer hover:bg-slate-50 px-3 py-2 rounded-lg" onClick={handleToday}>
                             <h3 className="text-sm font-bold text-slate-800">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
-                            {selectedDate && <p className="text-[10px] text-green-500">선택됨: {selectedDate}</p>}
+                            {selectedDate && <p className="text-xs text-green-500">선택됨: {selectedDate}</p>}
                         </div>
                         <button onClick={handleNextMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -329,7 +329,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
                     <div className="grid grid-cols-7 mb-1 text-center">
                         {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-                        <div key={day} className="text-[10px] font-bold text-slate-400 uppercase">{day}</div>
+                        <div key={day} className="text-xs font-bold text-slate-400 uppercase">{day}</div>
                         ))}
                     </div>
 
@@ -337,7 +337,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                         {renderCalendarDays()}
                     </div>
                     <div className="mt-4 px-2 text-center">
-                        <p className="text-[10px] text-slate-400">날짜를 선택하여 식단 기록을 확인하세요.</p>
+                        <p className="text-xs text-slate-400">날짜를 선택하여 식단 기록을 확인하세요.</p>
                     </div>
                 </div>
             ) : (
@@ -393,7 +393,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                     {filteredLogs.length > 0 ? filteredLogs.map((log) => (
                         <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition-shadow overflow-hidden animate-fade-in-up">
                             <div className="flex justify-between items-start mb-3">
-                            <span className={`text-[10px] font-bold px-2 py-1 rounded uppercase ${
+                            <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
                                 log.mealType === 'breakfast' ? 'bg-brand-100 text-brand-700' :
                                 log.mealType === 'lunch' ? 'bg-green-100 text-green-700' :
                                 log.mealType === 'dinner' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
@@ -467,8 +467,8 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                                 <div className="mt-2 space-y-2">
                                   <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} className="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg resize-none h-16 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" placeholder="코멘트를 입력하세요..." />
                                   <div className="flex gap-2 justify-end">
-                                    <button onClick={() => setCommentingLogId(null)} className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">취소</button>
-                                    <button onClick={() => handleSaveComment(log.id)} className="text-xs px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium">저장</button>
+                                    <button onClick={() => setCommentingLogId(null)} className="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">취소</button>
+                                    <button onClick={() => handleSaveComment(log.id)} className="text-xs px-3 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium">저장</button>
                                   </div>
                                 </div>
                               )}
@@ -496,8 +496,8 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
       {/* Add Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
@@ -510,7 +510,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
             </h3>
 
             {/* Meal Type Selector */}
-            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 no-scrollbar">
+            <div className="flex gap-2 mb-4 overflow-x-auto pb-2 no-scrollbar scroll-hint">
                 {['breakfast', 'lunch', 'dinner', 'snack'].map((type) => (
                     <button
                         key={type}
@@ -579,7 +579,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                 ) : editingLog ? '수정하기' : '기록하기'}
               </button>
             </div>
-            <p className="text-[10px] text-center text-slate-400 mt-4">
+            <p className="text-xs text-center text-slate-400 mt-4">
               AI가 사진과 설명을 분석하여 칼로리와 영양 조언을 제공합니다.
             </p>
           </div>

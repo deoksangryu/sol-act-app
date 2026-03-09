@@ -9,9 +9,9 @@ class Evaluation(Base):
     __tablename__ = "evaluations"
 
     id = Column(String, primary_key=True, index=True)
-    student_id = Column(String, ForeignKey("users.id"), nullable=False)
+    student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     evaluator_id = Column(String, ForeignKey("users.id"), nullable=False)
-    class_id = Column(String, ForeignKey("classes.id"), nullable=False)
+    class_id = Column(String, ForeignKey("classes.id"), nullable=False, index=True)
     subject = Column(SQLEnum(Subject), default=Subject.ACTING, nullable=False)
     period = Column(String, nullable=False)
     acting_skill = Column(Integer, nullable=False)  # 연기력 1-5

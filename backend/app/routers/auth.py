@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -9,9 +9,26 @@ from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
 from app.utils.auth import verify_password, get_password_hash, create_access_token, get_current_user
 from app.services.notification_service import emit_data_changed, get_all_user_ids
 from typing import Optional, List
+from collections import defaultdict
 import uuid
 import secrets
 import string
+import time
+
+# Simple in-memory rate limiter for login
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+_LOGIN_WINDOW = 60  # seconds
+_LOGIN_MAX = 10  # max attempts per window
+
+
+def _check_rate_limit(ip: str) -> None:
+    now = time.time()
+    attempts = _login_attempts[ip]
+    # Remove expired entries
+    _login_attempts[ip] = [t for t in attempts if now - t < _LOGIN_WINDOW]
+    if len(_login_attempts[ip]) >= _LOGIN_MAX:
+        raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
+    _login_attempts[ip].append(now)
 
 router = APIRouter()
 
@@ -68,7 +85,8 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(user_data: UserLogin, db: Session = Depends(get_db)):
+def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
+    _check_rate_limit(request.client.host if request.client else "unknown")
     # Find user by email
     user = db.query(User).filter(User.email == user_data.email).first()
     if not user or not verify_password(user_data.password, user.hashed_password):

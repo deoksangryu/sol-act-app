@@ -101,8 +101,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
       ]);
       setLessons(lessonsData);
       setPrivateRequests(requestsData);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load lessons:', err);
+      toast.error(err.message || '수업 데이터를 불러오지 못했습니다.');
     }
   }, []);
 
@@ -115,8 +116,14 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   // Fetch journals and attendance when a lesson is selected
   useEffect(() => {
     if (!selectedLessonId) return;
-    journalApi.list({ lessonId: selectedLessonId }).then(setJournals).catch(console.error);
-    attendanceApi.list({ lessonId: selectedLessonId }).then(setAttendance).catch(console.error);
+    journalApi.list({ lessonId: selectedLessonId }).then(setJournals).catch((err) => {
+      console.error('Failed to load journals:', err);
+      toast.error(err.message || '수업일지를 불러오지 못했습니다.');
+    });
+    attendanceApi.list({ lessonId: selectedLessonId }).then(setAttendance).catch((err) => {
+      console.error('Failed to load attendance:', err);
+      toast.error(err.message || '출석 정보를 불러오지 못했습니다.');
+    });
   }, [selectedLessonId]);
 
   const selectedLesson = lessons.find(l => l.id === selectedLessonId);
@@ -181,7 +188,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
     const days = [];
 
     for (let i = 0; i < firstDay; i++) {
-      days.push(<div key={`empty-${i}`} className="h-14 md:h-20 bg-slate-50/30 border border-slate-50"></div>);
+      days.push(<div key={`empty-${i}`} className="h-16 md:h-20 bg-slate-50/30 border border-slate-50"></div>);
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
@@ -195,9 +202,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
         <div
           key={d}
           onClick={() => { setSelectedDate(dateStr === selectedDate ? null : dateStr); setSelectedLessonId(null); }}
-          className={`h-14 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-brand-50 ring-1 ring-brand-200 z-10' : 'bg-white'}`}
+          className={`h-16 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-brand-50 ring-1 ring-brand-200 z-10' : 'bg-white'}`}
         >
-          <div className={`text-[10px] md:text-xs font-bold mb-1 ${isToday ? 'text-white bg-brand-500 w-5 h-5 md:w-6 md:h-6 rounded-full flex items-center justify-center' : isSelected ? 'text-brand-600' : 'text-slate-700'}`}>
+          <div className={`text-xs font-bold mb-1 ${isToday ? 'text-white bg-brand-500 w-6 h-6 rounded-full flex items-center justify-center' : isSelected ? 'text-brand-600' : 'text-slate-700'}`}>
             {d}
           </div>
           <div className="flex flex-wrap gap-0.5 content-start">
@@ -545,7 +552,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   }
 
   return (
-    <div className="grid md:grid-cols-3 gap-6 h-full min-h-0">
+    <div className="grid md:grid-cols-3 gap-4 md:gap-6 h-full min-h-0">
       {/* Left Column: Calendar + Lesson List */}
       <div className={`md:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-full ${selectedLessonId ? 'hidden md:flex' : 'flex'}`}>
         {/* Header */}
@@ -559,7 +566,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                 신청
-                <span className="bg-violet-500 text-white text-[10px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{pendingRequests.length}</span>
+                <span className="bg-violet-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold">{pendingRequests.length}</span>
               </button>
             )}
           </div>
@@ -603,7 +610,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               </button>
               <div className="text-center cursor-pointer hover:bg-slate-50 px-3 py-1 rounded-lg" onClick={handleToday}>
                 <h3 className="text-sm font-bold text-slate-800">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
-                {selectedDate && <p className="text-[10px] text-brand-500">선택됨: {selectedDate}</p>}
+                {selectedDate && <p className="text-xs text-brand-500">선택됨: {selectedDate}</p>}
               </div>
               <button onClick={handleNextMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
@@ -612,7 +619,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
             <div className="grid grid-cols-7 mb-1 text-center">
               {['일', '월', '화', '수', '목', '금', '토'].map(day => (
-                <div key={day} className="text-[10px] font-bold text-slate-400 uppercase">{day}</div>
+                <div key={day} className="text-xs font-bold text-slate-400 uppercase">{day}</div>
               ))}
             </div>
 
@@ -620,7 +627,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               {renderCalendarDays()}
             </div>
 
-            <div className="mt-3 px-2 flex justify-between items-center text-[10px] text-slate-400">
+            <div className="mt-3 px-2 flex justify-between items-center text-xs text-slate-400">
               <div className="flex gap-2 flex-wrap">
                 <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-brand-400"></div>예정</span>
                 <span className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-green-500"></div>완료</span>
@@ -643,15 +650,15 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 {myRequests.map(r => (
                   <div key={r.id} className="p-2.5 bg-violet-50/50 rounded-lg border border-violet-100">
                     <div className="flex justify-between items-center mb-1">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${requestStatusColor(r.status)}`}>
+                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${requestStatusColor(r.status)}`}>
                         {requestStatusLabel(r.status)}
                       </span>
-                      <span className="text-[10px] text-slate-400">{r.preferredDate}</span>
+                      <span className="text-xs text-slate-400">{r.preferredDate}</span>
                     </div>
                     <p className="text-xs font-bold text-slate-700">{SUBJECT_LABELS[r.subject]} - {r.teacherName}</p>
-                    <p className="text-[10px] text-slate-400 mt-0.5">{r.preferredStartTime}~{r.preferredEndTime}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">{r.preferredStartTime}~{r.preferredEndTime}</p>
                     {r.responseNote && (
-                      <p className="text-[10px] text-violet-500 mt-1 bg-white rounded px-2 py-1">답변: {r.responseNote}</p>
+                      <p className="text-xs text-violet-500 mt-1 bg-white rounded px-2 py-1">답변: {r.responseNote}</p>
                     )}
                   </div>
                 ))}
@@ -674,7 +681,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               >
                 <div className="flex justify-between items-start mb-1">
                   <div className="flex items-center gap-1.5">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                       l.status === 'completed' ? 'bg-green-100 text-green-600' :
                       l.status === 'cancelled' ? 'bg-red-100 text-red-600' :
                       'bg-brand-100 text-brand-600'
@@ -682,10 +689,10 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                       {l.status === 'completed' ? '완료' : l.status === 'cancelled' ? '취소' : '예정'}
                     </span>
                     {l.isPrivate && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-600">개인</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-violet-100 text-violet-600">개인</span>
                     )}
                   </div>
-                  <span className="text-[10px] text-slate-400">{l.date}</span>
+                  <span className="text-xs text-slate-400">{l.date}</span>
                 </div>
                 <h3 className="font-bold text-slate-700 text-sm">{l.className}</h3>
                 <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
@@ -758,17 +765,17 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                     </div>
                   </div>
                   <div className="flex gap-2 mt-2">
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${
                       selectedLesson.status === 'completed' ? 'bg-green-100 text-green-600' :
                       selectedLesson.status === 'cancelled' ? 'bg-red-100 text-red-600' :
                       'bg-brand-100 text-brand-600'
                     }`}>
                       {selectedLesson.status === 'completed' ? '완료' : selectedLesson.status === 'cancelled' ? '취소' : '예정'}
                     </span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">{SUBJECT_LABELS[selectedLesson.subject]}</span>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-500">{selectedLesson.teacherName}</span>
+                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-500">{SUBJECT_LABELS[selectedLesson.subject]}</span>
+                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-500">{selectedLesson.teacherName}</span>
                     {selectedLesson.isPrivate && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-600">개인 레슨</span>
+                      <span className="px-2 py-0.5 rounded text-xs font-bold bg-violet-100 text-violet-600">개인 레슨</span>
                     )}
                   </div>
                 </div>
@@ -799,12 +806,12 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                   {lessonJournals.length > 0 ? lessonJournals.map(j => (
                     <div key={j.id} className={`p-4 rounded-xl border ${j.journalType === 'teacher' ? 'bg-blue-50 border-blue-100' : 'bg-slate-50 border-slate-100'}`}>
                       <div className="flex items-center gap-2 mb-2">
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold text-white ${j.journalType === 'teacher' ? 'bg-blue-500' : 'bg-slate-400'}`}>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white ${j.journalType === 'teacher' ? 'bg-blue-500' : 'bg-slate-400'}`}>
                           {j.journalType === 'teacher' ? 'T' : 'S'}
                         </div>
                         <div className="flex-1">
                           <p className="text-xs font-bold text-slate-700">{j.authorName}</p>
-                          <p className="text-[10px] text-slate-400">{new Date(j.date).toLocaleDateString('ko-KR')}</p>
+                          <p className="text-xs text-slate-400">{new Date(j.date).toLocaleDateString('ko-KR')}</p>
                         </div>
                         {(j.authorId === user.id || isStaff) && (
                           <div className="flex items-center gap-1">
@@ -1098,8 +1105,8 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
       {/* Create Lesson Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsCreateModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
@@ -1187,8 +1194,8 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
       {/* Private Lesson Request Modal (Student) */}
       {isRequestModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button
               onClick={() => setIsRequestModalOpen(false)}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
@@ -1262,8 +1269,8 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
       {/* Journal Overview Modal (Teacher/Director - All Journals) */}
       {isJournalOverviewOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-2xl p-6 shadow-2xl relative max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl p-5 md:p-6 shadow-2xl relative max-h-[80vh] flex flex-col">
             <button
               onClick={() => { setIsJournalOverviewOpen(false); setJournalFilterStudent(''); }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
@@ -1311,10 +1318,10 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-700">{journal.authorName}</p>
-                              <p className="text-[10px] text-slate-400">{new Date(journal.date).toLocaleDateString('ko-KR')}</p>
+                              <p className="text-xs text-slate-400">{new Date(journal.date).toLocaleDateString('ko-KR')}</p>
                             </div>
                           </div>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${journal.journalType === 'teacher' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
+                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${journal.journalType === 'teacher' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
                             {journal.journalType === 'teacher' ? '교사' : '학생'}
                           </span>
                         </div>
@@ -1335,7 +1342,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                                   href={url.startsWith('/') ? `${API_URL}${url}` : url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-[10px] font-bold border border-blue-200 hover:bg-blue-100 transition-colors"
+                                  className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-bold border border-blue-200 hover:bg-blue-100 transition-colors"
                                 >
                                   {mediaType === 'video' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2m10 7l-5-3v6l5-3z" /></svg>}
                                   {mediaType === 'audio' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v9.28c-. .64-.5 1.22-1.22 1.22-2 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2v5c3.35 0 6-2.57 6-6V3h-3z" /></svg>}
@@ -1366,8 +1373,8 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
       {/* Private Lesson Requests Panel (Teacher/Director) */}
       {isRequestsPanelOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl relative max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-lg p-5 md:p-6 shadow-2xl relative max-h-[80vh] flex flex-col">
             <button
               onClick={() => { setIsRequestsPanelOpen(false); setRejectingId(null); setRejectNote(''); }}
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
@@ -1388,10 +1395,10 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-700">{req.studentName}</p>
-                        <p className="text-[10px] text-slate-400">{new Date(req.createdAt).toLocaleDateString('ko-KR')} 신청</p>
+                        <p className="text-xs text-slate-400">{new Date(req.createdAt).toLocaleDateString('ko-KR')} 신청</p>
                       </div>
                     </div>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-yellow-100 text-yellow-600">대기중</span>
+                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-600">대기중</span>
                   </div>
 
                   <div className="bg-slate-50 rounded-lg p-3 mb-3 space-y-1 text-xs text-slate-600">

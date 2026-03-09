@@ -26,7 +26,7 @@ export const Community: React.FC<CommunityProps> = ({ user, classes, setClasses,
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Tab Bar */}
-      <div className="flex gap-1 border-b border-slate-100 shrink-0 bg-white rounded-t-2xl px-2 overflow-x-auto no-scrollbar">
+      <div className="flex gap-1 border-b border-slate-100 shrink-0 bg-white rounded-t-2xl px-2 overflow-x-auto no-scrollbar scroll-hint">
         {tabs.map(tab => (
           <button
             key={tab.id}

@@ -45,19 +45,44 @@ def admin_students(request: Request, db: Session = Depends(get_db)):
     require_localhost(request)
     users = db.query(User).filter(User.role == UserRole.STUDENT).all()
     classes = db.query(ClassInfo).all()
+    # Build student-to-classes map once instead of O(students * classes)
+    student_class_map = {}
+    for c in classes:
+        for s in c.students:
+            student_class_map.setdefault(s.id, []).append(c.name)
+    student_ids = [u.id for u in users]
+
+    # Batch load all assignments, attendances, portfolio counts for all students at once
+    all_assignments = db.query(Assignment).filter(Assignment.student_id.in_(student_ids)).all()
+    all_attendances = db.query(Attendance).filter(Attendance.student_id.in_(student_ids)).all()
+    from sqlalchemy import func
+    portfolio_counts = dict(
+        db.query(Portfolio.student_id, func.count(Portfolio.id))
+        .filter(Portfolio.student_id.in_(student_ids))
+        .group_by(Portfolio.student_id)
+        .all()
+    )
+
+    # Group by student
+    assignments_by_student: dict[str, list] = {}
+    for a in all_assignments:
+        assignments_by_student.setdefault(a.student_id, []).append(a)
+    attendances_by_student: dict[str, list] = {}
+    for a in all_attendances:
+        attendances_by_student.setdefault(a.student_id, []).append(a)
+
     result = []
     for u in users:
-        # Find classes
-        user_classes = [c.name for c in classes if u.id in [s.id for s in c.students]]
+        user_classes = student_class_map.get(u.id, [])
         # Count assignments
-        assignments = db.query(Assignment).filter(Assignment.student_id == u.id).all()
-        pending = len([a for a in assignments if a.status.value == "pending"])
-        submitted = len([a for a in assignments if a.status.value == "submitted"])
-        graded = len([a for a in assignments if a.status.value == "graded"])
+        student_assignments = assignments_by_student.get(u.id, [])
+        pending = len([a for a in student_assignments if a.status.value == "pending"])
+        submitted = len([a for a in student_assignments if a.status.value == "submitted"])
+        graded = len([a for a in student_assignments if a.status.value == "graded"])
         # Portfolio count
-        portfolio_count = db.query(Portfolio).filter(Portfolio.student_id == u.id).count()
+        portfolio_count = portfolio_counts.get(u.id, 0)
         # Attendance rate
-        att_records = db.query(Attendance).filter(Attendance.student_id == u.id).all()
+        att_records = attendances_by_student.get(u.id, [])
         att_total = len(att_records)
         att_present = len([a for a in att_records if a.status.value in ("present", "late")])
         att_rate = round(att_present / att_total * 100, 1) if att_total > 0 else 0

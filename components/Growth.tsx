@@ -51,14 +51,17 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [newPfTitle, setNewPfTitle] = useState('');
   const [newPfDesc, setNewPfDesc] = useState('');
-  const [newPfCategory, setNewPfCategory] = useState('');
+  const [newPfCategory, setNewPfCategory] = useState('other');
   const [newPfTags, setNewPfTags] = useState('');
   const [newPfVideoUrl, setNewPfVideoUrl] = useState('');
   const [newPfVideoFile, setNewPfVideoFile] = useState<File | null>(null);
   const [isPfVideoUploading, setIsPfVideoUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [failedUpload, setFailedUpload] = useState<{ file: File; portfolioId: string } | null>(null);
   const pfVideoInputRef = useRef<HTMLInputElement>(null);
   const pendingVideoPortfolioIdRef = useRef<string | null>(null);
+  const uploadAbortRef = useRef<(() => void) | null>(null);
   const [commentText, setCommentText] = useState('');
 
   // Portfolio view toggle (grid vs timeline)
@@ -109,8 +112,9 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       setEvaluations(evalsData);
       setPortfolios(pfData);
       setEvents(eventsData);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load growth data:', err);
+      toast.error(err.message || '성장 데이터를 불러오지 못했습니다.');
     }
   }, [user.id]);
 
@@ -246,6 +250,8 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
   const startPfVideoUpload = (file: File, portfolioId: string) => {
     setIsPfVideoUploading(true);
     setUploadProgress(0);
+    setUploadError(null);
+    setFailedUpload(null);
     pendingVideoPortfolioIdRef.current = portfolioId;
 
     const token = getToken();
@@ -259,11 +265,24 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
     });
 
     const xhr = new XMLHttpRequest();
+    xhr.timeout = 5 * 60 * 1000; // 5 minute timeout
+    uploadAbortRef.current = () => xhr.abort();
+
     xhr.upload.addEventListener('progress', (evt) => {
       if (evt.lengthComputable) {
         setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
       }
     });
+
+    const handleUploadFailure = (errorMsg: string) => {
+      setIsPfVideoUploading(false);
+      setUploadProgress(null);
+      setUploadError(errorMsg);
+      setFailedUpload({ file, portfolioId });
+      uploadAbortRef.current = null;
+      toast.error(errorMsg);
+    };
+
     xhr.addEventListener('load', async () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
@@ -276,24 +295,44 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
             setPortfolios(prev => prev.map(p => p.id === pendingId ? updated : p));
             toast.success('영상이 포트폴리오에 저장되었습니다.');
           }
+          setUploadError(null);
+          setFailedUpload(null);
         } catch {
-          toast.error('영상 업로드에 실패했습니다.');
+          handleUploadFailure('영상 저장 중 오류가 발생했습니다.');
+          return;
         }
       } else {
-        toast.error('영상 업로드에 실패했습니다.');
+        handleUploadFailure('영상 업로드에 실패했습니다.');
+        return;
       }
       setIsPfVideoUploading(false);
       setUploadProgress(null);
+      uploadAbortRef.current = null;
     });
-    xhr.addEventListener('error', () => {
-      toast.error('영상 업로드에 실패했습니다.');
+    xhr.addEventListener('error', () => handleUploadFailure('네트워크 오류로 업로드에 실패했습니다.'));
+    xhr.addEventListener('timeout', () => handleUploadFailure('업로드 시간이 초과되었습니다.'));
+    xhr.addEventListener('abort', () => {
       setIsPfVideoUploading(false);
       setUploadProgress(null);
+      setUploadError(null);
+      setFailedUpload(null);
+      uploadAbortRef.current = null;
+      toast('업로드가 취소되었습니다.');
     });
 
     xhr.open('POST', `${API_URL}/api/upload?${params}`);
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.send(formData);
+  };
+
+  const handleRetryUpload = () => {
+    if (failedUpload) {
+      startPfVideoUpload(failedUpload.file, failedUpload.portfolioId);
+    }
+  };
+
+  const handleCancelUpload = () => {
+    uploadAbortRef.current?.();
   };
 
   const handleCreatePortfolio = async () => {
@@ -320,7 +359,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       // Close modal and reset form
       const fileToUpload = newPfVideoFile;
       setIsPortfolioModalOpen(false);
-      setNewPfTitle(''); setNewPfDesc(''); setNewPfCategory(''); setNewPfTags('');
+      setNewPfTitle(''); setNewPfDesc(''); setNewPfCategory('other'); setNewPfTags('');
       setNewPfVideoUrl(''); setNewPfVideoFile(null);
       setNewPfPracticeGroup(''); setNewPfPracticeGroupCustom('');
 
@@ -482,7 +521,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-100 overflow-x-auto no-scrollbar">
+      <div className="flex gap-1 border-b border-slate-100 overflow-x-auto no-scrollbar scroll-hint">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -519,7 +558,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
               <button
                 key={s}
                 onClick={() => setEvalSubjectFilter(s)}
-                className={`px-4 py-1.5 rounded-full text-sm font-bold transition-colors ${
+                className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${
                   evalSubjectFilter === s
                     ? 'bg-brand-500 text-white'
                     : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
@@ -536,7 +575,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-bold text-lg text-slate-800">{ev.studentName} — {ev.period}</h3>
-                    <span className="text-[10px] font-bold bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full">{SUBJECT_LABELS[ev.subject]}</span>
+                    <span className="text-xs font-bold bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full">{SUBJECT_LABELS[ev.subject]}</span>
                   </div>
                   <p className="text-xs text-slate-400">{ev.className} • 평가자: {ev.evaluatorName}</p>
                 </div>
@@ -594,7 +633,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
             <div className="flex bg-slate-100 rounded-xl p-1">
               <button
                 onClick={() => setPortfolioView('grid')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
                   portfolioView === 'grid'
                     ? 'bg-white text-brand-600 shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
@@ -604,7 +643,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
               </button>
               <button
                 onClick={() => setPortfolioView('timeline')}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
                   portfolioView === 'timeline'
                     ? 'bg-white text-brand-600 shadow-sm'
                     : 'text-slate-500 hover:text-slate-700'
@@ -641,29 +680,46 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                         <div className="w-14 h-14 rounded-full bg-black/30 flex items-center justify-center group-hover:bg-brand-500/80 transition-colors">
                           <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                         </div>
+                      ) : failedUpload?.portfolioId === pf.id ? (
+                        <div className="flex flex-col items-center gap-2 text-red-400 w-full px-6" onClick={(e) => e.stopPropagation()}>
+                          <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                          <span className="text-xs font-medium text-red-500">업로드 실패</span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleRetryUpload(); }}
+                            className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-4 py-2 rounded-full"
+                          >
+                            다시 시도
+                          </button>
+                        </div>
                       ) : (
                         <div className="flex flex-col items-center gap-2 text-slate-400 w-full px-6">
                           <svg className="w-6 h-6 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                           {pendingVideoPortfolioIdRef.current === pf.id && uploadProgress !== null ? (
                             <div className="w-full flex flex-col items-center gap-1">
-                              <span className="text-[10px] font-bold text-brand-600">{uploadProgress}%</span>
+                              <span className="text-xs font-bold text-brand-600">{uploadProgress}%</span>
                               <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
                                 <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                               </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleCancelUpload(); }}
+                                className="text-xs font-medium text-red-400 hover:text-red-600 mt-1"
+                              >
+                                취소
+                              </button>
                             </div>
                           ) : (
-                            <span className="text-[10px] font-medium">영상 업로드 중</span>
+                            <span className="text-xs font-medium">영상 업로드 중</span>
                           )}
                         </div>
                       )}
-                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">{PORTFOLIO_CATEGORY_LABELS[pf.category] || pf.category}</span>
+                      <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">{PORTFOLIO_CATEGORY_LABELS[pf.category] || pf.category}</span>
                     </div>
                     <div className="p-4">
                       <h3 className="font-bold text-sm text-slate-800 line-clamp-1">{pf.title}</h3>
                       <p className="text-xs text-slate-400 mt-1">{pf.studentName} • {pf.date}</p>
                       <div className="flex gap-1 mt-2 flex-wrap">
                         {pf.tags.map(tag => (
-                          <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{tag}</span>
+                          <span key={tag} className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{tag}</span>
                         ))}
                       </div>
                       <div className="flex items-center gap-1 mt-2 text-xs text-slate-400">
@@ -703,12 +759,12 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                         <div className="flex items-center gap-3 mb-3">
                           <div className="w-2 h-2 rounded-full bg-brand-500 shrink-0" />
                           <h3 className="font-bold text-sm text-slate-700">{group.groupName}</h3>
-                          <span className="text-[10px] text-slate-400 font-medium">{sorted.length}개</span>
+                          <span className="text-xs text-slate-400 font-medium">{sorted.length}개</span>
                           <div className="flex-1 h-px bg-slate-100" />
                         </div>
 
                         {/* Horizontal scrollable timeline row */}
-                        <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
+                        <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar scroll-hint">
                           {sorted.map((pf, idx) => (
                             <div
                               key={pf.id}
@@ -721,13 +777,13 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                                   <svg className="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
                                 </div>
                                 {/* Timeline index badge */}
-                                <span className="absolute top-2 left-2 bg-brand-500 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                                <span className="absolute top-2 left-2 bg-brand-500 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
                                   {idx + 1}
                                 </span>
                               </div>
                               <div className="p-3">
                                 <h4 className="font-bold text-xs text-slate-800 line-clamp-1">{pf.title}</h4>
-                                <p className="text-[10px] text-slate-400 mt-1">{pf.date}</p>
+                                <p className="text-xs text-slate-400 mt-1">{pf.date}</p>
                               </div>
                             </div>
                           ))}
@@ -797,7 +853,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                               >삭제</button>
                             </>
                           )}
-                          <span className="bg-brand-100 text-brand-600 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">
+                          <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap">
                             D-{Math.max(0, Math.ceil((new Date(ev.date).getTime() - Date.now()) / 86400000))}
                           </span>
                         </div>
@@ -857,7 +913,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                             className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
                           >삭제</button>
                         )}
-                        <span className="bg-green-100 text-green-600 text-[10px] font-bold px-2 py-1 rounded-full">완료</span>
+                        <span className="bg-green-100 text-green-600 text-xs font-bold px-2 py-1 rounded-full">완료</span>
                       </div>
                     </div>
                   </div>
@@ -878,7 +934,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
       {/* Evaluation Modal */}
       {isEvalModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsEvalModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -924,8 +980,8 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
       {/* Portfolio Detail Modal */}
       {selectedPortfolio && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-lg p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-lg p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => { setSelectedPortfolioId(null); setCommentTimestamp(null); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 z-10">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
@@ -954,21 +1010,50 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                 >
                   <source src={selectedPortfolio.videoUrl.startsWith('/') ? `${API_URL}${selectedPortfolio.videoUrl}` : selectedPortfolio.videoUrl} />
                 </video>
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center text-white/60 gap-2">
+              ) : isPfVideoUploading && pendingVideoPortfolioIdRef.current === selectedPortfolio.id ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-white/60 gap-3">
                   <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
-                  <span className="text-sm">영상 업로드 중...</span>
+                  <span className="text-sm">영상 업로드 중... {uploadProgress !== null ? `${uploadProgress}%` : ''}</span>
+                  {uploadProgress !== null && (
+                    <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
+                      <div className="h-full bg-brand-400 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                    </div>
+                  )}
+                  <button onClick={handleCancelUpload} className="text-xs text-red-300 hover:text-red-400 mt-1">취소</button>
+                </div>
+              ) : failedUpload?.portfolioId === selectedPortfolio.id ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-red-300 gap-3">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                  <span className="text-sm">{uploadError || '업로드 실패'}</span>
+                  <button onClick={handleRetryUpload} className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-4 py-1.5 rounded-full">다시 시도</button>
+                </div>
+              ) : (
+                <div className="w-full h-full flex flex-col items-center justify-center text-white/60 gap-3">
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                  <span className="text-sm">영상이 없습니다</span>
+                  {isStudent && selectedPortfolio.studentId === user.id && (
+                    <>
+                      <input ref={pfVideoInputRef} type="file" className="hidden" accept="video/*" onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file && selectedPortfolio) {
+                          startPfVideoUpload(file, selectedPortfolio.id);
+                        }
+                        if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
+                      }} />
+                      <button onClick={() => pfVideoInputRef.current?.click()} className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-4 py-1.5 rounded-full">영상 업로드</button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
 
             <div className="flex gap-2 mb-3 flex-wrap">
-              <span className="text-[10px] bg-brand-100 text-brand-600 px-2 py-0.5 rounded-full font-bold">{PORTFOLIO_CATEGORY_LABELS[selectedPortfolio.category] || selectedPortfolio.category}</span>
+              <span className="text-xs bg-brand-100 text-brand-600 px-2 py-0.5 rounded-full font-bold">{PORTFOLIO_CATEGORY_LABELS[selectedPortfolio.category] || selectedPortfolio.category}</span>
               {selectedPortfolio.practiceGroup && (
-                <span className="text-[10px] bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-bold">{selectedPortfolio.practiceGroup}</span>
+                <span className="text-xs bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full font-bold">{selectedPortfolio.practiceGroup}</span>
               )}
               {selectedPortfolio.tags.map(tag => (
-                <span key={tag} className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{tag}</span>
+                <span key={tag} className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{tag}</span>
               ))}
             </div>
 
@@ -982,13 +1067,13 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                   <div key={c.id} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-bold text-slate-700">{c.authorName}</span>
-                      <span className="text-[10px] text-slate-400">{c.date}</span>
+                      <span className="text-xs text-slate-400">{c.date}</span>
                     </div>
                     <div className="flex items-start gap-2">
                       {c.timestampSec != null && (
                         <button
                           onClick={() => handleSeekVideo(c.timestampSec!)}
-                          className="shrink-0 mt-0.5 bg-brand-100 text-brand-600 text-[10px] font-bold px-2 py-0.5 rounded-md hover:bg-brand-200 transition-colors cursor-pointer"
+                          className="shrink-0 mt-0.5 bg-brand-100 text-brand-600 text-xs font-bold px-2 py-0.5 rounded-md hover:bg-brand-200 transition-colors cursor-pointer"
                           title={`${formatTimestamp(c.timestampSec)}(으)로 이동`}
                         >
                           {formatTimestamp(c.timestampSec)}
@@ -1004,12 +1089,12 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
               <div className="space-y-2">
                 {commentTimestamp != null && (
                   <div className="flex items-center gap-2">
-                    <span className="bg-brand-100 text-brand-600 text-[10px] font-bold px-2 py-0.5 rounded-md">
+                    <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-0.5 rounded-md">
                       {formatTimestamp(commentTimestamp)}
                     </span>
                     <button
                       onClick={() => setCommentTimestamp(null)}
-                      className="text-[10px] text-slate-400 hover:text-slate-600"
+                      className="text-xs text-slate-400 hover:text-slate-600"
                     >
                       삭제
                     </button>
@@ -1025,7 +1110,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                   />
                   <button
                     onClick={handleCaptureTimestamp}
-                    className="bg-slate-100 text-slate-600 px-3 rounded-xl text-[10px] font-bold hover:bg-slate-200 transition-colors whitespace-nowrap"
+                    className="bg-slate-100 text-slate-600 px-3 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors whitespace-nowrap"
                     title="현재 영상 위치를 댓글에 첨부합니다"
                   >
                     현재 위치
@@ -1040,7 +1125,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
       {/* Portfolio Create Modal */}
       {isPortfolioModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsPortfolioModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1073,47 +1158,55 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                   </button>
                 )}
               </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">카테고리</label>
-                <select value={newPfCategory} onChange={e => setNewPfCategory(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500">
-                  <option value="">선택</option>
-                  <option value="monologue">독백</option>
-                  <option value="scene">장면연기</option>
-                  <option value="musical">뮤지컬</option>
-                  <option value="improv">즉흥연기</option>
-                  <option value="other">기타</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">연습 시리즈</label>
-                <select
-                  value={newPfPracticeGroup}
-                  onChange={e => setNewPfPracticeGroup(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500"
-                >
-                  <option value="">없음</option>
-                  {existingPracticeGroups.map(g => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                  <option value="__new__">새 시리즈</option>
-                </select>
-                {newPfPracticeGroup === '__new__' && (
-                  <input
-                    value={newPfPracticeGroupCustom}
-                    onChange={e => setNewPfPracticeGroupCustom(e.target.value)}
-                    className="w-full mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500"
-                    placeholder="새 시리즈 이름을 입력하세요"
-                  />
-                )}
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">태그 (쉼표로 구분)</label>
-                <input value={newPfTags} onChange={e => setNewPfTags(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 셰익스피어, 비극, 입시" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">설명</label>
-                <textarea value={newPfDesc} onChange={e => setNewPfDesc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-20" placeholder="영상에 대한 설명을 입력하세요." />
-              </div>
+              {/* Collapsible detail settings */}
+              <details className="group">
+                <summary className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-400 hover:text-slate-600 py-1">
+                  <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                  상세 설정
+                </summary>
+                <div className="space-y-4 mt-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">카테고리</label>
+                    <select value={newPfCategory} onChange={e => setNewPfCategory(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500">
+                      <option value="other">기타</option>
+                      <option value="monologue">독백</option>
+                      <option value="scene">장면연기</option>
+                      <option value="musical">뮤지컬</option>
+                      <option value="improv">즉흥연기</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">연습 시리즈</label>
+                    <select
+                      value={newPfPracticeGroup}
+                      onChange={e => setNewPfPracticeGroup(e.target.value)}
+                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500"
+                    >
+                      <option value="">없음</option>
+                      {existingPracticeGroups.map(g => (
+                        <option key={g} value={g}>{g}</option>
+                      ))}
+                      <option value="__new__">새 시리즈</option>
+                    </select>
+                    {newPfPracticeGroup === '__new__' && (
+                      <input
+                        value={newPfPracticeGroupCustom}
+                        onChange={e => setNewPfPracticeGroupCustom(e.target.value)}
+                        className="w-full mt-2 p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500"
+                        placeholder="새 시리즈 이름을 입력하세요"
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">태그 (쉼표로 구분)</label>
+                    <input value={newPfTags} onChange={e => setNewPfTags(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 셰익스피어, 비극, 입시" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 mb-1">설명</label>
+                    <textarea value={newPfDesc} onChange={e => setNewPfDesc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-20" placeholder="영상에 대한 설명을 입력하세요." />
+                  </div>
+                </div>
+              </details>
               <button onClick={handleCreatePortfolio} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200">등록하기</button>
             </div>
           </div>
@@ -1122,7 +1215,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
       {/* Event Create Modal */}
       {isEventModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
           <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setIsEventModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>

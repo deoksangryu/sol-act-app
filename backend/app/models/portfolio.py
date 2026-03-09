@@ -18,7 +18,7 @@ class Portfolio(Base):
     __tablename__ = "portfolios"
 
     id = Column(String, primary_key=True, index=True)
-    student_id = Column(String, ForeignKey("users.id"), nullable=False)
+    student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
     video_url = Column(String, nullable=False)

@@ -49,6 +49,9 @@ def list_assignments(
     if current_user.role == UserRole.TEACHER:
         my_student_ids = get_teacher_student_ids(db, current_user.id)
         query = query.filter(Assignment.student_id.in_(my_student_ids))
+    # Student: only see own assignments
+    elif current_user.role == UserRole.STUDENT:
+        query = query.filter(Assignment.student_id == current_user.id)
     if student_id:
         query = query.filter(Assignment.student_id == student_id)
     if assigned_by:
@@ -68,6 +71,14 @@ def get_assignment(assignment_id: str, db: Session = Depends(get_db), current_us
     a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    # Student: can only view own assignments
+    if current_user.role == UserRole.STUDENT and a.student_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    # Teacher: can only view assignments for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        if a.student_id not in my_student_ids:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
     return assignment_to_response(a)
 
 
@@ -175,6 +186,9 @@ async def submit_assignment(
     if current_user.id != a.student_id:
         raise HTTPException(status_code=403, detail="You can only submit your own assignments")
 
+    if a.status == AssignmentStatus.GRADED:
+        raise HTTPException(status_code=400, detail="Cannot resubmit a graded assignment")
+
     a.submission_text = data.submission_text
     if data.submission_file_url:
         a.submission_file_url = data.submission_file_url
@@ -237,6 +251,9 @@ async def grade_assignment(
     a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
+
+    if a.status == AssignmentStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Cannot grade an assignment that has not been submitted")
 
     a.grade = data.grade
     a.feedback = data.feedback

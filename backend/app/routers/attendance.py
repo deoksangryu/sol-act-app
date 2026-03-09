@@ -11,7 +11,7 @@ from app.schemas.attendance import (
     AttendanceResponse, AttendanceStats
 )
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_user, emit_data_changed, get_teacher_class_ids
+from app.services.notification_service import notify_user, emit_data_changed, get_teacher_class_ids, get_teacher_student_ids
 import uuid
 
 router = APIRouter()
@@ -38,6 +38,13 @@ def list_attendance(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(Attendance).options(joinedload(Attendance.student))
+    # Student: only see own attendance
+    if current_user.role == UserRole.STUDENT:
+        query = query.filter(Attendance.student_id == current_user.id)
+    # Teacher: only see attendance for students in their classes
+    elif current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        query = query.filter(Attendance.student_id.in_(my_student_ids))
     if lesson_id:
         query = query.filter(Attendance.lesson_id == lesson_id)
     if student_id:
@@ -57,6 +64,13 @@ def get_attendance_stats(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(Attendance).join(Lesson, Attendance.lesson_id == Lesson.id)
+    # Student: only see own stats
+    if current_user.role == UserRole.STUDENT:
+        query = query.filter(Attendance.student_id == current_user.id)
+    # Teacher: only see stats for students in their classes
+    elif current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        query = query.filter(Attendance.student_id.in_(my_student_ids))
     if student_id:
         query = query.filter(Attendance.student_id == student_id)
     if class_id:
@@ -170,6 +184,21 @@ async def create_attendance(
             my_class_ids = get_teacher_class_ids(db, current_user.id)
             if lesson.class_id not in my_class_ids:
                 raise HTTPException(status_code=403, detail="Cannot mark attendance for classes you don't teach")
+
+    # Check for duplicate: upsert if already exists
+    existing = db.query(Attendance).filter(
+        Attendance.lesson_id == data.lesson_id,
+        Attendance.student_id == data.student_id
+    ).first()
+    if existing:
+        existing.status = data.status
+        existing.note = data.note
+        existing.marked_by = current_user.id
+        db.commit()
+        db.refresh(existing)
+        a = db.query(Attendance).options(joinedload(Attendance.student)).filter(Attendance.id == existing.id).first()
+        await emit_data_changed([data.student_id], "attendance")
+        return attendance_to_response(a)
 
     att = Attendance(
         id=f"att{uuid.uuid4().hex[:7]}",

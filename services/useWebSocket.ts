@@ -30,6 +30,8 @@ class WsClient {
   private listeners: Map<string, Set<MessageHandler>> = new Map();
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private lastPong = 0;
   private userId: string | null = null;
   private closed = false;
 
@@ -47,12 +49,18 @@ class WsClient {
 
     this.ws.onopen = () => {
       this.reconnectAttempt = 0;
+      this.lastPong = Date.now();
+      this.startHeartbeat();
     };
 
     this.ws.onmessage = (event) => {
       try {
         const parsed = JSON.parse(event.data);
         const type = parsed.type as string;
+        if (type === 'pong') {
+          this.lastPong = Date.now();
+          return;
+        }
         const handlers = this.listeners.get(type);
         if (handlers) {
           handlers.forEach(fn => fn(parsed));
@@ -64,12 +72,34 @@ class WsClient {
 
     this.ws.onclose = () => {
       this.ws = null;
+      this.stopHeartbeat();
       if (!this.closed) this.scheduleReconnect();
     };
 
     this.ws.onerror = () => {
       this.ws?.close();
     };
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws?.readyState === WebSocket.OPEN) {
+        // If no pong received within 45s, force reconnect
+        if (Date.now() - this.lastPong > 45000) {
+          this.ws?.close();
+          return;
+        }
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+      }
+    }, 30000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   private scheduleReconnect() {
@@ -94,6 +124,7 @@ class WsClient {
   disconnect() {
     this.closed = true;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.stopHeartbeat();
     this.ws?.close();
     this.ws = null;
   }

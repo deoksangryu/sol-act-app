@@ -114,11 +114,17 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
   if (response.status === 401) {
     clearAuth();
     window.location.reload();
-    throw new Error('Unauthorized');
+    throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
   }
   if (!response.ok) {
+    if (!navigator.onLine) {
+      throw new Error('인터넷 연결을 확인해주세요.');
+    }
+    if (response.status === 403) {
+      throw new Error('접근 권한이 없습니다.');
+    }
     const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(error.detail || 'API Error');
+    throw new Error(error.detail || '요청을 처리하지 못했습니다.');
   }
 
   const data = await response.json();
@@ -766,9 +772,12 @@ export const uploadApi = {
     subfolder?: string,
     targetType?: string,
     targetId?: string,
-  ): Promise<{ url: string; filename: string }> {
-    return new Promise((resolve, reject) => {
+  ): Promise<{ url: string; filename: string }> & { abort: () => void } {
+    let xhrRef: XMLHttpRequest | null = null;
+
+    const promise = new Promise<{ url: string; filename: string }>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
+      xhrRef = xhr;
       const formData = new FormData();
       formData.append('file', file);
 
@@ -778,6 +787,9 @@ export const uploadApi = {
       if (targetId) params.set('target_id', targetId);
       const uploadUrl = `${API_URL}/api/upload?${params.toString()}`;
       xhr.open('POST', uploadUrl);
+
+      // 5 minute timeout for large video files
+      xhr.timeout = 5 * 60 * 1000;
 
       const token = getToken();
       if (token) {
@@ -800,20 +812,26 @@ export const uploadApi = {
         } else if (xhr.status === 401) {
           clearAuth();
           window.location.reload();
-          reject(new Error('Unauthorized'));
+          reject(new Error('세션이 만료되었습니다.'));
         } else {
           try {
             const err = JSON.parse(xhr.responseText);
-            reject(new Error(err.detail || 'Upload failed'));
+            reject(new Error(err.detail || '업로드에 실패했습니다.'));
           } catch {
-            reject(new Error('Upload failed'));
+            reject(new Error('업로드에 실패했습니다.'));
           }
         }
       };
 
-      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.onerror = () => reject(new Error('네트워크 오류로 업로드에 실패했습니다.'));
+      xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다. 다시 시도해주세요.'));
+      xhr.onabort = () => reject(new Error('업로드가 취소되었습니다.'));
       xhr.send(formData);
     });
+
+    // Attach abort method to the promise
+    (promise as any).abort = () => xhrRef?.abort();
+    return promise as Promise<{ url: string; filename: string }> & { abort: () => void };
   },
 };
 

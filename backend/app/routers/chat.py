@@ -131,11 +131,17 @@ def send_message(data: ChatMessageCreate, db: Session = Depends(get_db), current
     if not validate_class_access(db, data.class_id, current_user):
         raise HTTPException(status_code=403, detail="Not a member of this class")
 
+    content = data.content.strip()
+    if not content:
+        raise HTTPException(status_code=400, detail="Message content is empty")
+    if len(content) > 5000:
+        raise HTTPException(status_code=400, detail="Message too long (max 5000 characters)")
+
     message = ChatMessage(
         id=f"msg{uuid.uuid4().hex[:7]}",
         class_id=data.class_id,
         sender_id=current_user.id,
-        content=data.content,
+        content=content,
     )
     db.add(message)
     db.commit()

@@ -45,7 +45,7 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentView, onChangeView,
           }`}
         >
           <svg className={`w-5 h-5 ${currentView === item.id ? 'stroke-2' : 'stroke-1.5'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={item.icon} /></svg>
-          <span className="text-[10px] font-medium">{item.label}</span>
+          <span className="text-xs font-medium">{item.label}</span>
         </button>
       ))}
     </div>

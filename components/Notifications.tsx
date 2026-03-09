@@ -13,7 +13,7 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onC
       <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
         <h3 className="font-bold text-slate-800 text-sm">알림 센터</h3>
         <div className="flex gap-2">
-            <button onClick={onMarkAllRead} className="text-[10px] font-bold text-brand-500 hover:underline">모두 읽음</button>
+            <button onClick={onMarkAllRead} className="text-xs font-bold text-brand-500 hover:underline">모두 읽음</button>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
@@ -30,7 +30,7 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onC
                 <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notif.read ? 'bg-slate-300' : notif.type === 'warning' ? 'bg-red-500' : notif.type === 'success' ? 'bg-green-500' : 'bg-brand-500'}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-700 leading-snug break-keep">{notif.message}</p>
-                  <p className="text-[10px] text-slate-400 mt-1">{new Date(notif.date).toLocaleDateString()} {new Date(notif.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                  <p className="text-xs text-slate-400 mt-1">{new Date(notif.date).toLocaleDateString()} {new Date(notif.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
                 </div>
               </div>
             </div>

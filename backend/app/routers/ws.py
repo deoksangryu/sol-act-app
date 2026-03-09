@@ -15,7 +15,10 @@ router = APIRouter()
 
 def verify_ws_token(token: str) -> Optional[str]:
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        payload = jwt.decode(
+            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM],
+            options={"verify_exp": True}
+        )
         return payload.get("sub")
     except JWTError:
         return None
@@ -50,12 +53,16 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)):
     await manager.connect(user_id, websocket)
     try:
         while True:
-            data = await websocket.receive_json()
+            try:
+                data = await websocket.receive_json()
+            except (ValueError, TypeError):
+                await websocket.send_json({"type": "error", "message": "Invalid JSON"})
+                continue
             msg_type = data.get("type")
 
             if msg_type == "chat_send":
                 class_id = data.get("class_id", "").strip()
-                content = data.get("content", "").strip()
+                content = data.get("content", "").strip()[:5000]
                 if not class_id or not content:
                     continue
 

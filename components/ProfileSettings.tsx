@@ -234,16 +234,16 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
             />
             {newPassword && (
               <div className="mt-2 space-y-0.5">
-                <p className={`text-[10px] ${newPassword.length >= 8 ? 'text-green-500' : 'text-slate-400'}`}>
+                <p className={`text-xs ${newPassword.length >= 8 ? 'text-green-500' : 'text-slate-400'}`}>
                   {newPassword.length >= 8 ? '\u2713' : '\u2022'} 8자 이상
                 </p>
-                <p className={`text-[10px] ${/[A-Za-z]/.test(newPassword) ? 'text-green-500' : 'text-slate-400'}`}>
+                <p className={`text-xs ${/[A-Za-z]/.test(newPassword) ? 'text-green-500' : 'text-slate-400'}`}>
                   {/[A-Za-z]/.test(newPassword) ? '\u2713' : '\u2022'} 영문자 포함
                 </p>
-                <p className={`text-[10px] ${/\d/.test(newPassword) ? 'text-green-500' : 'text-slate-400'}`}>
+                <p className={`text-xs ${/\d/.test(newPassword) ? 'text-green-500' : 'text-slate-400'}`}>
                   {/\d/.test(newPassword) ? '\u2713' : '\u2022'} 숫자 포함
                 </p>
-                <p className={`text-[10px] ${/[!@#$%^&*(),.?":{}|<>]/.test(newPassword) ? 'text-green-500' : 'text-slate-400'}`}>
+                <p className={`text-xs ${/[!@#$%^&*(),.?":{}|<>]/.test(newPassword) ? 'text-green-500' : 'text-slate-400'}`}>
                   {/[!@#$%^&*(),.?":{}|<>]/.test(newPassword) ? '\u2713' : '\u2022'} 특수문자 포함
                 </p>
               </div>

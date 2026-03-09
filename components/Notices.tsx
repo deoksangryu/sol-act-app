@@ -24,7 +24,10 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
   const [deleteNoticeId, setDeleteNoticeId] = useState<string | null>(null);
 
   const loadData = useCallback(() => {
-    return noticeApi.list().then(setNotices).catch(console.error);
+    return noticeApi.list().then(setNotices).catch((err) => {
+      console.error('Failed to load notices:', err);
+      toast.error(err.message || '공지사항을 불러오지 못했습니다.');
+    });
   }, []);
 
   useEffect(() => {
@@ -131,10 +134,10 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap gap-1.5 items-center mb-2">
                  {notice.important && (
-                   <span className="bg-brand-100 text-brand-600 text-[10px] font-bold px-2 py-0.5 rounded-full">중요</span>
+                   <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-0.5 rounded-full">중요</span>
                  )}
                  {notice.classId && (
-                   <span className="bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                   <span className="bg-blue-50 text-blue-600 text-xs font-bold px-2 py-0.5 rounded-full">
                      {classes.find(c => c.id === notice.classId)?.name || notice.classId}
                    </span>
                  )}

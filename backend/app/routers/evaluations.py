@@ -58,6 +58,9 @@ def list_evaluations(
     if current_user.role == UserRole.TEACHER:
         my_student_ids = get_teacher_student_ids(db, current_user.id)
         query = query.filter(Evaluation.student_id.in_(my_student_ids))
+    # Student: only see own evaluations
+    elif current_user.role == UserRole.STUDENT:
+        query = query.filter(Evaluation.student_id == current_user.id)
     if student_id:
         query = query.filter(Evaluation.student_id == student_id)
     if class_id:
@@ -134,6 +137,14 @@ def get_evaluation(evaluation_id: str, db: Session = Depends(get_db), current_us
     )
     if not e:
         raise HTTPException(status_code=404, detail="Evaluation not found")
+    # Student: can only view own evaluations
+    if current_user.role == UserRole.STUDENT and e.student_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    # Teacher: can only view evaluations for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        if e.student_id not in my_student_ids:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
     return evaluation_to_response(e)
 
 

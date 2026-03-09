@@ -253,7 +253,10 @@ def get_all_user_ids(db: Session) -> List[str]:
 
 def get_teacher_class_ids(db: Session, teacher_id: str) -> List[str]:
     """Get class IDs where the teacher is assigned."""
-    classes = db.query(ClassInfo).all()
+    # Use SQL LIKE to filter at DB level instead of loading all classes
+    classes = db.query(ClassInfo).filter(
+        ClassInfo.subject_teachers.like(f'%"{teacher_id}"%')
+    ).all()
     return [
         cls.id for cls in classes
         if cls.subject_teachers and teacher_id in cls.subject_teachers.values()
@@ -263,7 +266,9 @@ def get_teacher_class_ids(db: Session, teacher_id: str) -> List[str]:
 def get_teacher_student_ids(db: Session, teacher_id: str) -> List[str]:
     """Get all student IDs from classes where the teacher is assigned."""
     student_ids = set()
-    classes = db.query(ClassInfo).all()
+    classes = db.query(ClassInfo).filter(
+        ClassInfo.subject_teachers.like(f'%"{teacher_id}"%')
+    ).all()
     for cls in classes:
         if cls.subject_teachers and teacher_id in cls.subject_teachers.values():
             for s in cls.students:
@@ -287,13 +292,14 @@ def validate_class_access(db: Session, class_id: str, user: "User") -> bool:
 def get_teacher_ids_for_student(db: Session, student_id: str) -> List[str]:
     """Get teacher IDs from classes the student belongs to + directors."""
     teacher_ids = set()
-    classes = db.query(ClassInfo).all()
-    for cls in classes:
-        student_ids = [s.id for s in cls.students]
-        if student_id in student_ids and cls.subject_teachers:
-            for tid in cls.subject_teachers.values():
-                if tid:
-                    teacher_ids.add(tid)
+    # Only load classes the student is enrolled in (via relationship)
+    student = db.query(User).filter(User.id == student_id).first()
+    if student and hasattr(student, 'enrolled_classes'):
+        for cls in student.enrolled_classes:
+            if cls.subject_teachers:
+                for tid in cls.subject_teachers.values():
+                    if tid:
+                        teacher_ids.add(tid)
     directors = db.query(User).filter(User.role == UserRole.DIRECTOR).all()
     for d in directors:
         teacher_ids.add(d.id)

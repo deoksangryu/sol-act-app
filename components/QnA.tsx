@@ -130,9 +130,9 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
                 <div className="flex justify-between items-start mb-2">
                    <h3 className="font-bold text-lg text-slate-800 group-hover:text-brand-500 transition-colors line-clamp-1">{q.title}</h3>
                    {q.answers.length > 0 ? (
-                     <span className="bg-green-100 text-green-600 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">답변완료</span>
+                     <span className="bg-green-100 text-green-600 text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap">답변완료</span>
                    ) : (
-                     <span className="bg-slate-100 text-slate-400 text-[10px] font-bold px-2 py-1 rounded-full whitespace-nowrap">대기중</span>
+                     <span className="bg-slate-100 text-slate-400 text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap">대기중</span>
                    )}
                 </div>
                 <p className="text-slate-500 text-sm line-clamp-2 mb-4 h-10">{q.content}</p>
@@ -196,7 +196,7 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
                   </div>
                   <div>
                     <p className="text-xs font-bold text-slate-700">{selectedQuestion.authorName}</p>
-                    <p className="text-[10px] text-slate-400">{formatDate(selectedQuestion.date)}</p>
+                    <p className="text-xs text-slate-400">{formatDate(selectedQuestion.date)}</p>
                   </div>
                 </div>
                 <h3 className="text-xl font-bold text-slate-800 mb-3">{selectedQuestion.title}</h3>
@@ -210,7 +210,7 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
                   <button
                     onClick={handleAiHelp}
                     disabled={isAiLoading}
-                    className="text-xs bg-purple-50 text-purple-600 px-3 py-1.5 rounded-full font-bold hover:bg-purple-100 transition-colors flex items-center gap-1"
+                    className="text-xs bg-purple-50 text-purple-600 px-4 py-2 rounded-full font-bold hover:bg-purple-100 transition-colors flex items-center gap-1"
                   >
                      {isAiLoading ? (
                        <span className="animate-pulse">AI 작성 중...</span>
@@ -248,7 +248,7 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
                         )}
                         <div>
                           <p className="text-xs font-bold text-slate-700">{answer.authorName}</p>
-                          <p className="text-[10px] text-slate-400">{formatDate(answer.date)}</p>
+                          <p className="text-xs text-slate-400">{formatDate(answer.date)}</p>
                         </div>
                       </div>
                       {!answer.isAi && (answer.authorId === user.id || user.role === UserRole.DIRECTOR) && (

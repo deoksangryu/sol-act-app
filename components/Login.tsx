@@ -143,7 +143,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
   return (
     <div className="min-h-[100dvh] bg-slate-50 flex flex-col items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-3xl shadow-xl w-full max-w-md border border-slate-100 relative overflow-hidden">
+      <div className="bg-white p-5 md:p-8 rounded-3xl shadow-xl w-full max-w-md border border-slate-100 relative overflow-hidden">
 
         {/* Header */}
         <div className="text-center mb-8">
@@ -328,7 +328,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 )}
               </div>
               {regCode && !codeVerified && regCode.length >= 8 && (
-                <p className="text-[10px] text-red-500 mt-1">유효하지 않은 코드입니다.</p>
+                <p className="text-xs text-red-500 mt-1">유효하지 않은 코드입니다.</p>
               )}
             </div>
             <div>
@@ -369,10 +369,10 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
               />
               {regPassword && (
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5">
-                  <span className={`text-[10px] ${pwRules.length ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.length ? '\u2713' : '\u2022'} 8자 이상</span>
-                  <span className={`text-[10px] ${pwRules.letter ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.letter ? '\u2713' : '\u2022'} 영문</span>
-                  <span className={`text-[10px] ${pwRules.digit ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.digit ? '\u2713' : '\u2022'} 숫자</span>
-                  <span className={`text-[10px] ${pwRules.special ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.special ? '\u2713' : '\u2022'} 특수문자</span>
+                  <span className={`text-xs ${pwRules.length ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.length ? '\u2713' : '\u2022'} 8자 이상</span>
+                  <span className={`text-xs ${pwRules.letter ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.letter ? '\u2713' : '\u2022'} 영문</span>
+                  <span className={`text-xs ${pwRules.digit ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.digit ? '\u2713' : '\u2022'} 숫자</span>
+                  <span className={`text-xs ${pwRules.special ? 'text-green-500' : 'text-slate-400'}`}>{pwRules.special ? '\u2713' : '\u2022'} 특수문자</span>
                 </div>
               )}
             </div>
@@ -389,7 +389,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
                 disabled={!codeVerified}
               />
               {regConfirm && regPassword !== regConfirm && (
-                <p className="text-[10px] text-red-500 mt-1">비밀번호가 일치하지 않습니다.</p>
+                <p className="text-xs text-red-500 mt-1">비밀번호가 일치하지 않습니다.</p>
               )}
             </div>
             <button

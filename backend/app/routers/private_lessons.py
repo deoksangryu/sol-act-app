@@ -110,30 +110,34 @@ async def respond_to_request(
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
 
-    req.status = data.status
-    req.response_note = data.response_note
-    req.responded_at = datetime.utcnow()
+    try:
+        req.status = data.status
+        req.response_note = data.response_note
+        req.responded_at = datetime.utcnow()
 
-    # Auto-create lesson on approval
-    if data.status == RequestStatus.APPROVED:
-        from datetime import date as date_type
-        lesson = Lesson(
-            id=f"lsn{uuid.uuid4().hex[:7]}",
-            class_id=None,
-            date=date_type.fromisoformat(req.preferred_date),
-            start_time=req.preferred_start_time,
-            end_time=req.preferred_end_time,
-            subject=req.subject,
-            teacher_id=req.teacher_id,
-            is_private=True,
-            private_student_ids=[req.student_id],
-            request_id=req.id,
-            location="개인 연습실",
-        )
-        db.add(lesson)
+        # Auto-create lesson on approval (atomic with status change)
+        if data.status == RequestStatus.APPROVED:
+            from datetime import date as date_type
+            lesson = Lesson(
+                id=f"lsn{uuid.uuid4().hex[:7]}",
+                class_id=None,
+                date=date_type.fromisoformat(req.preferred_date),
+                start_time=req.preferred_start_time,
+                end_time=req.preferred_end_time,
+                subject=req.subject,
+                teacher_id=req.teacher_id,
+                is_private=True,
+                private_student_ids=[req.student_id],
+                request_id=req.id,
+                location="개인 연습실",
+            )
+            db.add(lesson)
 
-    db.commit()
-    db.refresh(req)
+        db.commit()
+        db.refresh(req)
+    except Exception:
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to process request")
 
     status_text = "승인" if data.status == RequestStatus.APPROVED else "거절"
     await notify_user(

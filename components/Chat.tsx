@@ -65,10 +65,14 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
     if (ids.length === 0) return;
     chatApi.lastMessages(ids).then(map => {
       setLastMessageByClass(prev => ({ ...prev, ...map }));
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error('Failed to load last messages:', err);
+    });
     chatApi.unreadCounts(ids).then(counts => {
       setUnreadCounts(prev => ({ ...prev, ...counts }));
-    }).catch(() => {});
+    }).catch((err) => {
+      console.error('Failed to load unread counts:', err);
+    });
   }, [classes.length]);
 
   // Fetch messages when selectedClassId changes (merge with WS messages to prevent loss)
@@ -86,7 +90,10 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
       if (restMsgs.length > 0) {
         setLastMessageByClass(prev => ({ ...prev, [selectedClassId]: restMsgs[restMsgs.length - 1] }));
       }
-    }).catch(console.error);
+    }).catch((err) => {
+      console.error('Failed to load messages:', err);
+      toast.error(err.message || '메시지를 불러오지 못했습니다.');
+    });
   }, [selectedClassId]);
 
   // Scroll to bottom on new message
@@ -209,9 +216,9 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                 <div className="flex justify-between items-start mb-1">
                   <h3 className={`font-bold text-sm ${selectedClassId === c.id ? 'text-brand-600' : 'text-slate-700'}`}>{c.name}</h3>
                   <div className="flex items-center gap-1.5">
-                    {lastMsg && <span className="text-[10px] text-slate-400">{new Date(lastMsg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>}
+                    {lastMsg && <span className="text-xs text-slate-400">{new Date(lastMsg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>}
                     {unread > 0 && (
-                      <span className="min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-brand-500 text-white text-[10px] font-bold rounded-full">
+                      <span className="min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-brand-500 text-white text-xs font-bold rounded-full">
                         {unread > 99 ? '99+' : unread}
                       </span>
                     )}
@@ -261,7 +268,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                    <div key={msg.id} className={`flex gap-3 ${isMe ? 'flex-row-reverse' : ''}`}>
                       {!isMe && <img src={resolveFileUrl(msg.avatar)} alt={msg.senderName} className="w-8 h-8 rounded-full bg-slate-200" />}
                       <div className={`max-w-[70%] ${isMe ? 'items-end' : 'items-start'} flex flex-col`}>
-                         {!isMe && <span className="text-[10px] text-slate-500 mb-1 ml-1">{msg.senderName}</span>}
+                         {!isMe && <span className="text-xs text-slate-500 mb-1 ml-1">{msg.senderName}</span>}
                          <div className={`px-4 py-2 rounded-2xl text-sm leading-relaxed ${
                            isMe
                              ? 'bg-brand-500 text-white rounded-tr-none shadow-md shadow-brand-100'
@@ -269,7 +276,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                          }`}>
                            {msg.content}
                          </div>
-                         <span className="text-[10px] text-slate-300 mt-1 px-1">
+                         <span className="text-xs text-slate-300 mt-1 px-1">
                            {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                          </span>
                       </div>
@@ -320,7 +327,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                          {isStaff && (
                            <button
                              onClick={() => setIsInviteOpen(true)}
-                             className="text-[10px] font-bold text-brand-500 bg-brand-50 px-2 py-1 rounded hover:bg-brand-100"
+                             className="text-xs font-bold text-brand-500 bg-brand-50 px-3 py-2 rounded-lg hover:bg-brand-100"
                            >
                              + 초대
                            </button>
@@ -336,7 +343,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                                 <img src={resolveFileUrl(teacher.avatar)} alt={teacher.name} className="w-8 h-8 rounded-full bg-slate-200" />
                                 <div>
                                   <p className="text-sm font-bold text-slate-700">{teacher.name}</p>
-                                  <p className="text-[10px] text-slate-400">선생님 · {subject}</p>
+                                  <p className="text-xs text-slate-400">선생님 · {subject}</p>
                                 </div>
                               </div>
                             );
@@ -349,7 +356,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                                 <img src={resolveFileUrl(student.avatar)} alt={student.name} className="w-8 h-8 rounded-full bg-slate-200" />
                                 <div>
                                   <p className="text-sm font-medium text-slate-700">{student.name}</p>
-                                  <p className="text-[10px] text-slate-400">Student</p>
+                                  <p className="text-xs text-slate-400">Student</p>
                                 </div>
                               </div>
                             ) : null;
@@ -382,8 +389,8 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
 
       {/* Invite Modal */}
       {isInviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm p-4 animate-fade-in">
-           <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/20 backdrop-blur-sm p-0 md:p-4 animate-fade-in">
+           <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-sm p-4 max-h-[90vh] overflow-y-auto">
               <h3 className="font-bold text-slate-800 mb-4">대화상대 초대</h3>
               <div className="max-h-60 overflow-y-auto space-y-1 mb-4">
                  {allUsers
@@ -410,8 +417,8 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
 
       {/* Create Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
-           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-fade-in">
+           <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-2xl w-full md:max-w-md p-5 md:p-6 relative max-h-[90vh] overflow-y-auto">
               <button
                onClick={() => setIsCreateModalOpen(false)}
                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"

@@ -6,7 +6,7 @@ from app.models.notice import Notice
 from app.models.user import User, UserRole
 from app.schemas.notice import NoticeCreate, NoticeUpdate, NoticeResponse
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_users, get_all_student_ids, get_class_student_ids, emit_data_changed
+from app.services.notification_service import notify_users, get_all_student_ids, get_class_student_ids, emit_data_changed, validate_class_access
 import uuid
 
 router = APIRouter()
@@ -20,6 +20,9 @@ def list_notices(
 ):
     query = db.query(Notice)
     if class_id:
+        # Validate user has access to this class
+        if not validate_class_access(db, class_id, current_user):
+            raise HTTPException(status_code=403, detail="Not a member of this class")
         # Return class-specific + academy-wide notices
         query = query.filter((Notice.class_id == class_id) | (Notice.class_id.is_(None)))
     return query.order_by(Notice.created_at.desc()).all()

@@ -115,7 +115,7 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers, onUserDeleted }) =
           </div>
       )}
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 overflow-y-auto pb-4">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 overflow-y-auto pb-4">
         {(activeTab === 'students' || !isDirector ? students : activeTab === 'teachers' ? teachers : directors).map((u) => (
           <div key={u.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4 hover:shadow-md transition-shadow">
             <img src={resolveFileUrl(u.avatar)} alt="User" className="w-16 h-16 rounded-full object-cover bg-slate-200" />
@@ -131,7 +131,7 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers, onUserDeleted }) =
               </div>
               <p className="text-xs text-slate-400 truncate">{u.email}</p>
               <div className="mt-2">
-                <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${u.role === UserRole.STUDENT ? 'bg-brand-50 text-brand-600' : u.role === UserRole.TEACHER ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
+                <span className={`text-xs px-2 py-0.5 rounded font-bold ${u.role === UserRole.STUDENT ? 'bg-brand-50 text-brand-600' : u.role === UserRole.TEACHER ? 'bg-blue-50 text-blue-600' : 'bg-purple-50 text-purple-600'}`}>
                   {u.role === UserRole.STUDENT ? '수강생' : u.role === UserRole.TEACHER ? '선생님' : '원장'}
                 </span>
               </div>
@@ -247,10 +247,10 @@ export const Users: React.FC<UsersProps> = ({ user, allUsers, onUserDeleted }) =
                     <div key={c.code} className={`flex items-center justify-between px-3 py-2.5 rounded-xl border ${c.used ? 'bg-slate-50 border-slate-100' : 'bg-white border-slate-200'}`}>
                       <div className="flex items-center gap-3 min-w-0">
                         <code className={`text-sm font-mono font-bold ${c.used ? 'text-slate-400' : 'text-slate-700'}`}>{c.code}</code>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold shrink-0 ${c.role === 'student' ? 'bg-brand-50 text-brand-600' : 'bg-blue-50 text-blue-600'}`}>
+                        <span className={`text-xs px-1.5 py-0.5 rounded font-bold shrink-0 ${c.role === 'student' ? 'bg-brand-50 text-brand-600' : 'bg-blue-50 text-blue-600'}`}>
                           {c.role === 'student' ? '수강생' : '선생님'}
                         </span>
-                        {c.used && <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 font-bold shrink-0">사용됨</span>}
+                        {c.used && <span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 font-bold shrink-0">사용됨</span>}
                       </div>
                       {!c.used && (
                         <button

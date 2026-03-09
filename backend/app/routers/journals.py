@@ -50,6 +50,9 @@ def list_journals(
             l.id for l in db.query(Lesson.id).filter(Lesson.class_id.in_(my_class_ids)).all()
         ]
         query = query.filter(LessonJournal.lesson_id.in_(lesson_ids_in_classes))
+    # Student: only see own journals
+    elif current_user.role == UserRole.STUDENT:
+        query = query.filter(LessonJournal.author_id == current_user.id)
     if lesson_id:
         query = query.filter(LessonJournal.lesson_id == lesson_id)
     if author_id:
@@ -74,6 +77,14 @@ def get_journal(journal_id: str, db: Session = Depends(get_db), current_user: Us
     )
     if not j:
         raise HTTPException(status_code=404, detail="Journal not found")
+    # Student: can only view own journals
+    if current_user.role == UserRole.STUDENT and j.author_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    # Teacher: can only view journals for lessons in their classes
+    if current_user.role == UserRole.TEACHER and j.lesson:
+        my_class_ids = get_teacher_class_ids(db, current_user.id)
+        if j.lesson.class_id not in my_class_ids:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
     return journal_to_response(j)
 
 
