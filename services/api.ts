@@ -879,6 +879,22 @@ export const pushApi = {
   },
 };
 
+export const praiseStickerApi = {
+  list(recipientId?: string): Promise<import('../types').PraiseSticker[]> {
+    const params = recipientId ? `?recipient_id=${recipientId}` : '';
+    return apiRequest(`/api/praise-stickers/${params}`);
+  },
+  create(data: { recipientId: string; emoji: string; message: string }): Promise<import('../types').PraiseSticker> {
+    return apiRequest('/api/praise-stickers/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  delete(id: string): Promise<void> {
+    return apiRequest(`/api/praise-stickers/${id}`, { method: 'DELETE' });
+  },
+};
+
 /**
  * Register the browser for Web Push notifications.
  * Safe to call multiple times — no-ops if already subscribed or not supported.

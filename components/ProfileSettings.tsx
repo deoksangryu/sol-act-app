@@ -1,7 +1,8 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-import { User, UserRole } from '../types';
-import { userApi, uploadApi, resolveFileUrl, registerPushSubscription } from '../services/api';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { User, UserRole, PraiseSticker } from '../types';
+import { userApi, uploadApi, resolveFileUrl, registerPushSubscription, praiseStickerApi } from '../services/api';
+import { useDataRefresh } from '../services/useWebSocket';
 import toast from 'react-hot-toast';
 
 interface ProfileSettingsProps {
@@ -36,6 +37,22 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
   const [isStandalone, setIsStandalone] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isIOS, setIsIOS] = useState(false);
+
+  // Praise stickers (students only)
+  const [receivedStickers, setReceivedStickers] = useState<PraiseSticker[]>([]);
+  const [stickersLoading, setStickersLoading] = useState(false);
+
+  const loadStickers = useCallback(() => {
+    if (user.role !== UserRole.STUDENT) return;
+    setStickersLoading(true);
+    praiseStickerApi.list()
+      .then(setReceivedStickers)
+      .catch(console.error)
+      .finally(() => setStickersLoading(false));
+  }, [user.role]);
+
+  useEffect(() => { loadStickers(); }, [loadStickers]);
+  useDataRefresh('praise_stickers', loadStickers);
 
   useEffect(() => {
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
@@ -168,6 +185,38 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
           </div>
         </div>
       </div>
+
+      {/* Received Praise Stickers (Students) */}
+      {user.role === UserRole.STUDENT && (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <h2 className="font-bold text-slate-700">받은 칭찬스티커</h2>
+            <span className="text-xs font-bold text-brand-500 bg-brand-50 px-2 py-0.5 rounded-full">{receivedStickers.length}</span>
+          </div>
+          {stickersLoading ? (
+            <p className="text-sm text-slate-400">로딩 중...</p>
+          ) : receivedStickers.length > 0 ? (
+            <div className="space-y-3">
+              {receivedStickers.map(sticker => (
+                <div key={sticker.id} className="flex gap-3 items-start bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-100 rounded-xl p-3">
+                  <div className="shrink-0 w-10 h-10 rounded-xl bg-white border border-yellow-100 flex items-center justify-center text-2xl shadow-sm">
+                    {sticker.emoji}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-slate-700 leading-relaxed">{sticker.message}</p>
+                    <p className="text-xs text-slate-400 mt-1">{sticker.senderName} 선생님 · {new Date(sticker.createdAt).toLocaleDateString('ko-KR')}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-slate-400">
+              <div className="text-4xl mb-2">⭐</div>
+              <p className="text-sm">아직 받은 칭찬스티커가 없습니다.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Profile Info Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">

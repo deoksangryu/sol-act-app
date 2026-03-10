@@ -244,3 +244,14 @@ export interface CompetitionEvent {
   checklist: ChecklistItem[];
   aiPrepTips?: string;
 }
+
+export interface PraiseSticker {
+  id: string;
+  senderId: string;
+  senderName: string;
+  recipientId: string;
+  recipientName: string;
+  emoji: string;
+  message: string;
+  createdAt: string;
+}
