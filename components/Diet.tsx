@@ -432,13 +432,39 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
       <div className={`md:col-span-2 bg-slate-50/50 rounded-2xl md:border border-slate-100 overflow-hidden flex flex-col h-full ${selectedDate ? 'flex' : viewMode === 'list' ? 'flex' : 'hidden md:flex'}`}>
 
          {/* Mobile Header for Detail View */}
-         <div className="md:hidden p-4 bg-white border-b border-slate-100 flex items-center gap-3 shrink-0">
-            <button onClick={() => { setSelectedDate(null); if (viewMode === 'list') setViewMode('calendar'); }} aria-label="뒤로 가기" className="p-2 -ml-2 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-            </button>
-            <h3 className="font-bold text-slate-800">
-                {selectedDate ? `${selectedDate} 식단` : '전체 식단 목록'}
-            </h3>
+         <div className="md:hidden bg-white border-b border-slate-100 shrink-0">
+            <div className="p-4 flex items-center gap-3">
+              <button onClick={() => { setSelectedDate(null); if (viewMode === 'list') setViewMode('calendar'); }} aria-label="뒤로 가기" className="p-2 -ml-2 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+              </button>
+              <h3 className="font-bold text-slate-800">
+                  {selectedDate ? `${selectedDate} 식단` : '전체 식단 목록'}
+              </h3>
+            </div>
+            {isStaff && (
+              <div className="px-4 pb-3 flex gap-2">
+                <select
+                  value={studentFilter}
+                  onChange={e => setStudentFilter(e.target.value)}
+                  className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-green-400 focus:ring-1 focus:ring-green-400 outline-none"
+                >
+                  <option value="all">전체 학생</option>
+                  {students.map(s => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <div className="relative flex-1">
+                  <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="검색..."
+                    className="w-full text-xs border border-slate-200 rounded-lg pl-8 pr-3 py-2 bg-white focus:border-green-400 focus:ring-1 focus:ring-green-400 outline-none"
+                  />
+                </div>
+              </div>
+            )}
          </div>
 
          {/* Feed Content */}
