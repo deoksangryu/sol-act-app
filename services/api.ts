@@ -700,7 +700,7 @@ export const auditionApi = {
     if (params?.classId) q.set('class_id', params.classId);
     if (params?.status) q.set('status', params.status);
     const qs = q.toString();
-    const data = await apiRequest<Record<string, unknown>[]>(`/api/auditions${qs ? '?' + qs : ''}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/auditions/${qs ? '?' + qs : ''}`);
     return data.map(mapAudition);
   },
   async get(id: string): Promise<CompetitionEvent> {
@@ -708,7 +708,7 @@ export const auditionApi = {
     return mapAudition(data);
   },
   async create(data: Partial<CompetitionEvent> & Record<string, unknown>): Promise<CompetitionEvent> {
-    const res = await apiRequest<Record<string, unknown>>('/api/auditions', {
+    const res = await apiRequest<Record<string, unknown>>('/api/auditions/', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
