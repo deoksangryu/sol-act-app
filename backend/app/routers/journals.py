@@ -14,6 +14,23 @@ import uuid
 router = APIRouter()
 
 
+def _normalize_media(items: list | None) -> list:
+    """Convert legacy string URLs to {url, name} objects."""
+    if not items:
+        return []
+    result = []
+    for item in items:
+        if isinstance(item, str):
+            # Legacy: extract filename from URL
+            name = item.rsplit("/", 1)[-1] if "/" in item else item
+            result.append({"url": item, "name": name})
+        elif isinstance(item, dict) and "url" in item:
+            if "name" not in item:
+                item["name"] = item["url"].rsplit("/", 1)[-1]
+            result.append(item)
+    return result
+
+
 def journal_to_response(j: LessonJournal) -> dict:
     return {
         "id": j.id,
@@ -25,7 +42,7 @@ def journal_to_response(j: LessonJournal) -> dict:
         "objectives": j.objectives,
         "next_plan": j.next_plan,
         "ai_feedback": j.ai_feedback,
-        "media_urls": j.media_urls or [],
+        "media_urls": _normalize_media(j.media_urls),
         "lesson_date": j.lesson.date if j.lesson else None,
         "created_at": j.created_at,
         "updated_at": j.updated_at,

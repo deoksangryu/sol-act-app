@@ -141,6 +141,12 @@ export interface Lesson {
   requestId?: string;
 }
 
+export interface MediaItem {
+  url: string;
+  name: string;
+  thumbnail?: string;
+}
+
 export interface LessonJournal {
   id: string;
   lessonId: string;
@@ -150,7 +156,7 @@ export interface LessonJournal {
   content: string;
   objectives?: string;
   nextPlan?: string;
-  mediaUrls?: string[];
+  mediaUrls?: MediaItem[];
   date: string;
 }
 

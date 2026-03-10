@@ -4,7 +4,7 @@ from typing import Optional
 from app.models.user import User
 from app.utils.auth import get_current_user
 from app.database import get_db
-from app.services.file_upload import save_file, is_video, compress_video_sync, UPLOAD_DIR, get_max_size
+from app.services.file_upload import save_file, is_video, compress_video_sync, extract_thumbnail, UPLOAD_DIR, get_max_size
 import logging
 
 router = APIRouter()
@@ -46,11 +46,14 @@ async def upload_file(
 
     # Start background video compression for video files
     video = is_video(filename)
+    thumbnail_url = None
     if video:
         file_path = str(UPLOAD_DIR / url.removeprefix("/uploads/"))
+        # Extract thumbnail before compression (synchronous, fast ~1s)
+        thumbnail_url = extract_thumbnail(file_path)
         background_tasks.add_task(compress_video_sync, file_path, current_user.id)
 
-    return {"url": url, "filename": filename, "is_video": video}
+    return {"url": url, "filename": filename, "is_video": video, "thumbnail_url": thumbnail_url}
 
 
 def _patch_target_file(

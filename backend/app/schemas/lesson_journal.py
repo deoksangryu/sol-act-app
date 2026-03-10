@@ -1,7 +1,12 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 from datetime import date, datetime
 from app.models.lesson_journal import JournalType
+
+
+class MediaItem(BaseModel):
+    url: str
+    name: str
 
 
 class LessonJournalCreate(BaseModel):
@@ -10,7 +15,7 @@ class LessonJournalCreate(BaseModel):
     content: str
     objectives: Optional[str] = None
     next_plan: Optional[str] = None
-    media_urls: Optional[List[str]] = None
+    media_urls: Optional[List[Any]] = None  # str or {url, name}
 
 
 class LessonJournalUpdate(BaseModel):
@@ -18,7 +23,7 @@ class LessonJournalUpdate(BaseModel):
     objectives: Optional[str] = None
     next_plan: Optional[str] = None
     ai_feedback: Optional[str] = None
-    media_urls: Optional[List[str]] = None
+    media_urls: Optional[List[Any]] = None  # str or {url, name}
 
 
 class LessonJournalResponse(BaseModel):
@@ -31,7 +36,7 @@ class LessonJournalResponse(BaseModel):
     objectives: Optional[str] = None
     next_plan: Optional[str] = None
     ai_feedback: Optional[str] = None
-    media_urls: Optional[List[str]] = None
+    media_urls: Optional[List[Any]] = None  # [{url, name}, ...]
     lesson_date: date
     created_at: datetime
     updated_at: datetime

@@ -109,6 +109,33 @@ def compress_video_sync(file_path: str, user_id: Optional[str] = None) -> None:
         _do_compress(src, user_id)
 
 
+def extract_thumbnail(video_path: str) -> Optional[str]:
+    """Extract a thumbnail from a video file at 1 second. Returns thumbnail URL or None."""
+    src = Path(video_path)
+    if not src.exists() or not check_ffmpeg():
+        return None
+
+    thumb_path = src.with_suffix(".thumb.jpg")
+    cmd = [
+        "ffmpeg", "-y", "-i", str(src),
+        "-ss", "00:00:01", "-vframes", "1",
+        "-vf", "scale=320:-2",
+        "-q:v", "5",
+        str(thumb_path),
+    ]
+    try:
+        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        if result.returncode == 0 and thumb_path.exists():
+            # Convert absolute path to URL
+            rel = str(thumb_path).replace(str(UPLOAD_DIR), "").lstrip("/")
+            return f"/uploads/{rel}"
+        thumb_path.unlink(missing_ok=True)
+    except Exception as e:
+        logger.warning(f"Thumbnail extraction failed: {e}")
+        thumb_path.unlink(missing_ok=True)
+    return None
+
+
 def _do_compress(src: Path, user_id: Optional[str]) -> None:
     """Internal: run ffmpeg and notify on completion."""
     # Output to temp file, then swap

@@ -781,7 +781,7 @@ export const uploadApi = {
     subfolder?: string,
     targetType?: string,
     targetId?: string,
-  ): Promise<{ url: string; filename: string }> & { abort: () => void } {
+  ): Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void } {
     // Client-side file size pre-validation
     const VIDEO_EXTS = ['.mp4', '.mov', '.webm'];
     const dotIdx = file.name.lastIndexOf('.');
@@ -829,7 +829,7 @@ export const uploadApi = {
       xhr.onload = () => {
         if (xhr.status >= 200 && xhr.status < 300) {
           const data = JSON.parse(xhr.responseText);
-          resolve(toCamel(data) as { url: string; filename: string });
+          resolve(toCamel(data) as { url: string; filename: string; thumbnailUrl?: string });
         } else if (xhr.status === 401) {
           clearAuth();
           if (!_sessionExpiredScheduled) {

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { User, UserRole, Lesson, LessonJournal, AttendanceRecord, ClassInfo, Subject, SUBJECT_LABELS, PrivateLessonRequest } from '../types';
+import { User, UserRole, Lesson, LessonJournal, AttendanceRecord, ClassInfo, Subject, SUBJECT_LABELS, PrivateLessonRequest, MediaItem } from '../types';
 import toast from 'react-hot-toast';
 import { lessonApi, journalApi, attendanceApi, privateLessonApi, uploadApi, API_URL, resolveFileUrl } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
@@ -50,7 +50,10 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
   const [journalContent, setJournalContent] = useState('');
   const [journalObjectives, setJournalObjectives] = useState('');
   const [journalNextPlan, setJournalNextPlan] = useState('');
-  const [journalMediaUrls, setJournalMediaUrls] = useState<string[]>([]);
+  const [journalMediaUrls, setJournalMediaUrls] = useState<MediaItem[]>([]);
+  const [pendingMediaUrl, setPendingMediaUrl] = useState<string | null>(null);
+  const [pendingMediaThumbnail, setPendingMediaThumbnail] = useState<string | undefined>(undefined);
+  const [pendingMediaName, setPendingMediaName] = useState('');
   const [isJournalUploading, setIsJournalUploading] = useState(false);
   const [journalUploadProgress, setJournalUploadProgress] = useState<number | null>(null);
   const journalFileInputRef = useRef<HTMLInputElement>(null);
@@ -345,6 +348,8 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
     setJournalObjectives(journal.objectives || '');
     setJournalNextPlan(journal.nextPlan || '');
     setJournalMediaUrls(journal.mediaUrls || []);
+    setPendingMediaUrl(null);
+    setPendingMediaName('');
   };
 
   const handleCancelEditJournal = () => {
@@ -391,8 +396,10 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
     setJournalUploadProgress(0);
     try {
       const result = await uploadApi.upload(file, (pct) => setJournalUploadProgress(pct), 'journals');
-      setJournalMediaUrls(prev => [...prev, result.url]);
-      toast.success('파일이 첨부되었습니다.');
+      // Show name input prompt
+      setPendingMediaUrl(result.url);
+      setPendingMediaThumbnail(result.thumbnailUrl || undefined);
+      setPendingMediaName(file.name.replace(/\.[^/.]+$/, '')); // Default: original filename without extension
     } catch (err) {
       console.error('Failed to upload journal media:', err);
       toast.error('파일 업로드에 실패했습니다.');
@@ -403,6 +410,18 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
         journalFileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleConfirmMediaName = () => {
+    if (!pendingMediaUrl) return;
+    const name = pendingMediaName.trim() || getFileName(pendingMediaUrl);
+    const item: MediaItem = { url: pendingMediaUrl, name };
+    if (pendingMediaThumbnail) item.thumbnail = pendingMediaThumbnail;
+    setJournalMediaUrls(prev => [...prev, item]);
+    setPendingMediaUrl(null);
+    setPendingMediaThumbnail(undefined);
+    setPendingMediaName('');
+    toast.success('파일이 첨부되었습니다.');
   };
 
   const handleRemoveJournalMedia = (index: number) => {
@@ -847,36 +866,33 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
                       {/* Media Attachments Display */}
                       {j.mediaUrls && j.mediaUrls.length > 0 && (
                         <div className="mt-3 space-y-2">
-                          {j.mediaUrls.map((url, idx) => {
-                            const mediaType = getMediaType(url);
+                          {j.mediaUrls.map((media, idx) => {
+                            const mediaType = getMediaType(media.url);
+                            const fullUrl = media.url.startsWith('/') ? API_URL + media.url : media.url;
                             if (mediaType === 'video') {
                               return (
-                                <video
-                                  key={idx}
-                                  controls
-                                  className="w-full rounded-lg mt-2"
-                                  src={API_URL + url}
-                                />
+                                <div key={idx}>
+                                  <p className="text-xs text-slate-500 mb-1 font-medium">{media.name}</p>
+                                  <video controls className="w-full rounded-lg" src={fullUrl} />
+                                </div>
                               );
                             }
                             if (mediaType === 'audio') {
                               return (
-                                <audio
-                                  key={idx}
-                                  controls
-                                  className="w-full mt-2"
-                                  src={API_URL + url}
-                                />
+                                <div key={idx}>
+                                  <p className="text-xs text-slate-500 mb-1 font-medium">{media.name}</p>
+                                  <audio controls className="w-full" src={fullUrl} />
+                                </div>
                               );
                             }
                             if (mediaType === 'image') {
                               return (
                                 <img
                                   key={idx}
-                                  src={API_URL + url}
-                                  alt="수업일지 첨부 이미지"
+                                  src={fullUrl}
+                                  alt={media.name}
                                   className="w-full rounded-lg mt-2 border border-slate-200 cursor-pointer hover:opacity-90"
-                                  onClick={() => window.open(API_URL + url, '_blank')}
+                                  onClick={() => window.open(fullUrl, '_blank')}
                                 />
                               );
                             }
@@ -884,13 +900,13 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
                             return (
                               <a
                                 key={idx}
-                                href={API_URL + url}
+                                href={fullUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="flex items-center gap-2 mt-2 px-3 py-2 bg-white border border-slate-200 rounded-lg text-xs text-slate-600 hover:bg-slate-50 hover:text-brand-500 transition-colors"
                               >
                                 <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                                <span className="truncate">{getFileName(url)}</span>
+                                <span className="truncate">{media.name}</span>
                               </a>
                             );
                           })}
@@ -989,12 +1005,37 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
                         )}
                       </button>
 
+                      {/* Media name input prompt */}
+                      {pendingMediaUrl && (
+                        <div className="flex items-center gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+                          <input
+                            value={pendingMediaName}
+                            onChange={e => setPendingMediaName(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleConfirmMediaName()}
+                            placeholder="파일 표시 이름을 입력하세요"
+                            className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-brand-400"
+                            autoFocus
+                          />
+                          <button
+                            onClick={handleConfirmMediaName}
+                            className="px-3 py-2 bg-brand-500 text-white rounded-lg text-xs font-bold hover:bg-brand-600 shrink-0"
+                          >
+                            확인
+                          </button>
+                          <button
+                            onClick={() => { setPendingMediaUrl(null); setPendingMediaName(''); }}
+                            className="px-3 py-2 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-300 shrink-0"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      )}
+
                       {/* Attached media preview chips */}
                       {journalMediaUrls.length > 0 && (
                         <div className="flex flex-wrap gap-2">
-                          {journalMediaUrls.map((url, idx) => {
-                            const mediaType = getMediaType(url);
-                            const fileName = getFileName(url);
+                          {journalMediaUrls.map((media, idx) => {
+                            const mediaType = getMediaType(media.url);
                             return (
                               <div
                                 key={idx}
@@ -1012,7 +1053,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
                                 {mediaType === 'other' && (
                                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                                 )}
-                                <span className="truncate max-w-[120px]">{fileName}</span>
+                                <span className="truncate max-w-[120px]">{media.name}</span>
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveJournalMedia(idx)}
@@ -1359,12 +1400,34 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
 
                         {journal.mediaUrls && journal.mediaUrls.length > 0 && (
                           <div className="flex gap-2 mb-3 flex-wrap">
-                            {journal.mediaUrls.map((url, idx) => {
-                              const mediaType = getMediaType(url);
+                            {journal.mediaUrls.map((media, idx) => {
+                              const mediaType = getMediaType(media.url);
+                              const fullUrl = media.url.startsWith('/') ? `${API_URL}${media.url}` : media.url;
+                              if (mediaType === 'image') {
+                                return (
+                                  <a key={idx} href={fullUrl} target="_blank" rel="noopener noreferrer">
+                                    <img src={fullUrl} alt={media.name} className="w-20 h-20 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition-opacity" />
+                                  </a>
+                                );
+                              }
+                              if (mediaType === 'video' && media.thumbnail) {
+                                const thumbUrl = media.thumbnail.startsWith('/') ? `${API_URL}${media.thumbnail}` : media.thumbnail;
+                                return (
+                                  <a key={idx} href={fullUrl} target="_blank" rel="noopener noreferrer" className="relative block">
+                                    <img src={thumbUrl} alt={media.name} className="w-20 h-20 object-cover rounded-lg border border-slate-200 hover:opacity-80 transition-opacity" />
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <div className="w-7 h-7 bg-black/50 rounded-full flex items-center justify-center">
+                                        <svg className="w-3.5 h-3.5 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                                      </div>
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-1 truncate w-20 text-center">{media.name}</p>
+                                  </a>
+                                );
+                              }
                               return (
                                 <a
                                   key={idx}
-                                  href={url.startsWith('/') ? `${API_URL}${url}` : url}
+                                  href={fullUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-600 rounded text-xs font-bold border border-blue-200 hover:bg-blue-100 transition-colors"
@@ -1372,7 +1435,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
                                   {mediaType === 'video' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2m10 7l-5-3v6l5-3z" /></svg>}
                                   {mediaType === 'audio' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M12 3v9.28c-. .64-.5 1.22-1.22 1.22-2 0-1.1-.9-2-2-2s-2 .9-2 2 .9 2 2 2v5c3.35 0 6-2.57 6-6V3h-3z" /></svg>}
                                   {mediaType === 'other' && <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8l-6-6z" /></svg>}
-                                  {getFileName(url)}
+                                  {media.name}
                                 </a>
                               );
                             })}
