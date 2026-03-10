@@ -887,7 +887,7 @@ export const praiseStickerApi = {
   create(data: { recipientId: string; emoji: string; message: string }): Promise<import('../types').PraiseSticker> {
     return apiRequest('/api/praise-stickers/', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(toSnake(data)),
     });
   },
   delete(id: string): Promise<void> {
