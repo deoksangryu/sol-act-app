@@ -38,6 +38,8 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
 
   // Evaluations
   const [evalSubjectFilter, setEvalSubjectFilter] = useState<Subject | 'all'>('all');
+  const [evalStudentFilter, setEvalStudentFilter] = useState<string>('all');
+  const [evalSearchQuery, setEvalSearchQuery] = useState('');
   const [evaluations, setEvaluations] = useState<Evaluation[]>([]);
   const [isEvalModalOpen, setIsEvalModalOpen] = useState(false);
   const [evalStudentId, setEvalStudentId] = useState('');
@@ -66,6 +68,10 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const uploadAbortRef = useRef<(() => void) | null>(null);
   const [commentText, setCommentText] = useState('');
 
+  // Portfolio filters (staff)
+  const [pfStudentFilter, setPfStudentFilter] = useState<string>('all');
+  const [pfSearchQuery, setPfSearchQuery] = useState('');
+
   // Portfolio view toggle (grid vs timeline)
   const [portfolioView, setPortfolioView] = useState<PortfolioView>('grid');
   const [practiceGroups, setPracticeGroups] = useState<{ groupName: string; items: PortfolioItem[] }[]>([]);
@@ -82,6 +88,9 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   // Evaluation edit/delete
   const [editingEval, setEditingEval] = useState<Evaluation | null>(null);
   const [deleteEvalId, setDeleteEvalId] = useState<string | null>(null);
+
+  // Event filters
+  const [eventSearchQuery, setEventSearchQuery] = useState('');
 
   // Events
   const [events, setEvents] = useState<CompetitionEvent[]>([]);
@@ -151,11 +160,27 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     return () => window.removeEventListener('beforeunload', handler);
   }, [isPfVideoUploading]);
 
-  // Load practice groups when timeline view is selected
+  // Load practice groups when timeline view is selected (respect student filter)
   useEffect(() => {
     if (portfolioView === 'timeline') {
       setPracticeGroupsLoading(true);
-      portfolioApi.listPracticeGroups(isStudent ? user.id : undefined)
+      const studentId = isStudent ? user.id : (pfStudentFilter !== 'all' ? pfStudentFilter : undefined);
+      portfolioApi.listPracticeGroups(studentId)
+        .then(groups => {
+          // Apply search filter on client side
+          if (pfSearchQuery.trim()) {
+            const q = pfSearchQuery.trim().toLowerCase();
+            return groups.map(g => ({
+              ...g,
+              items: g.items.filter((p: PortfolioItem) =>
+                p.title.toLowerCase().includes(q)
+                || p.studentName.toLowerCase().includes(q)
+                || p.tags.some((t: string) => t.toLowerCase().includes(q))
+              ),
+            })).filter(g => g.items.length > 0);
+          }
+          return groups;
+        })
         .then(groups => setPracticeGroups(groups))
         .catch(err => {
           console.error('Failed to load practice groups:', err);
@@ -163,21 +188,40 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         })
         .finally(() => setPracticeGroupsLoading(false));
     }
-  }, [portfolioView, user.id, isStudent]);
+  }, [portfolioView, user.id, isStudent, pfStudentFilter, pfSearchQuery]);
 
   const scoreLabels: Record<string, string> = {
     acting: '연기력', expression: '표현력', creativity: '창의성', teamwork: '협동심', effort: '성실도'
   };
 
-  // Filter evaluations for current user and subject
+  // Filter evaluations for current user, subject, student, and search
   const myEvaluations = (isStudent
     ? evaluations.filter(e => e.studentId === user.id)
     : evaluations
-  ).filter(e => evalSubjectFilter === 'all' || e.subject === evalSubjectFilter);
+  ).filter(e => evalSubjectFilter === 'all' || e.subject === evalSubjectFilter)
+   .filter(e => evalStudentFilter === 'all' || e.studentId === evalStudentFilter)
+   .filter(e => {
+     if (!evalSearchQuery.trim()) return true;
+     const q = evalSearchQuery.trim().toLowerCase();
+     return e.studentName.toLowerCase().includes(q)
+       || e.period.toLowerCase().includes(q)
+       || (e.comment || '').toLowerCase().includes(q)
+       || e.className.toLowerCase().includes(q);
+   });
 
-  const myPortfolios = isStudent
+  const myPortfolios = (isStudent
     ? portfolios.filter(p => p.studentId === user.id)
-    : portfolios;
+    : portfolios
+  ).filter(p => pfStudentFilter === 'all' || p.studentId === pfStudentFilter)
+   .filter(p => {
+     if (!pfSearchQuery.trim()) return true;
+     const q = pfSearchQuery.trim().toLowerCase();
+     return p.title.toLowerCase().includes(q)
+       || p.studentName.toLowerCase().includes(q)
+       || (p.description || '').toLowerCase().includes(q)
+       || p.tags.some(t => t.toLowerCase().includes(q))
+       || (PORTFOLIO_CATEGORY_LABELS[p.category] || '').toLowerCase().includes(q);
+   });
 
   const selectedPortfolio = portfolios.find(p => p.id === selectedPortfolioId);
 
@@ -518,8 +562,15 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     { id: 'competition', label: '대회·행사' },
   ];
 
-  const upcomingEvents = events.filter(e => e.status === 'upcoming' || e.status === 'ongoing');
-  const pastEvents = events.filter(e => e.status === 'completed');
+  const filteredEvents = events.filter(e => {
+    if (!eventSearchQuery.trim()) return true;
+    const q = eventSearchQuery.trim().toLowerCase();
+    return e.title.toLowerCase().includes(q)
+      || (e.location || '').toLowerCase().includes(q)
+      || (e.description || '').toLowerCase().includes(q);
+  });
+  const upcomingEvents = filteredEvents.filter(e => e.status === 'upcoming' || e.status === 'ongoing');
+  const pastEvents = filteredEvents.filter(e => e.status === 'completed');
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-slate-300 border-t-brand-400 rounded-full animate-spin"></div></div>;
@@ -555,34 +606,62 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       {/* === EVALUATION TAB === */}
       {activeTab === 'evaluation' && (
         <div className="space-y-6">
-          {isStaff && (
-            <div className="flex justify-end">
+          {/* Filters row */}
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Subject filter pills */}
+            <div className="flex gap-2 flex-wrap flex-1 min-w-0">
+              {(['all', Subject.ACTING, Subject.MUSICAL, Subject.DANCE] as const).map(s => (
+                <button
+                  key={s}
+                  onClick={() => setEvalSubjectFilter(s)}
+                  className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${
+                    evalSubjectFilter === s
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  {s === 'all' ? '전체' : SUBJECT_LABELS[s]}
+                </button>
+              ))}
+            </div>
+            {isStaff && (
               <button
                 onClick={handleOpenCreateEval}
-                className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md flex items-center gap-2"
+                className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md flex items-center gap-2 shrink-0"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 평가 작성
               </button>
+            )}
+          </div>
+
+          {/* Student filter + Search (staff only) */}
+          {isStaff && (
+            <div className="flex flex-wrap gap-3">
+              <select
+                value={evalStudentFilter}
+                onChange={e => setEvalStudentFilter(e.target.value)}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500 min-w-[140px]"
+              >
+                <option value="all">전체 학생</option>
+                {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <div className="relative flex-1 min-w-[200px]">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input
+                  value={evalSearchQuery}
+                  onChange={e => setEvalSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500"
+                  placeholder="학생, 기간, 코멘트 검색..."
+                />
+                {evalSearchQuery && (
+                  <button onClick={() => setEvalSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
+              </div>
             </div>
           )}
-
-          {/* Subject filter pills */}
-          <div className="flex gap-2 flex-wrap">
-            {(['all', Subject.ACTING, Subject.MUSICAL, Subject.DANCE] as const).map(s => (
-              <button
-                key={s}
-                onClick={() => setEvalSubjectFilter(s)}
-                className={`px-4 py-2 rounded-full text-sm font-bold transition-colors ${
-                  evalSubjectFilter === s
-                    ? 'bg-brand-500 text-white'
-                    : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                }`}
-              >
-                {s === 'all' ? '전체' : SUBJECT_LABELS[s]}
-              </button>
-            ))}
-          </div>
 
           {myEvaluations.length > 0 ? myEvaluations.map(ev => (
             <div key={ev.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
@@ -633,7 +712,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             </div>
           )) : (
             <div className="text-center py-12 text-slate-400">
-              <p className="font-medium">아직 평가 기록이 없습니다.</p>
+              <p className="font-medium">{evalSearchQuery || evalStudentFilter !== 'all' ? '검색 결과가 없습니다.' : '아직 평가 기록이 없습니다.'}</p>
             </div>
           )}
         </div>
@@ -678,6 +757,34 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
               </button>
             )}
           </div>
+
+          {/* Student filter + Search (staff only) */}
+          {isStaff && (
+            <div className="flex flex-wrap gap-3">
+              <select
+                value={pfStudentFilter}
+                onChange={e => setPfStudentFilter(e.target.value)}
+                className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500 min-w-[140px]"
+              >
+                <option value="all">전체 학생</option>
+                {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+              <div className="relative flex-1 min-w-[200px]">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                <input
+                  value={pfSearchQuery}
+                  onChange={e => setPfSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500"
+                  placeholder="제목, 학생, 태그 검색..."
+                />
+                {pfSearchQuery && (
+                  <button onClick={() => setPfSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* === Grid View (existing behavior) === */}
           {portfolioView === 'grid' && (
@@ -748,7 +855,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
 
               {myPortfolios.length === 0 && (
                 <div className="text-center py-12 text-slate-400">
-                  <p className="font-medium">아직 등록된 포트폴리오가 없습니다.</p>
+                  <p className="font-medium">{pfSearchQuery || pfStudentFilter !== 'all' ? '검색 결과가 없습니다.' : '아직 등록된 포트폴리오가 없습니다.'}</p>
                 </div>
               )}
             </>
@@ -821,17 +928,31 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       {/* === COMPETITION TAB === */}
       {activeTab === 'competition' && (
         <div className="space-y-6">
-          {isStaff && (
-            <div className="flex justify-end">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input
+                value={eventSearchQuery}
+                onChange={e => setEventSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500"
+                placeholder="행사명, 장소 검색..."
+              />
+              {eventSearchQuery && (
+                <button onClick={() => setEventSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              )}
+            </div>
+            {isStaff && (
               <button
                 onClick={handleOpenCreateEvent}
-                className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md flex items-center gap-2"
+                className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md flex items-center gap-2 shrink-0"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                 행사 등록
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Upcoming */}
           {upcomingEvents.length > 0 && (
@@ -937,9 +1058,9 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             </div>
           )}
 
-          {events.length === 0 && (
+          {filteredEvents.length === 0 && (
             <div className="text-center py-12 text-slate-400">
-              <p className="font-medium">등록된 대회/행사가 없습니다.</p>
+              <p className="font-medium">{eventSearchQuery ? '검색 결과가 없습니다.' : '등록된 대회/행사가 없습니다.'}</p>
             </div>
           )}
         </div>
