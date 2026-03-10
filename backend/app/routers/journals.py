@@ -14,7 +14,7 @@ import uuid
 router = APIRouter()
 
 
-def _normalize_media(items: list | None) -> list:
+def _normalize_media(items: Optional[list]) -> list:
     """Convert legacy string URLs to {url, name} objects."""
     if not items:
         return []
