@@ -166,20 +166,20 @@ def _do_compress(src: Path, user_id: Optional[str]) -> None:
         # Swap: delete original, rename compressed
         original_size = src.stat().st_size
         compressed_size = tmp_out.stat().st_size
+        old_suffix = src.suffix.lower()
         src.unlink()
         # Always output as .mp4
         final_path = src.with_suffix(".mp4")
         tmp_out.rename(final_path)
 
-        # If original had a different extension, the URL might differ.
-        # But since we store the original filename in the URL, we keep it as-is
-        # and handle .mp4 extension at the URL level if needed.
-        # For simplicity, if src already was .mp4, final_path == src (same name).
-        # If src was .mov/.webm, the file is now .mp4 at a slightly different path.
         logger.info(
             f"Video compressed: {original_size // 1024}KB -> {compressed_size // 1024}KB "
             f"({100 - compressed_size * 100 // max(original_size, 1)}% reduction)"
         )
+
+        # Update DB URLs if extension changed (.mov/.webm → .mp4)
+        if old_suffix != ".mp4":
+            _update_video_urls_in_db(str(src), str(final_path))
 
         # Send WS notification if user connected
         if user_id:
@@ -191,6 +191,64 @@ def _do_compress(src: Path, user_id: Optional[str]) -> None:
     except Exception as e:
         logger.error(f"compress_video error: {e}")
         tmp_out.unlink(missing_ok=True)
+
+
+def _update_video_urls_in_db(old_path: str, new_path: str) -> None:
+    """Update video_url in DB when file extension changes after compression."""
+    try:
+        from app.database import SessionLocal
+        # Convert filesystem paths to URL paths
+        old_url = "/uploads/" + old_path.split(str(UPLOAD_DIR) + "/", 1)[-1] if str(UPLOAD_DIR) in old_path else None
+        new_url = "/uploads/" + new_path.split(str(UPLOAD_DIR) + "/", 1)[-1] if str(UPLOAD_DIR) in new_path else None
+        if not old_url or not new_url:
+            return
+
+        db = SessionLocal()
+        try:
+            updated = 0
+            # Update portfolio video_url
+            from app.models.portfolio import Portfolio
+            updated += db.query(Portfolio).filter(Portfolio.video_url == old_url).update(
+                {Portfolio.video_url: new_url}
+            )
+            # Update assignment submission_file_url
+            from app.models.assignment import Assignment
+            updated += db.query(Assignment).filter(Assignment.submission_file_url == old_url).update(
+                {Assignment.submission_file_url: new_url}
+            )
+            # Update lesson_journal media_urls (JSON array of strings or {url, name} objects)
+            import json
+            from app.models.lesson_journal import LessonJournal
+            journals = db.query(LessonJournal).filter(
+                LessonJournal.media_urls.isnot(None)
+            ).all()
+            for j in journals:
+                if not j.media_urls:
+                    continue
+                changed = False
+                new_media = []
+                for item in j.media_urls:
+                    if isinstance(item, str) and item == old_url:
+                        new_media.append(new_url)
+                        changed = True
+                    elif isinstance(item, dict) and item.get("url") == old_url:
+                        new_media.append({**item, "url": new_url})
+                        changed = True
+                    else:
+                        new_media.append(item)
+                if changed:
+                    j.media_urls = new_media
+                    updated += 1
+
+            if updated:
+                db.commit()
+                logger.info(f"Updated {updated} DB record(s): {old_url} -> {new_url}")
+            else:
+                db.rollback()
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"_update_video_urls_in_db failed: {e}")
 
 
 def _notify_file_ready(user_id: str) -> None:
