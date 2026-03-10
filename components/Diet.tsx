@@ -30,8 +30,9 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // View State
-  const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
+  // View State — staff defaults to full feed
+  const isStaffUser = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
+  const [viewMode, setViewMode] = useState<'calendar' | 'list'>(isStaffUser ? 'list' : 'calendar');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -311,6 +312,145 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
     );
   }
 
+  // --- Reusable Log Card ---
+  const renderLogCard = (log: DietLog) => (
+    <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition-shadow overflow-hidden animate-fade-in-up">
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center gap-2">
+          <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
+            log.mealType === 'breakfast' ? 'bg-brand-100 text-brand-700' :
+            log.mealType === 'lunch' ? 'bg-green-100 text-green-700' :
+            log.mealType === 'dinner' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+          }`}>
+            {log.mealType === 'breakfast' ? '아침' : log.mealType === 'lunch' ? '점심' : log.mealType === 'dinner' ? '저녁' : '간식'}
+          </span>
+          {isStaff && log.studentName && (
+            <span className="text-xs font-bold text-slate-500">{log.studentName}</span>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          {!isStaff && log.studentId === user.id && (
+            <>
+              <button onClick={() => handleOpenEditModal(log)} className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">수정</button>
+              <button onClick={() => setDeleteLogId(log.id)} className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">삭제</button>
+            </>
+          )}
+          <span className="text-xs text-slate-400 ml-1">
+            {formatDateKo(log.date)} {formatTimeKo(log.date)}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex flex-col md:flex-row gap-4">
+        {log.imageUrl && (
+          <div className="shrink-0 w-full md:w-40 h-40 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
+            <img src={log.imageUrl.startsWith('/') ? `${API_URL}${log.imageUrl}` : log.imageUrl} alt="Meal" className="w-full h-full object-cover" />
+          </div>
+        )}
+        <div className="flex-1">
+          <h3 className="font-bold text-slate-800 text-lg mb-1">{log.description}</h3>
+          {log.calories && (
+            <p className="text-slate-500 font-medium text-sm mb-3">
+              약 <span className="text-slate-800 font-bold">{log.calories}</span> kcal
+            </p>
+          )}
+          {log.aiAdvice && (
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex gap-3 items-start">
+              <div className="mt-0.5 shrink-0">
+                <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              </div>
+              <p className="text-xs text-slate-600 leading-snug">{log.aiAdvice}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isStaff && (
+        <div className="mt-4 pt-4 border-t border-slate-50">
+          <div className="flex justify-end">
+            <button onClick={() => {
+              if (commentingLogId === log.id) {
+                setCommentingLogId(null);
+              } else {
+                setCommentingLogId(log.id);
+                setCommentText(log.teacherComment || '');
+              }
+            }} className="text-xs text-brand-500 font-bold hover:underline">
+              {log.teacherComment ? '코멘트 수정' : '코멘트 남기기'}
+            </button>
+          </div>
+          {log.teacherComment && commentingLogId !== log.id && (
+            <div className="mt-2 bg-blue-50 border border-blue-100 p-3 rounded-lg">
+              <p className="text-xs text-blue-600"><span className="font-bold">선생님 코멘트:</span> {log.teacherComment}</p>
+            </div>
+          )}
+          {commentingLogId === log.id && (
+            <div className="mt-2 space-y-2">
+              <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} className="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg resize-none h-16 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" placeholder="코멘트를 입력하세요..." />
+              <div className="flex gap-2 justify-end">
+                <button onClick={() => setCommentingLogId(null)} className="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">취소</button>
+                <button onClick={() => handleSaveComment(log.id)} className="text-xs px-3 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium">저장</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isStaff && log.teacherComment && (
+        <div className="mt-4 pt-4 border-t border-slate-50">
+          <div className="mt-2 bg-blue-50 border border-blue-100 p-3 rounded-lg">
+            <p className="text-xs text-blue-600"><span className="font-bold">선생님 코멘트:</span> {log.teacherComment}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  // ===== Staff Full Feed Layout =====
+  if (isStaff) {
+    return (
+      <div className="flex flex-col h-full min-h-0">
+        {/* Filter Bar */}
+        <div className="shrink-0 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 mb-4">
+          <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <select
+              value={studentFilter}
+              onChange={e => setStudentFilter(e.target.value)}
+              className="text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-green-400 focus:ring-1 focus:ring-green-400 outline-none"
+            >
+              <option value="all">전체 학생</option>
+              {students.map(s => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+            <div className="relative flex-1">
+              <svg className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="식단 내용, 학생 이름으로 검색..."
+                className="w-full text-sm border border-slate-200 rounded-lg pl-10 pr-3 py-2 bg-white focus:border-green-400 focus:ring-1 focus:ring-green-400 outline-none"
+              />
+            </div>
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap">{filteredLogs.length}건</span>
+          </div>
+        </div>
+
+        {/* Full Feed */}
+        <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
+          {filteredLogs.length > 0 ? filteredLogs.map(renderLogCard) : (
+            <div className="text-center py-16 text-slate-400">
+              <svg className="w-16 h-16 mx-auto mb-4 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+              <p className="font-medium">{searchQuery || studentFilter !== 'all' ? '검색 결과가 없습니다.' : '등록된 식단 기록이 없습니다.'}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ===== Student Calendar Layout =====
   return (
     <div className="grid md:grid-cols-3 gap-4 md:gap-6 h-full min-h-0">
 
@@ -321,15 +461,13 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
         <div className="p-4 border-b border-slate-100 bg-slate-50 flex flex-col gap-3 shrink-0">
           <div className="flex justify-between items-center">
             <h2 className="font-bold text-slate-800">식단 캘린더</h2>
-            {!isStaff && (
-                <button
-                onClick={handleOpenModal}
-                className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-green-50 hover:text-green-500 hover:border-green-200 transition-colors shadow-sm"
-                >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                <span className="font-bold">식단 기록</span>
-                </button>
-            )}
+            <button
+              onClick={handleOpenModal}
+              className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-green-50 hover:text-green-500 hover:border-green-200 transition-colors shadow-sm"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              <span className="font-bold">식단 기록</span>
+            </button>
           </div>
 
           <div className="bg-slate-200/50 p-1 rounded-xl flex text-xs font-bold">
@@ -346,32 +484,6 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
               목록 보기
             </button>
           </div>
-
-          {/* Student Filter & Search (staff only) */}
-          {isStaff && (
-            <div className="flex flex-col gap-2">
-              <select
-                value={studentFilter}
-                onChange={e => setStudentFilter(e.target.value)}
-                className="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-green-400 focus:ring-1 focus:ring-green-400 outline-none"
-              >
-                <option value="all">전체 학생</option>
-                {students.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-              <div className="relative">
-                <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="식단 검색..."
-                  className="w-full text-xs border border-slate-200 rounded-lg pl-8 pr-3 py-2 bg-white focus:border-green-400 focus:ring-1 focus:ring-green-400 outline-none"
-                />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Calendar Content */}
@@ -432,39 +544,13 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
       <div className={`md:col-span-2 bg-slate-50/50 rounded-2xl md:border border-slate-100 overflow-hidden flex flex-col h-full ${selectedDate ? 'flex' : viewMode === 'list' ? 'flex' : 'hidden md:flex'}`}>
 
          {/* Mobile Header for Detail View */}
-         <div className="md:hidden bg-white border-b border-slate-100 shrink-0">
-            <div className="p-4 flex items-center gap-3">
-              <button onClick={() => { setSelectedDate(null); if (viewMode === 'list') setViewMode('calendar'); }} aria-label="뒤로 가기" className="p-2 -ml-2 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-              </button>
-              <h3 className="font-bold text-slate-800">
-                  {selectedDate ? `${selectedDate} 식단` : '전체 식단 목록'}
-              </h3>
-            </div>
-            {isStaff && (
-              <div className="px-4 pb-3 flex gap-2">
-                <select
-                  value={studentFilter}
-                  onChange={e => setStudentFilter(e.target.value)}
-                  className="flex-1 text-xs border border-slate-200 rounded-lg px-3 py-2 bg-white focus:border-green-400 focus:ring-1 focus:ring-green-400 outline-none"
-                >
-                  <option value="all">전체 학생</option>
-                  {students.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-                <div className="relative flex-1">
-                  <svg className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    placeholder="검색..."
-                    className="w-full text-xs border border-slate-200 rounded-lg pl-8 pr-3 py-2 bg-white focus:border-green-400 focus:ring-1 focus:ring-green-400 outline-none"
-                  />
-                </div>
-              </div>
-            )}
+         <div className="md:hidden p-4 bg-white border-b border-slate-100 flex items-center gap-3 shrink-0">
+            <button onClick={() => { setSelectedDate(null); if (viewMode === 'list') setViewMode('calendar'); }} aria-label="뒤로 가기" className="p-2 -ml-2 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <h3 className="font-bold text-slate-800">
+                {selectedDate ? `${selectedDate} 식단` : '전체 식단 목록'}
+            </h3>
          </div>
 
          {/* Feed Content */}
@@ -488,103 +574,10 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                         )}
                     </div>
 
-                    {filteredLogs.length > 0 ? filteredLogs.map((log) => (
-                        <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition-shadow overflow-hidden animate-fade-in-up">
-                            <div className="flex justify-between items-start mb-3">
-                            <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
-                                log.mealType === 'breakfast' ? 'bg-brand-100 text-brand-700' :
-                                log.mealType === 'lunch' ? 'bg-green-100 text-green-700' :
-                                log.mealType === 'dinner' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-                            }`}>
-                                {log.mealType === 'breakfast' ? '아침' : log.mealType === 'lunch' ? '점심' : log.mealType === 'dinner' ? '저녁' : '간식'}
-                            </span>
-                            <div className="flex items-center gap-1">
-                              {!isStaff && log.studentId === user.id && (
-                                <>
-                                  <button onClick={() => handleOpenEditModal(log)} className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">수정</button>
-                                  <button onClick={() => setDeleteLogId(log.id)} className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">삭제</button>
-                                </>
-                              )}
-                              <span className="text-xs text-slate-400 ml-1">
-                                {formatTimeKo(log.date)}
-                              </span>
-                            </div>
-                            </div>
-
-                            <div className="flex flex-col md:flex-row gap-4">
-                                {log.imageUrl && (
-                                <div className="shrink-0 w-full md:w-32 h-32 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
-                                    <img src={log.imageUrl.startsWith('/') ? `${API_URL}${log.imageUrl}` : log.imageUrl} alt="Meal" className="w-full h-full object-cover" />
-                                </div>
-                                )}
-                                <div className="flex-1">
-                                    <h3 className="font-bold text-slate-800 text-lg mb-1">{log.description}</h3>
-
-                                    {log.calories && (
-                                        <p className="text-slate-500 font-medium text-sm mb-3">
-                                        🔥 약 <span className="text-slate-800 font-bold">{log.calories}</span> kcal
-                                        </p>
-                                    )}
-
-                                    {log.aiAdvice && (
-                                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex gap-3 items-start">
-                                        <div className="mt-0.5 shrink-0">
-                                            <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                        </div>
-                                        <p className="text-xs text-slate-600 leading-snug">{log.aiAdvice}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {isStaff && (
-                            <div className="mt-4 pt-4 border-t border-slate-50">
-                              <div className="flex justify-between items-center">
-                                <span className="text-xs font-bold text-slate-400">{log.studentName}</span>
-                                <button onClick={() => {
-                                  if (commentingLogId === log.id) {
-                                    setCommentingLogId(null);
-                                  } else {
-                                    setCommentingLogId(log.id);
-                                    setCommentText(log.teacherComment || '');
-                                  }
-                                }} className="text-xs text-brand-500 font-bold hover:underline">
-                                  {log.teacherComment ? '코멘트 수정' : '코멘트 남기기'}
-                                </button>
-                              </div>
-
-                              {/* Show existing comment */}
-                              {log.teacherComment && commentingLogId !== log.id && (
-                                <div className="mt-2 bg-blue-50 border border-blue-100 p-3 rounded-lg">
-                                  <p className="text-xs text-blue-600"><span className="font-bold">선생님 코멘트:</span> {log.teacherComment}</p>
-                                </div>
-                              )}
-
-                              {/* Inline edit */}
-                              {commentingLogId === log.id && (
-                                <div className="mt-2 space-y-2">
-                                  <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} className="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg resize-none h-16 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" placeholder="코멘트를 입력하세요..." />
-                                  <div className="flex gap-2 justify-end">
-                                    <button onClick={() => setCommentingLogId(null)} className="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">취소</button>
-                                    <button onClick={() => handleSaveComment(log.id)} className="text-xs px-3 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium">저장</button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            )}
-
-                            {!isStaff && log.teacherComment && (
-                            <div className="mt-4 pt-4 border-t border-slate-50">
-                              <div className="mt-2 bg-blue-50 border border-blue-100 p-3 rounded-lg">
-                                <p className="text-xs text-blue-600"><span className="font-bold">선생님 코멘트:</span> {log.teacherComment}</p>
-                              </div>
-                            </div>
-                            )}
-                        </div>
-                    )) : (
+                    {filteredLogs.length > 0 ? filteredLogs.map(renderLogCard) : (
                         <div className="text-center py-12 text-slate-400">
                             <p>기록된 식단이 없습니다.</p>
-                            {!isStaff && <p className="text-xs mt-1">오늘 무엇을 드셨나요? 기록해보세요!</p>}
+                            <p className="text-xs mt-1">오늘 무엇을 드셨나요? 기록해보세요!</p>
                         </div>
                     )}
                 </>
