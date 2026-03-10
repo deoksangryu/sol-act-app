@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -81,6 +82,13 @@ app.mount("/uploads", StaticFiles(directory="backend/uploads"), name="uploads")
 @app.get("/admin")
 def admin_dashboard():
     return FileResponse("static/admin.html")
+
+
+# Start background scheduler on startup
+@app.on_event("startup")
+async def startup_scheduler():
+    from app.services.scheduler import start_scheduler
+    asyncio.create_task(start_scheduler())
 
 
 # Root endpoint

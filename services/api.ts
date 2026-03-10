@@ -680,6 +680,8 @@ export const portfolioApi = {
 function mapAudition(raw: Record<string, unknown>): CompetitionEvent {
   return {
     ...(raw as unknown as CompetitionEvent),
+    registrationStart: (raw.registrationStart as string) || (raw.registration_start as string) || undefined,
+    registrationEnd: (raw.registrationEnd as string) || (raw.registration_end as string) || undefined,
     checklist: ((raw.checklists as Record<string, unknown>[]) || (raw.checklist as Record<string, unknown>[]) || []).map((c: Record<string, unknown>) => ({
       id: c.id as string,
       text: (c.content as string) || (c.text as string) || '',

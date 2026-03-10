@@ -247,6 +247,8 @@ export interface CompetitionEvent {
   status: 'upcoming' | 'ongoing' | 'completed';
   description?: string;
   creatorId: string;
+  registrationStart?: string;  // 접수 시작일 (YYYY-MM-DD)
+  registrationEnd?: string;    // 접수 마감일 (YYYY-MM-DD)
   checklist: ChecklistItem[];
   aiPrepTips?: string;
 }

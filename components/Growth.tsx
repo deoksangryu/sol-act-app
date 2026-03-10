@@ -99,6 +99,8 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [newEventDate, setNewEventDate] = useState('');
   const [newEventLocation, setNewEventLocation] = useState('');
   const [newEventDesc, setNewEventDesc] = useState('');
+  const [newEventRegStart, setNewEventRegStart] = useState('');
+  const [newEventRegEnd, setNewEventRegEnd] = useState('');
 
   // Event edit/delete
   const [editingEvent, setEditingEvent] = useState<CompetitionEvent | null>(null);
@@ -476,6 +478,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const handleOpenCreateEvent = () => {
     setEditingEvent(null);
     setNewEventTitle(''); setNewEventDate(''); setNewEventLocation(''); setNewEventDesc('');
+    setNewEventRegStart(''); setNewEventRegEnd('');
     setIsEventModalOpen(true);
   };
 
@@ -485,6 +488,8 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     setNewEventDate(ev.date);
     setNewEventLocation(ev.location || '');
     setNewEventDesc(ev.description || '');
+    setNewEventRegStart(ev.registrationStart || '');
+    setNewEventRegEnd(ev.registrationEnd || '');
     setIsEventModalOpen(true);
   };
 
@@ -497,10 +502,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         date: newEventDate,
         location: newEventLocation || '미정',
         auditionType: 'competition',
+        registrationStart: newEventRegStart || undefined,
+        registrationEnd: newEventRegEnd || undefined,
       });
       setEvents([...events, newEvent]);
       setIsEventModalOpen(false);
       setNewEventTitle(''); setNewEventDate(''); setNewEventLocation(''); setNewEventDesc('');
+      setNewEventRegStart(''); setNewEventRegEnd('');
       toast.success('대회/행사가 등록되었습니다.');
     } catch { toast.error('대회/행사 등록에 실패했습니다.'); }
   };
@@ -513,6 +521,8 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         description: newEventDesc,
         date: newEventDate,
         location: newEventLocation,
+        registrationStart: newEventRegStart || undefined,
+        registrationEnd: newEventRegEnd || undefined,
       });
       setEvents(prev => prev.map(e => e.id === editingEvent.id ? updated : e));
       setIsEventModalOpen(false);
@@ -963,6 +973,34 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                   const total = ev.checklist.length;
                   const done = ev.checklist.filter(c => c.completed).length;
                   const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+                  const daysToEvent = Math.max(0, Math.ceil((new Date(ev.date).getTime() - Date.now()) / 86400000));
+
+                  // 접수기간 상태 계산
+                  const today = new Date().toISOString().split('T')[0];
+                  const regStart = ev.registrationStart;
+                  const regEnd = ev.registrationEnd;
+                  const hasRegPeriod = regStart || regEnd;
+                  let regStatus: 'before' | 'open' | 'closed' = 'before';
+                  let daysToRegEnd = 0;
+                  let daysToRegStart = 0;
+                  if (regStart && regEnd) {
+                    if (today < regStart) {
+                      regStatus = 'before';
+                      daysToRegStart = Math.ceil((new Date(regStart).getTime() - Date.now()) / 86400000);
+                    } else if (today <= regEnd) {
+                      regStatus = 'open';
+                      daysToRegEnd = Math.ceil((new Date(regEnd).getTime() - Date.now()) / 86400000);
+                    } else {
+                      regStatus = 'closed';
+                    }
+                  } else if (regEnd) {
+                    if (today <= regEnd) {
+                      regStatus = 'open';
+                      daysToRegEnd = Math.ceil((new Date(regEnd).getTime() - Date.now()) / 86400000);
+                    } else {
+                      regStatus = 'closed';
+                    }
+                  }
 
                   return (
                     <div key={ev.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
@@ -974,6 +1012,29 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                             <span>•</span>
                             <span>{ev.location}</span>
                           </div>
+                          {/* 접수기간 표시 */}
+                          {hasRegPeriod && (
+                            <div className="mt-2 flex flex-wrap items-center gap-2">
+                              <span className="text-xs text-slate-500">
+                                접수: {regStart || '?'} ~ {regEnd || '?'}
+                              </span>
+                              {regStatus === 'before' && (
+                                <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                                  접수시작 D-{daysToRegStart}
+                                </span>
+                              )}
+                              {regStatus === 'open' && (
+                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${daysToRegEnd <= 3 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}>
+                                  {daysToRegEnd === 0 ? '오늘 마감!' : `마감 D-${daysToRegEnd}`}
+                                </span>
+                              )}
+                              {regStatus === 'closed' && (
+                                <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+                                  접수마감
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {ev.description && <p className="text-sm text-slate-500 mt-2">{ev.description}</p>}
                         </div>
                         <div className="flex items-center gap-1 shrink-0">
@@ -990,7 +1051,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                             </>
                           )}
                           <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap">
-                            D-{Math.max(0, Math.ceil((new Date(ev.date).getTime() - Date.now()) / 86400000))}
+                            D-{daysToEvent}
                           </span>
                         </div>
                       </div>
@@ -1040,7 +1101,12 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                     <div className="flex justify-between items-start">
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-slate-600">{ev.title}</h4>
-                        <p className="text-xs text-slate-400">{ev.date} • {ev.location}</p>
+                        <p className="text-xs text-slate-400">
+                          {ev.date} • {ev.location}
+                          {(ev.registrationStart || ev.registrationEnd) && (
+                            <span className="ml-2">| 접수: {ev.registrationStart || '?'} ~ {ev.registrationEnd || '?'}</span>
+                          )}
+                        </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
                         {isStaff && (
@@ -1364,8 +1430,21 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                 <input id="input-event-title" value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 한예종 실기 시험" />
               </div>
               <div>
-                <label htmlFor="input-event-date" className="block text-xs font-bold text-slate-500 mb-1">날짜 <span className="text-red-400">*</span></label>
+                <label htmlFor="input-event-date" className="block text-xs font-bold text-slate-500 mb-1">행사/시험 날짜 <span className="text-red-400">*</span></label>
                 <input id="input-event-date" type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" />
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-3">
+                <p className="text-xs font-bold text-amber-700">접수기간 (선택)</p>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label htmlFor="input-event-reg-start" className="block text-xs text-slate-500 mb-1">접수 시작</label>
+                    <input id="input-event-reg-start" type="date" value={newEventRegStart} onChange={e => setNewEventRegStart(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none focus:border-brand-500 text-sm" />
+                  </div>
+                  <div className="flex-1">
+                    <label htmlFor="input-event-reg-end" className="block text-xs text-slate-500 mb-1">접수 마감</label>
+                    <input id="input-event-reg-end" type="date" value={newEventRegEnd} onChange={e => setNewEventRegEnd(e.target.value)} className="w-full p-2.5 bg-white border border-slate-200 rounded-lg outline-none focus:border-brand-500 text-sm" />
+                  </div>
+                </div>
               </div>
               <div>
                 <label htmlFor="input-event-location" className="block text-xs font-bold text-slate-500 mb-1">장소</label>

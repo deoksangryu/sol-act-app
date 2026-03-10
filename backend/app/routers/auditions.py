@@ -28,6 +28,8 @@ def audition_to_response(a: Audition) -> dict:
         "creator_id": a.creator_id,
         "creator_name": a.creator.name if a.creator else "",
         "class_id": a.class_id,
+        "registration_start": a.registration_start,
+        "registration_end": a.registration_end,
         "checklists": [
             {
                 "id": c.id,
@@ -101,6 +103,8 @@ async def create_audition(
         audition_type=data.audition_type,
         creator_id=current_user.id,
         class_id=data.class_id,
+        registration_start=data.registration_start,
+        registration_end=data.registration_end,
     )
     db.add(audition)
     db.commit()

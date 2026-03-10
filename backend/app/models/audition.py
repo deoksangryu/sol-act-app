@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Integer, DateTime, Boolean, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, Integer, DateTime, Date, Boolean, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
@@ -30,6 +30,9 @@ class Audition(Base):
     status = Column(SQLEnum(AuditionStatus), default=AuditionStatus.UPCOMING, nullable=False)
     creator_id = Column(String, ForeignKey("users.id"), nullable=False)
     class_id = Column(String, ForeignKey("classes.id"), nullable=True)  # Shared with class
+    # 접수기간 (원서접수 시작/종료일)
+    registration_start = Column(Date, nullable=True)
+    registration_end = Column(Date, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

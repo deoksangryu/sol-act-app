@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional, List
-from datetime import datetime
+from datetime import datetime, date
 from app.models.audition import AuditionType, AuditionStatus
 
 
@@ -11,6 +11,8 @@ class AuditionCreate(BaseModel):
     location: Optional[str] = None
     audition_type: AuditionType
     class_id: Optional[str] = None
+    registration_start: Optional[date] = None
+    registration_end: Optional[date] = None
 
 
 class AuditionUpdate(BaseModel):
@@ -20,6 +22,8 @@ class AuditionUpdate(BaseModel):
     location: Optional[str] = None
     status: Optional[AuditionStatus] = None
     audition_type: Optional[AuditionType] = None
+    registration_start: Optional[date] = None
+    registration_end: Optional[date] = None
 
 
 class ChecklistCreate(BaseModel):
@@ -54,6 +58,8 @@ class AuditionResponse(BaseModel):
     creator_id: str
     creator_name: str
     class_id: Optional[str] = None
+    registration_start: Optional[date] = None
+    registration_end: Optional[date] = None
     checklists: List[ChecklistResponse] = []
     created_at: datetime
 
