@@ -39,8 +39,11 @@ def list_stickers(
 
     if current_user.role == UserRole.STUDENT:
         query = query.filter(PraiseSticker.recipient_id == current_user.id)
-    elif recipient_id:
-        query = query.filter(PraiseSticker.recipient_id == recipient_id)
+    else:
+        # Staff sees only their own sent stickers
+        query = query.filter(PraiseSticker.sender_id == current_user.id)
+        if recipient_id:
+            query = query.filter(PraiseSticker.recipient_id == recipient_id)
 
     stickers = query.order_by(PraiseSticker.created_at.desc()).offset(skip).limit(limit).all()
     return [_to_response(s) for s in stickers]
