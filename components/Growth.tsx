@@ -91,6 +91,9 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
 
   // Event filters
   const [eventSearchQuery, setEventSearchQuery] = useState('');
+  const [eventViewMode, setEventViewMode] = useState<'calendar' | 'list'>('calendar');
+  const [eventCalDate, setEventCalDate] = useState(new Date());
+  const [eventSelectedDate, setEventSelectedDate] = useState<string | null>(null);
 
   // Events
   const [events, setEvents] = useState<CompetitionEvent[]>([]);
@@ -582,6 +585,99 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const upcomingEvents = filteredEvents.filter(e => e.status === 'upcoming' || e.status === 'ongoing');
   const pastEvents = filteredEvents.filter(e => e.status === 'completed');
 
+  // --- Event Calendar Logic ---
+  const eventCalYear = eventCalDate.getFullYear();
+  const eventCalMonth = eventCalDate.getMonth();
+  const eventCalDaysInMonth = new Date(eventCalYear, eventCalMonth + 1, 0).getDate();
+  const eventCalFirstDay = new Date(eventCalYear, eventCalMonth, 1).getDay();
+
+  const handleEventPrevMonth = () => setEventCalDate(new Date(eventCalYear, eventCalMonth - 1, 1));
+  const handleEventNextMonth = () => setEventCalDate(new Date(eventCalYear, eventCalMonth + 1, 1));
+  const handleEventToday = () => {
+    const t = new Date();
+    setEventCalDate(t);
+    setEventSelectedDate(t.toISOString().split('T')[0]);
+  };
+
+  // Build a map of dateStr -> event info for the calendar
+  const eventDateMap = (() => {
+    const map: Record<string, { events: CompetitionEvent[]; regOpen: boolean; regEnding: boolean; eventDay: boolean }> = {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    for (const ev of events) {
+      // Mark the event date
+      const evDateStr = ev.date?.split('T')[0];
+      if (evDateStr) {
+        if (!map[evDateStr]) map[evDateStr] = { events: [], regOpen: false, regEnding: false, eventDay: true };
+        else map[evDateStr].eventDay = true;
+        map[evDateStr].events.push(ev);
+      }
+      // Mark registration period dates
+      if (ev.registrationStart && ev.registrationEnd) {
+        const start = new Date(ev.registrationStart);
+        const end = new Date(ev.registrationEnd);
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          const ds = d.toISOString().split('T')[0];
+          if (!map[ds]) map[ds] = { events: [], regOpen: true, regEnding: false, eventDay: false };
+          else map[ds].regOpen = true;
+          if (!map[ds].events.includes(ev)) map[ds].events.push(ev);
+          // Mark last 3 days as "ending"
+          const daysLeft = Math.ceil((end.getTime() - d.getTime()) / 86400000);
+          if (daysLeft <= 3) map[ds].regEnding = true;
+        }
+      }
+    }
+    return map;
+  })();
+
+  // Events for the selected calendar date
+  const selectedDateEvents = eventSelectedDate ? (eventDateMap[eventSelectedDate]?.events || []) : [];
+
+  const renderEventCalendarDays = () => {
+    const days = [];
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    for (let i = 0; i < eventCalFirstDay; i++) {
+      days.push(<div key={`empty-${i}`} className="h-16 md:h-20 bg-slate-50/30 border border-slate-50"></div>);
+    }
+
+    for (let d = 1; d <= eventCalDaysInMonth; d++) {
+      const dateStr = `${eventCalYear}-${String(eventCalMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      const info = eventDateMap[dateStr];
+      const isSelected = eventSelectedDate === dateStr;
+      const isToday = dateStr === todayStr;
+
+      days.push(
+        <div
+          key={d}
+          onClick={() => setEventSelectedDate(dateStr === eventSelectedDate ? null : dateStr)}
+          className={`h-16 md:h-20 border border-slate-50 p-1 relative cursor-pointer transition-colors hover:bg-slate-50 ${isSelected ? 'bg-brand-50 ring-1 ring-brand-200 z-10' : info?.regOpen ? (info.regEnding ? 'bg-red-50/40' : 'bg-green-50/40') : 'bg-white'}`}
+        >
+          <div className={`text-xs font-bold mb-1 ${isToday ? 'text-white bg-brand-500 w-6 h-6 rounded-full flex items-center justify-center' : isSelected ? 'text-brand-600' : 'text-slate-700'}`}>
+            {d}
+          </div>
+          <div className="flex flex-wrap gap-0.5 content-start">
+            {info?.eventDay && (
+              <div className="w-2 h-2 rounded-full bg-brand-500" title="행사일" />
+            )}
+            {info?.regOpen && !info?.eventDay && (
+              <div className={`w-2 h-2 rounded-full ${info.regEnding ? 'bg-red-400' : 'bg-green-400'}`} title="접수기간" />
+            )}
+            {info?.regOpen && info?.eventDay && (
+              <div className={`w-2 h-2 rounded-full ${info.regEnding ? 'bg-red-400' : 'bg-green-400'}`} title="접수기간" />
+            )}
+          </div>
+          {/* Show event count on larger screens */}
+          {info && info.events.length > 0 && (
+            <div className="hidden md:block text-[10px] text-slate-500 truncate mt-0.5 leading-tight">
+              {info.events[0].title.slice(0, 6)}{info.events.length > 1 ? ` +${info.events.length - 1}` : ''}
+            </div>
+          )}
+        </div>
+      );
+    }
+    return days;
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="w-6 h-6 border-2 border-slate-300 border-t-brand-400 rounded-full animate-spin"></div></div>;
   }
@@ -937,9 +1033,10 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
 
       {/* === COMPETITION TAB === */}
       {activeTab === 'competition' && (
-        <div className="space-y-6">
+        <div className="space-y-4">
+          {/* Header: search + view toggle + add */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 min-w-[200px]">
+            <div className="relative flex-1 min-w-[160px]">
               <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
               <input
                 value={eventSearchQuery}
@@ -953,6 +1050,14 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                 </button>
               )}
             </div>
+            <div className="flex bg-slate-100 rounded-lg p-0.5 shrink-0">
+              <button onClick={() => setEventViewMode('calendar')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${eventViewMode === 'calendar' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500'}`}>
+                달력
+              </button>
+              <button onClick={() => setEventViewMode('list')} className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${eventViewMode === 'list' ? 'bg-white text-brand-600 shadow-sm' : 'text-slate-500'}`}>
+                목록
+              </button>
+            </div>
             {isStaff && (
               <button
                 onClick={handleOpenCreateEvent}
@@ -964,169 +1069,219 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             )}
           </div>
 
-          {/* Upcoming */}
-          {upcomingEvents.length > 0 && (
-            <div>
-              <h3 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-3">다가오는 대회·행사</h3>
-              <div className="space-y-4">
-                {upcomingEvents.map(ev => {
-                  const total = ev.checklist.length;
-                  const done = ev.checklist.filter(c => c.completed).length;
-                  const progress = total > 0 ? Math.round((done / total) * 100) : 0;
-                  const daysToEvent = Math.max(0, Math.ceil((new Date(ev.date).getTime() - Date.now()) / 86400000));
-
-                  // 접수기간 상태 계산
-                  const today = new Date().toISOString().split('T')[0];
-                  const regStart = ev.registrationStart;
-                  const regEnd = ev.registrationEnd;
-                  const hasRegPeriod = regStart || regEnd;
-                  let regStatus: 'before' | 'open' | 'closed' = 'before';
-                  let daysToRegEnd = 0;
-                  let daysToRegStart = 0;
-                  if (regStart && regEnd) {
-                    if (today < regStart) {
-                      regStatus = 'before';
-                      daysToRegStart = Math.ceil((new Date(regStart).getTime() - Date.now()) / 86400000);
-                    } else if (today <= regEnd) {
-                      regStatus = 'open';
-                      daysToRegEnd = Math.ceil((new Date(regEnd).getTime() - Date.now()) / 86400000);
-                    } else {
-                      regStatus = 'closed';
-                    }
-                  } else if (regEnd) {
-                    if (today <= regEnd) {
-                      regStatus = 'open';
-                      daysToRegEnd = Math.ceil((new Date(regEnd).getTime() - Date.now()) / 86400000);
-                    } else {
-                      regStatus = 'closed';
-                    }
-                  }
-
-                  return (
-                    <div key={ev.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-bold text-lg text-slate-800">{ev.title}</h4>
-                          <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
-                            <span>{ev.date}</span>
-                            <span>•</span>
-                            <span>{ev.location}</span>
-                          </div>
-                          {/* 접수기간 표시 */}
-                          {hasRegPeriod && (
-                            <div className="mt-2 flex flex-wrap items-center gap-2">
-                              <span className="text-xs text-slate-500">
-                                접수: {regStart || '?'} ~ {regEnd || '?'}
-                              </span>
-                              {regStatus === 'before' && (
-                                <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                                  접수시작 D-{daysToRegStart}
-                                </span>
-                              )}
-                              {regStatus === 'open' && (
-                                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${daysToRegEnd <= 3 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}>
-                                  {daysToRegEnd === 0 ? '오늘 마감!' : `마감 D-${daysToRegEnd}`}
-                                </span>
-                              )}
-                              {regStatus === 'closed' && (
-                                <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
-                                  접수마감
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {ev.description && <p className="text-sm text-slate-500 mt-2">{ev.description}</p>}
-                        </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {isStaff && (
-                            <>
-                              <button
-                                onClick={() => handleOpenEditEvent(ev)}
-                                className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
-                              >수정</button>
-                              <button
-                                onClick={() => setDeleteEventId(ev.id)}
-                                className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
-                              >삭제</button>
-                            </>
-                          )}
-                          <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap">
-                            D-{daysToEvent}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Progress */}
-                      {total > 0 && (
-                        <div className="mb-4">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-bold text-slate-500">준비 현황</span>
-                            <span className="text-xs text-slate-400">{done}/{total} ({progress}%)</span>
-                          </div>
-                          <div className="w-full bg-slate-100 rounded-full h-2">
-                            <div className="h-full bg-gradient-to-r from-brand-400 to-brand-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Checklist */}
-                      <div className="space-y-2">
-                        {ev.checklist.map(item => (
-                          <label key={item.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
-                            <input
-                              type="checkbox"
-                              checked={item.completed}
-                              onChange={() => handleToggleChecklist(ev.id, item.id)}
-                              className="w-4 h-4 text-brand-500 rounded focus:ring-brand-500 border-gray-300"
-                            />
-                            <span className={`text-sm ${item.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>{item.text}</span>
-                          </label>
-                        ))}
-                        <AddChecklistInput onAdd={(text) => handleAddChecklistItem(ev.id, text)} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          {/* Calendar Legend */}
+          {eventViewMode === 'calendar' && (
+            <div className="flex items-center gap-4 text-xs text-slate-500 px-1">
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-brand-500 inline-block" /> 행사일</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-400 inline-block" /> 접수기간</span>
+              <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-400 inline-block" /> 마감임박</span>
             </div>
           )}
 
-          {/* Past */}
-          {pastEvents.length > 0 && (
-            <div>
-              <h3 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-3">지난 대회·행사</h3>
-              <div className="space-y-3">
-                {pastEvents.map(ev => (
-                  <div key={ev.id} className="bg-slate-50 rounded-xl border border-slate-100 p-4">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-slate-600">{ev.title}</h4>
-                        <p className="text-xs text-slate-400">
-                          {ev.date} • {ev.location}
-                          {(ev.registrationStart || ev.registrationEnd) && (
-                            <span className="ml-2">| 접수: {ev.registrationStart || '?'} ~ {ev.registrationEnd || '?'}</span>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        {isStaff && (
-                          <button
-                            onClick={() => setDeleteEventId(ev.id)}
-                            className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center"
-                          >삭제</button>
-                        )}
-                        <span className="bg-green-100 text-green-600 text-xs font-bold px-2 py-1 rounded-full">완료</span>
-                      </div>
-                    </div>
-                  </div>
+          {/* Calendar View */}
+          {eventViewMode === 'calendar' && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              {/* Month navigation */}
+              <div className="flex items-center justify-between p-3 border-b border-slate-100">
+                <button onClick={handleEventPrevMonth} className="p-2 hover:bg-slate-50 rounded-lg text-slate-500">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-slate-800">{eventCalYear}년 {eventCalMonth + 1}월</h3>
+                  <button onClick={handleEventToday} className="text-xs text-brand-500 hover:text-brand-600 font-bold px-2 py-0.5 rounded bg-brand-50">오늘</button>
+                </div>
+                <button onClick={handleEventNextMonth} className="p-2 hover:bg-slate-50 rounded-lg text-slate-500">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                </button>
+              </div>
+              {/* Day headers */}
+              <div className="grid grid-cols-7">
+                {['일','월','화','수','목','금','토'].map(day => (
+                  <div key={day} className="text-center text-xs font-bold text-slate-400 py-2 border-b border-slate-50">{day}</div>
                 ))}
               </div>
+              {/* Calendar grid */}
+              <div className="grid grid-cols-7">
+                {renderEventCalendarDays()}
+              </div>
             </div>
           )}
 
-          {filteredEvents.length === 0 && (
+          {/* Selected date events (calendar mode) */}
+          {eventViewMode === 'calendar' && eventSelectedDate && (
+            <div>
+              <h3 className="font-bold text-sm text-slate-500 mb-3">{eventSelectedDate} 일정</h3>
+              {selectedDateEvents.length > 0 ? (
+                <div className="space-y-3">
+                  {selectedDateEvents.map(ev => {
+                    const evDateStr = ev.date?.split('T')[0];
+                    const isEventDay = evDateStr === eventSelectedDate;
+                    const isRegDay = ev.registrationStart && ev.registrationEnd && eventSelectedDate >= ev.registrationStart && eventSelectedDate <= ev.registrationEnd;
+                    return (
+                      <div key={ev.id} className="bg-white rounded-xl shadow-sm border border-slate-100 p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-slate-800">{ev.title}</h4>
+                            <div className="flex flex-wrap items-center gap-2 mt-1 text-xs text-slate-400">
+                              <span>{ev.location}</span>
+                              {isEventDay && <span className="text-brand-600 bg-brand-50 px-1.5 py-0.5 rounded font-bold">행사일</span>}
+                              {isRegDay && <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded font-bold">접수기간</span>}
+                            </div>
+                            {(ev.registrationStart || ev.registrationEnd) && (
+                              <p className="text-xs text-slate-500 mt-1">접수: {ev.registrationStart || '?'} ~ {ev.registrationEnd || '?'}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isStaff && (
+                              <>
+                                <button onClick={() => handleOpenEditEvent(ev)} className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">수정</button>
+                                <button onClick={() => setDeleteEventId(ev.id)} className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">삭제</button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 text-center py-4">이 날짜에 등록된 일정이 없습니다.</p>
+              )}
+            </div>
+          )}
+
+          {/* List View */}
+          {eventViewMode === 'list' && (
+            <div className="space-y-6">
+              {/* Upcoming */}
+              {upcomingEvents.length > 0 && (
+                <div>
+                  <h3 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-3">다가오는 대회·행사</h3>
+                  <div className="space-y-4">
+                    {upcomingEvents.map(ev => {
+                      const total = ev.checklist.length;
+                      const done = ev.checklist.filter(c => c.completed).length;
+                      const progress = total > 0 ? Math.round((done / total) * 100) : 0;
+                      const daysToEvent = Math.max(0, Math.ceil((new Date(ev.date).getTime() - Date.now()) / 86400000));
+
+                      // 접수기간 상태 계산
+                      const today = new Date().toISOString().split('T')[0];
+                      const regStart = ev.registrationStart;
+                      const regEnd = ev.registrationEnd;
+                      const hasRegPeriod = regStart || regEnd;
+                      let regStatus: 'before' | 'open' | 'closed' = 'before';
+                      let daysToRegEnd = 0;
+                      let daysToRegStart = 0;
+                      if (regStart && regEnd) {
+                        if (today < regStart) { regStatus = 'before'; daysToRegStart = Math.ceil((new Date(regStart).getTime() - Date.now()) / 86400000); }
+                        else if (today <= regEnd) { regStatus = 'open'; daysToRegEnd = Math.ceil((new Date(regEnd).getTime() - Date.now()) / 86400000); }
+                        else { regStatus = 'closed'; }
+                      } else if (regEnd) {
+                        if (today <= regEnd) { regStatus = 'open'; daysToRegEnd = Math.ceil((new Date(regEnd).getTime() - Date.now()) / 86400000); }
+                        else { regStatus = 'closed'; }
+                      }
+
+                      return (
+                        <div key={ev.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                          <div className="flex justify-between items-start mb-3">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-bold text-lg text-slate-800">{ev.title}</h4>
+                              <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                                <span>{ev.date}</span>
+                                <span>•</span>
+                                <span>{ev.location}</span>
+                              </div>
+                              {hasRegPeriod && (
+                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                  <span className="text-xs text-slate-500">접수: {regStart || '?'} ~ {regEnd || '?'}</span>
+                                  {regStatus === 'before' && <span className="text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">접수시작 D-{daysToRegStart}</span>}
+                                  {regStatus === 'open' && <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${daysToRegEnd <= 3 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50'}`}>{daysToRegEnd === 0 ? '오늘 마감!' : `마감 D-${daysToRegEnd}`}</span>}
+                                  {regStatus === 'closed' && <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">접수마감</span>}
+                                </div>
+                              )}
+                              {ev.description && <p className="text-sm text-slate-500 mt-2">{ev.description}</p>}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              {isStaff && (
+                                <>
+                                  <button onClick={() => handleOpenEditEvent(ev)} className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">수정</button>
+                                  <button onClick={() => setDeleteEventId(ev.id)} className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">삭제</button>
+                                </>
+                              )}
+                              <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-1 rounded-full whitespace-nowrap">D-{daysToEvent}</span>
+                            </div>
+                          </div>
+
+                          {total > 0 && (
+                            <div className="mb-4">
+                              <div className="flex justify-between items-center mb-1">
+                                <span className="text-xs font-bold text-slate-500">준비 현황</span>
+                                <span className="text-xs text-slate-400">{done}/{total} ({progress}%)</span>
+                              </div>
+                              <div className="w-full bg-slate-100 rounded-full h-2">
+                                <div className="h-full bg-gradient-to-r from-brand-400 to-brand-500 rounded-full transition-all" style={{ width: `${progress}%` }} />
+                              </div>
+                            </div>
+                          )}
+
+                          <div className="space-y-2">
+                            {ev.checklist.map(item => (
+                              <label key={item.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-colors">
+                                <input type="checkbox" checked={item.completed} onChange={() => handleToggleChecklist(ev.id, item.id)} className="w-4 h-4 text-brand-500 rounded focus:ring-brand-500 border-gray-300" />
+                                <span className={`text-sm ${item.completed ? 'line-through text-slate-400' : 'text-slate-700'}`}>{item.text}</span>
+                              </label>
+                            ))}
+                            <AddChecklistInput onAdd={(text) => handleAddChecklistItem(ev.id, text)} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Past */}
+              {pastEvents.length > 0 && (
+                <div>
+                  <h3 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-3">지난 대회·행사</h3>
+                  <div className="space-y-3">
+                    {pastEvents.map(ev => (
+                      <div key={ev.id} className="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-slate-600">{ev.title}</h4>
+                            <p className="text-xs text-slate-400">
+                              {ev.date} • {ev.location}
+                              {(ev.registrationStart || ev.registrationEnd) && (
+                                <span className="ml-2">| 접수: {ev.registrationStart || '?'} ~ {ev.registrationEnd || '?'}</span>
+                              )}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {isStaff && (
+                              <button onClick={() => setDeleteEventId(ev.id)} className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">삭제</button>
+                            )}
+                            <span className="bg-green-100 text-green-600 text-xs font-bold px-2 py-1 rounded-full">완료</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {filteredEvents.length === 0 && (
+                <div className="text-center py-12 text-slate-400">
+                  <p className="font-medium">{eventSearchQuery ? '검색 결과가 없습니다.' : '등록된 대회/행사가 없습니다.'}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Calendar mode: no events at all */}
+          {eventViewMode === 'calendar' && !eventSelectedDate && events.length === 0 && (
             <div className="text-center py-12 text-slate-400">
-              <p className="font-medium">{eventSearchQuery ? '검색 결과가 없습니다.' : '등록된 대회/행사가 없습니다.'}</p>
+              <p className="font-medium">등록된 대회/행사가 없습니다.</p>
             </div>
           )}
         </div>
