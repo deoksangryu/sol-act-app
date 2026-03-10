@@ -52,6 +52,9 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   const [editingLog, setEditingLog] = useState<DietLog | null>(null);
   const [deleteLogId, setDeleteLogId] = useState<string | null>(null);
 
+  // Detail View State
+  const [detailLog, setDetailLog] = useState<DietLog | null>(null);
+
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
 
   // Student filter & search (staff only)
@@ -312,97 +315,151 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
     );
   }
 
-  // --- Reusable Log Card ---
+  // --- Reusable Log Card (compact, clickable) ---
   const renderLogCard = (log: DietLog) => (
-    <div key={log.id} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-md transition-shadow overflow-hidden animate-fade-in-up">
-      <div className="flex justify-between items-start mb-3">
-        <div className="flex items-center gap-2">
-          <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
-            log.mealType === 'breakfast' ? 'bg-brand-100 text-brand-700' :
-            log.mealType === 'lunch' ? 'bg-green-100 text-green-700' :
-            log.mealType === 'dinner' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
-          }`}>
-            {log.mealType === 'breakfast' ? '아침' : log.mealType === 'lunch' ? '점심' : log.mealType === 'dinner' ? '저녁' : '간식'}
-          </span>
-          {isStaff && log.studentName && (
-            <span className="text-xs font-bold text-slate-500">{log.studentName}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1">
-          {!isStaff && log.studentId === user.id && (
-            <>
-              <button onClick={() => handleOpenEditModal(log)} className="text-xs text-slate-400 hover:text-brand-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">수정</button>
-              <button onClick={() => setDeleteLogId(log.id)} className="text-xs text-slate-400 hover:text-red-500 font-medium min-w-[44px] min-h-[44px] flex items-center justify-center">삭제</button>
-            </>
-          )}
-          <span className="text-xs text-slate-400 ml-1">
-            {formatDateKo(log.date)} {formatTimeKo(log.date)}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex flex-col md:flex-row gap-4">
-        {log.imageUrl && (
-          <div className="shrink-0 w-full md:w-40 h-40 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
+    <div
+      key={log.id}
+      onClick={() => setDetailLog(log)}
+      className="bg-white rounded-2xl shadow-sm border border-slate-100 p-4 hover:shadow-md transition-shadow overflow-hidden animate-fade-in-up cursor-pointer active:scale-[0.99]"
+    >
+      <div className="flex gap-4">
+        {log.imageUrl ? (
+          <div className="shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
             <img src={log.imageUrl.startsWith('/') ? `${API_URL}${log.imageUrl}` : log.imageUrl} alt="Meal" className="w-full h-full object-cover" />
           </div>
+        ) : (
+          <div className="shrink-0 w-20 h-20 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
+            <svg className="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          </div>
         )}
-        <div className="flex-1">
-          <h3 className="font-bold text-slate-800 text-lg mb-1">{log.description}</h3>
-          {log.calories && (
-            <p className="text-slate-500 font-medium text-sm mb-3">
-              약 <span className="text-slate-800 font-bold">{log.calories}</span> kcal
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${
+              log.mealType === 'breakfast' ? 'bg-brand-100 text-brand-700' :
+              log.mealType === 'lunch' ? 'bg-green-100 text-green-700' :
+              log.mealType === 'dinner' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+            }`}>
+              {log.mealType === 'breakfast' ? '아침' : log.mealType === 'lunch' ? '점심' : log.mealType === 'dinner' ? '저녁' : '간식'}
+            </span>
+            {isStaff && log.studentName && (
+              <span className="text-xs font-bold text-slate-600">{log.studentName}</span>
+            )}
+          </div>
+          <p className="text-sm font-bold text-slate-800 line-clamp-1">{log.description}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-slate-400">{formatDateKo(log.date)} {formatTimeKo(log.date)}</span>
+            {log.calories && <span className="text-xs text-slate-400">· {log.calories} kcal</span>}
+          </div>
+          {log.teacherComment && (
+            <p className="text-xs text-blue-500 mt-1 line-clamp-1">코멘트: {log.teacherComment}</p>
+          )}
+        </div>
+        <div className="shrink-0 flex items-center text-slate-300">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+        </div>
+      </div>
+    </div>
+  );
+
+  // --- Detail Modal (shared by staff & student) ---
+  const renderDetailModal = () => detailLog && (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setDetailLog(null)}>
+      <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-lg shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        {/* Close button */}
+        <button
+          onClick={() => setDetailLog(null)}
+          aria-label="닫기"
+          className="absolute top-4 right-4 z-10 bg-white/80 backdrop-blur-sm rounded-full p-2 text-slate-400 hover:text-slate-600 shadow-sm"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+        </button>
+
+        {/* Image */}
+        {detailLog.imageUrl ? (
+          <div className="w-full h-64 md:h-80 bg-slate-100">
+            <img src={detailLog.imageUrl.startsWith('/') ? `${API_URL}${detailLog.imageUrl}` : detailLog.imageUrl} alt="Meal" className="w-full h-full object-cover" />
+          </div>
+        ) : (
+          <div className="w-full h-32 bg-slate-50 flex items-center justify-center">
+            <svg className="w-12 h-12 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          </div>
+        )}
+
+        {/* Content */}
+        <div className="p-5 md:p-6">
+          {/* Header */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${
+              detailLog.mealType === 'breakfast' ? 'bg-brand-100 text-brand-700' :
+              detailLog.mealType === 'lunch' ? 'bg-green-100 text-green-700' :
+              detailLog.mealType === 'dinner' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+            }`}>
+              {detailLog.mealType === 'breakfast' ? '아침' : detailLog.mealType === 'lunch' ? '점심' : detailLog.mealType === 'dinner' ? '저녁' : '간식'}
+            </span>
+            {isStaff && detailLog.studentName && (
+              <span className="text-sm font-bold text-slate-700">{detailLog.studentName}</span>
+            )}
+            <span className="text-xs text-slate-400 ml-auto">{formatDateKo(detailLog.date)} {formatTimeKo(detailLog.date)}</span>
+          </div>
+
+          <h3 className="text-xl font-bold text-slate-800 mb-3">{detailLog.description}</h3>
+
+          {detailLog.calories && (
+            <p className="text-slate-500 font-medium text-sm mb-4">
+              약 <span className="text-slate-800 font-bold text-lg">{detailLog.calories}</span> kcal
             </p>
           )}
-          {log.aiAdvice && (
-            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 flex gap-3 items-start">
+
+          {detailLog.aiAdvice && (
+            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 flex gap-3 items-start mb-4">
               <div className="mt-0.5 shrink-0">
                 <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
               </div>
-              <p className="text-xs text-slate-600 leading-snug">{log.aiAdvice}</p>
+              <p className="text-sm text-slate-600 leading-relaxed">{detailLog.aiAdvice}</p>
             </div>
           )}
-        </div>
-      </div>
 
-      {isStaff && (
-        <div className="mt-4 pt-4 border-t border-slate-50">
-          <div className="flex justify-end">
-            <button onClick={() => {
-              if (commentingLogId === log.id) {
-                setCommentingLogId(null);
-              } else {
-                setCommentingLogId(log.id);
-                setCommentText(log.teacherComment || '');
-              }
-            }} className="text-xs text-brand-500 font-bold hover:underline">
-              {log.teacherComment ? '코멘트 수정' : '코멘트 남기기'}
-            </button>
-          </div>
-          {log.teacherComment && commentingLogId !== log.id && (
-            <div className="mt-2 bg-blue-50 border border-blue-100 p-3 rounded-lg">
-              <p className="text-xs text-blue-600"><span className="font-bold">선생님 코멘트:</span> {log.teacherComment}</p>
+          {/* Teacher Comment Section */}
+          {isStaff && (
+            <div className="border-t border-slate-100 pt-4">
+              {commentingLogId === detailLog.id ? (
+                <div className="space-y-2">
+                  <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} className="w-full p-3 text-sm bg-slate-50 border border-slate-200 rounded-lg resize-none h-20 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" placeholder="코멘트를 입력하세요..." />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setCommentingLogId(null)} className="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">취소</button>
+                    <button onClick={() => {
+                      handleSaveComment(detailLog.id);
+                      setDetailLog({ ...detailLog, teacherComment: commentText });
+                    }} className="text-xs px-3 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium">저장</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {detailLog.teacherComment && (
+                    <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg mb-3">
+                      <p className="text-sm text-blue-600"><span className="font-bold">선생님 코멘트:</span> {detailLog.teacherComment}</p>
+                    </div>
+                  )}
+                  <button onClick={() => {
+                    setCommentingLogId(detailLog.id);
+                    setCommentText(detailLog.teacherComment || '');
+                  }} className="text-sm text-brand-500 font-bold hover:underline">
+                    {detailLog.teacherComment ? '코멘트 수정' : '코멘트 남기기'}
+                  </button>
+                </>
+              )}
             </div>
           )}
-          {commentingLogId === log.id && (
-            <div className="mt-2 space-y-2">
-              <textarea value={commentText} onChange={(e) => setCommentText(e.target.value)} className="w-full p-2 text-sm bg-slate-50 border border-slate-200 rounded-lg resize-none h-16 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none" placeholder="코멘트를 입력하세요..." />
-              <div className="flex gap-2 justify-end">
-                <button onClick={() => setCommentingLogId(null)} className="text-xs px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">취소</button>
-                <button onClick={() => handleSaveComment(log.id)} className="text-xs px-3 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors font-medium">저장</button>
+
+          {!isStaff && detailLog.teacherComment && (
+            <div className="border-t border-slate-100 pt-4">
+              <div className="bg-blue-50 border border-blue-100 p-3 rounded-lg">
+                <p className="text-sm text-blue-600"><span className="font-bold">선생님 코멘트:</span> {detailLog.teacherComment}</p>
               </div>
             </div>
           )}
         </div>
-      )}
-
-      {!isStaff && log.teacherComment && (
-        <div className="mt-4 pt-4 border-t border-slate-50">
-          <div className="mt-2 bg-blue-50 border border-blue-100 p-3 rounded-lg">
-            <p className="text-xs text-blue-600"><span className="font-bold">선생님 코멘트:</span> {log.teacherComment}</p>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 
@@ -446,6 +503,8 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
             </div>
           )}
         </div>
+
+        {renderDetailModal()}
       </div>
     );
   }
@@ -689,6 +748,8 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
           onCancel={() => setDeleteLogId(null)}
         />
       )}
+
+      {renderDetailModal()}
     </div>
   );
 };
