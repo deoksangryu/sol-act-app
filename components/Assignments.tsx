@@ -5,6 +5,8 @@ import { assignmentApi, uploadApi, API_URL } from '../services/api';
 import toast from 'react-hot-toast';
 import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useUpload } from '../services/UploadContext';
+import { useAppData } from '../services/AppContext';
 
 function toLocalDateStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -33,11 +35,11 @@ const GRADE_COLORS: Record<string, string> = {
 
 interface AssignmentsProps {
   user: User;
-  allUsers: User[];
-  classes: ClassInfo[];
 }
 
-export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classes }) => {
+export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
+  const { allUsers, classes } = useAppData();
+  const { startUpload: globalStartUpload, updateProgress: globalUpdateProgress, finishUpload: globalFinishUpload } = useUpload();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -119,19 +121,23 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
 
   useDataRefresh('assignments', loadData);
 
-  // Warn before page close and expose global flag when upload is in progress
+  // ESC key handler for modal
   useEffect(() => {
-    if (!isUploading) {
-      (window as any).__solact_uploading = false;
-      return;
-    }
-    (window as any).__solact_uploading = true;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isCreateModalOpen) { setIsCreateModalOpen(false); setEditingAssignment(null); return; }
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isCreateModalOpen]);
+
+  // Warn before page close when upload is in progress
+  useEffect(() => {
+    if (!isUploading) return;
     const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
     window.addEventListener('beforeunload', handler);
-    return () => {
-      window.removeEventListener('beforeunload', handler);
-      (window as any).__solact_uploading = false;
-    };
+    return () => window.removeEventListener('beforeunload', handler);
   }, [isUploading]);
 
   // --- Calendar Logic ---
@@ -245,10 +251,11 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
         setUploadProgress(0);
         setIsUploading(true);
         pendingFileAssignmentIdRef.current = id;
+        globalStartUpload(id, `파일 업로드: ${fileToUpload.name}`);
 
         // Pass target_type + target_id so server patches DB directly on upload completion
         // This ensures the file URL is saved even if the client disconnects before the patch call
-        uploadApi.upload(fileToUpload, (pct) => setUploadProgress(pct), 'assignments', 'assignment', id).then(async (result) => {
+        uploadApi.upload(fileToUpload, (pct) => { setUploadProgress(pct); globalUpdateProgress(id, pct); }, 'assignments', 'assignment', id).then(async (result) => {
           const pendingId = pendingFileAssignmentIdRef.current;
           if (pendingId) {
             pendingFileAssignmentIdRef.current = null;
@@ -262,6 +269,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
         }).finally(() => {
           setIsUploading(false);
           setUploadProgress(0);
+          globalFinishUpload(id);
         });
       }
     } catch {
@@ -638,7 +646,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                             </div>
                           </div>
                           {!isUploading && (
-                            <button onClick={handleRemoveFile} className="p-1 text-slate-400 hover:text-red-500 shrink-0">
+                            <button onClick={handleRemoveFile} aria-label="파일 삭제" className="p-1 text-slate-400 hover:text-red-500 shrink-0">
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                             </button>
                           )}
@@ -819,10 +827,11 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
 
       {/* Create Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => { setIsCreateModalOpen(false); setEditingAssignment(null); }}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
              <button
                onClick={() => setIsCreateModalOpen(false)}
+               aria-label="닫기"
                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
              >
                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -848,8 +857,9 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                 <div>
                    {assignTarget === 'class' && !editingAssignment ? (
                      <>
-                       <label className="block text-xs font-bold text-slate-500 mb-1">반 선택</label>
+                       <label htmlFor="input-assignment-class" className="block text-xs font-bold text-slate-500 mb-1">반 선택 <span className="text-red-400">*</span></label>
                        <select
+                         id="input-assignment-class"
                          value={newClassId}
                          onChange={(e) => setNewClassId(e.target.value)}
                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors"
@@ -862,8 +872,9 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                      </>
                    ) : (
                      <>
-                       <label className="block text-xs font-bold text-slate-500 mb-1">학생 선택</label>
+                       <label htmlFor="input-assignment-student" className="block text-xs font-bold text-slate-500 mb-1">학생 선택 <span className="text-red-400">*</span></label>
                        <select
+                         id="input-assignment-student"
                          value={newStudentId}
                          onChange={(e) => setNewStudentId(e.target.value)}
                          disabled={!!editingAssignment}
@@ -878,8 +889,9 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                    )}
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">과제명</label>
+                   <label htmlFor="input-assignment-title" className="block text-xs font-bold text-slate-500 mb-1">과제명 <span className="text-red-400">*</span></label>
                    <input
+                     id="input-assignment-title"
                      value={newTitle}
                      onChange={(e) => setNewTitle(e.target.value)}
                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors"
@@ -887,8 +899,9 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                    />
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">마감 기한</label>
+                   <label htmlFor="input-assignment-date" className="block text-xs font-bold text-slate-500 mb-1">마감 기한 <span className="text-red-400">*</span></label>
                    <input
+                     id="input-assignment-date"
                      type="date"
                      value={newDate}
                      onChange={(e) => setNewDate(e.target.value)}
@@ -896,8 +909,9 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user, allUsers, classe
                    />
                 </div>
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">상세 내용 (선택)</label>
+                   <label htmlFor="input-assignment-desc" className="block text-xs font-bold text-slate-500 mb-1">상세 내용 (선택)</label>
                    <textarea
+                     id="input-assignment-desc"
                      value={newDesc}
                      onChange={(e) => setNewDesc(e.target.value)}
                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors resize-none h-24"

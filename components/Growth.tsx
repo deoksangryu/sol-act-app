@@ -5,11 +5,11 @@ import toast from 'react-hot-toast';
 import { evaluationApi, portfolioApi, auditionApi, API_URL, getToken } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useUpload } from '../services/UploadContext';
+import { useAppData } from '../services/AppContext';
 
 interface GrowthProps {
   user: User;
-  allUsers: User[];
-  classes: ClassInfo[];
 }
 
 type GrowthTab = 'evaluation' | 'portfolio' | 'competition';
@@ -31,7 +31,9 @@ function formatTimestamp(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
+export const Growth: React.FC<GrowthProps> = ({ user }) => {
+  const { allUsers, classes } = useAppData();
+  const { startUpload: globalStartUpload, updateProgress: globalUpdateProgress, finishUpload: globalFinishUpload } = useUpload();
   const [activeTab, setActiveTab] = useState<GrowthTab>('evaluation');
 
   // Evaluations
@@ -124,22 +126,29 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
   useDataRefresh(['evaluations', 'portfolios', 'auditions'], loadData);
 
-  // Warn before page close and expose global flag when upload is in progress
+  // ESC key handler for all modals
   useEffect(() => {
-    if (!isPfVideoUploading) {
-      (window as any).__solact_uploading = false;
-      return;
-    }
-    (window as any).__solact_uploading = true;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (selectedPortfolioId) { setSelectedPortfolioId(null); return; }
+        if (isEventModalOpen) { setIsEventModalOpen(false); return; }
+        if (isPortfolioModalOpen) { setIsPortfolioModalOpen(false); return; }
+        if (isEvalModalOpen) { setIsEvalModalOpen(false); return; }
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [selectedPortfolioId, isEventModalOpen, isPortfolioModalOpen, isEvalModalOpen]);
+
+  // Warn before page close when upload is in progress
+  useEffect(() => {
+    if (!isPfVideoUploading) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
-    return () => {
-      window.removeEventListener('beforeunload', handler);
-      (window as any).__solact_uploading = false;
-    };
+    return () => window.removeEventListener('beforeunload', handler);
   }, [isPfVideoUploading]);
 
   // Load practice groups when timeline view is selected
@@ -253,6 +262,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
     setUploadError(null);
     setFailedUpload(null);
     pendingVideoPortfolioIdRef.current = portfolioId;
+    globalStartUpload(portfolioId, `영상 업로드: ${file.name}`);
 
     const token = getToken();
     const formData = new FormData();
@@ -270,7 +280,9 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
     xhr.upload.addEventListener('progress', (evt) => {
       if (evt.lengthComputable) {
-        setUploadProgress(Math.round((evt.loaded / evt.total) * 100));
+        const pct = Math.round((evt.loaded / evt.total) * 100);
+        setUploadProgress(pct);
+        globalUpdateProgress(portfolioId, pct);
       }
     });
 
@@ -280,6 +292,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       setUploadError(errorMsg);
       setFailedUpload({ file, portfolioId });
       uploadAbortRef.current = null;
+      globalFinishUpload(portfolioId);
       toast.error(errorMsg);
     };
 
@@ -308,6 +321,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       setIsPfVideoUploading(false);
       setUploadProgress(null);
       uploadAbortRef.current = null;
+      globalFinishUpload(portfolioId);
     });
     xhr.addEventListener('error', () => handleUploadFailure('네트워크 오류로 업로드에 실패했습니다.'));
     xhr.addEventListener('timeout', () => handleUploadFailure('업로드 시간이 초과되었습니다.'));
@@ -317,6 +331,7 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
       setUploadError(null);
       setFailedUpload(null);
       uploadAbortRef.current = null;
+      globalFinishUpload(portfolioId);
       toast('업로드가 취소되었습니다.');
     });
 
@@ -934,30 +949,30 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
       {/* Evaluation Modal */}
       {isEvalModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setIsEvalModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsEvalModalOpen(false)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setIsEvalModalOpen(false)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             <h3 className="text-xl font-bold text-slate-800 mb-6">{editingEval ? '평가 수정' : '학생 평가 작성'}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">학생</label>
-                <select value={evalStudentId} onChange={e => setEvalStudentId(e.target.value)} disabled={!!editingEval} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 disabled:opacity-50">
+                <label htmlFor="input-eval-student" className="block text-xs font-bold text-slate-500 mb-1">학생 <span className="text-red-400">*</span></label>
+                <select id="input-eval-student" value={evalStudentId} onChange={e => setEvalStudentId(e.target.value)} disabled={!!editingEval} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 disabled:opacity-50">
                   <option value="">학생 선택</option>
                   {students.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">과목</label>
-                <select value={evalSubject} onChange={e => setEvalSubject(e.target.value as Subject)} disabled={!!editingEval} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 disabled:opacity-50">
+                <label htmlFor="input-eval-subject" className="block text-xs font-bold text-slate-500 mb-1">과목 <span className="text-red-400">*</span></label>
+                <select id="input-eval-subject" value={evalSubject} onChange={e => setEvalSubject(e.target.value as Subject)} disabled={!!editingEval} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 disabled:opacity-50">
                   <option value="">과목 선택</option>
                   {Object.values(Subject).map(s => <option key={s} value={s}>{SUBJECT_LABELS[s]}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">평가 기간</label>
-                <input value={evalPeriod} onChange={e => setEvalPeriod(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 2024년 3월" />
+                <label htmlFor="input-eval-period" className="block text-xs font-bold text-slate-500 mb-1">평가 기간 <span className="text-red-400">*</span></label>
+                <input id="input-eval-period" value={evalPeriod} onChange={e => setEvalPeriod(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 2024년 3월" />
               </div>
               {Object.entries(evalScores).map(([key, val]) => (
                 <div key={key}>
@@ -969,8 +984,8 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                 </div>
               ))}
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">코멘트</label>
-                <textarea value={evalComment} onChange={e => setEvalComment(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-24" placeholder="학생에 대한 종합 피드백을 작성하세요." />
+                <label htmlFor="input-eval-comment" className="block text-xs font-bold text-slate-500 mb-1">코멘트</label>
+                <textarea id="input-eval-comment" value={evalComment} onChange={e => setEvalComment(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-24" placeholder="학생에 대한 종합 피드백을 작성하세요." />
               </div>
               <button onClick={editingEval ? handleUpdateEvaluation : handleCreateEvaluation} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200">{editingEval ? '수정하기' : '등록하기'}</button>
             </div>
@@ -980,9 +995,9 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
       {/* Portfolio Detail Modal */}
       {selectedPortfolio && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-lg p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => { setSelectedPortfolioId(null); setCommentTimestamp(null); }} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 z-10">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedPortfolioId(null)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-lg p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => { setSelectedPortfolioId(null); setCommentTimestamp(null); }} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 z-10">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             <div className="flex items-start justify-between pr-8 mb-1">
@@ -1125,20 +1140,20 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
       {/* Portfolio Create Modal */}
       {isPortfolioModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setIsPortfolioModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsPortfolioModalOpen(false)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setIsPortfolioModalOpen(false)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             <h3 className="text-xl font-bold text-slate-800 mb-6">포트폴리오 등록</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">제목</label>
-                <input value={newPfTitle} onChange={e => setNewPfTitle(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 햄릿 독백 연기" />
+                <label htmlFor="input-portfolio-title" className="block text-xs font-bold text-slate-500 mb-1">제목 <span className="text-red-400">*</span></label>
+                <input id="input-portfolio-title" value={newPfTitle} onChange={e => setNewPfTitle(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 햄릿 독백 연기" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">영상 파일</label>
-                <input ref={pfVideoInputRef} type="file" className="hidden" accept="video/*" onChange={handlePfVideoUpload} />
+                <label htmlFor="input-portfolio-video" className="block text-xs font-bold text-slate-500 mb-1">영상 파일 <span className="text-red-400">*</span></label>
+                <input id="input-portfolio-video" ref={pfVideoInputRef} type="file" className="hidden" accept="video/*" onChange={handlePfVideoUpload} />
                 {newPfVideoFile ? (
                   <div className="relative rounded-xl overflow-hidden border border-brand-200 bg-brand-50 p-3">
                     <div className="flex items-center gap-2">
@@ -1166,8 +1181,8 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                 </summary>
                 <div className="space-y-4 mt-3">
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">카테고리</label>
-                    <select value={newPfCategory} onChange={e => setNewPfCategory(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500">
+                    <label htmlFor="input-portfolio-category" className="block text-xs font-bold text-slate-500 mb-1">카테고리 <span className="text-red-400">*</span></label>
+                    <select id="input-portfolio-category" value={newPfCategory} onChange={e => setNewPfCategory(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500">
                       <option value="other">기타</option>
                       <option value="monologue">독백</option>
                       <option value="scene">장면연기</option>
@@ -1176,8 +1191,9 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">연습 시리즈</label>
+                    <label htmlFor="input-portfolio-practice-group" className="block text-xs font-bold text-slate-500 mb-1">연습 시리즈</label>
                     <select
+                      id="input-portfolio-practice-group"
                       value={newPfPracticeGroup}
                       onChange={e => setNewPfPracticeGroup(e.target.value)}
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500"
@@ -1198,12 +1214,12 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">태그 (쉼표로 구분)</label>
-                    <input value={newPfTags} onChange={e => setNewPfTags(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 셰익스피어, 비극, 입시" />
+                    <label htmlFor="input-portfolio-tags" className="block text-xs font-bold text-slate-500 mb-1">태그 (쉼표로 구분)</label>
+                    <input id="input-portfolio-tags" value={newPfTags} onChange={e => setNewPfTags(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 셰익스피어, 비극, 입시" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">설명</label>
-                    <textarea value={newPfDesc} onChange={e => setNewPfDesc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-20" placeholder="영상에 대한 설명을 입력하세요." />
+                    <label htmlFor="input-portfolio-desc" className="block text-xs font-bold text-slate-500 mb-1">설명</label>
+                    <textarea id="input-portfolio-desc" value={newPfDesc} onChange={e => setNewPfDesc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-20" placeholder="영상에 대한 설명을 입력하세요." />
                   </div>
                 </div>
               </details>
@@ -1215,28 +1231,28 @@ export const Growth: React.FC<GrowthProps> = ({ user, allUsers, classes }) => {
 
       {/* Event Create Modal */}
       {isEventModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
-            <button onClick={() => setIsEventModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsEventModalOpen(false)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setIsEventModalOpen(false)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
             <h3 className="text-xl font-bold text-slate-800 mb-6">{editingEvent ? '대회/행사 수정' : '대회/행사 등록'}</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">행사명</label>
-                <input value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 한예종 실기 시험" />
+                <label htmlFor="input-event-title" className="block text-xs font-bold text-slate-500 mb-1">행사명 <span className="text-red-400">*</span></label>
+                <input id="input-event-title" value={newEventTitle} onChange={e => setNewEventTitle(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 한예종 실기 시험" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">날짜</label>
-                <input type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" />
+                <label htmlFor="input-event-date" className="block text-xs font-bold text-slate-500 mb-1">날짜 <span className="text-red-400">*</span></label>
+                <input id="input-event-date" type="date" value={newEventDate} onChange={e => setNewEventDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">장소</label>
-                <input value={newEventLocation} onChange={e => setNewEventLocation(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 국립극장" />
+                <label htmlFor="input-event-location" className="block text-xs font-bold text-slate-500 mb-1">장소</label>
+                <input id="input-event-location" value={newEventLocation} onChange={e => setNewEventLocation(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 국립극장" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">설명 (선택)</label>
-                <textarea value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-20" placeholder="행사에 대한 설명" />
+                <label htmlFor="input-event-desc" className="block text-xs font-bold text-slate-500 mb-1">설명 (선택)</label>
+                <textarea id="input-event-desc" value={newEventDesc} onChange={e => setNewEventDesc(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 resize-none h-20" placeholder="행사에 대한 설명" />
               </div>
               <button onClick={editingEvent ? handleUpdateEvent : handleCreateEvent} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200">{editingEvent ? '수정하기' : '등록하기'}</button>
             </div>

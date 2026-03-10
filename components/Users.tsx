@@ -4,6 +4,7 @@ import { User, UserRole } from '../types';
 import { resolveFileUrl, userApi, authApi } from '../services/api';
 import { ConfirmDialog } from './ConfirmDialog';
 import toast from 'react-hot-toast';
+import { useAppData } from '../services/AppContext';
 
 interface InviteCode {
   code: string;
@@ -16,11 +17,11 @@ interface InviteCode {
 
 interface UsersProps {
   user: User;
-  allUsers: User[];
   onUserDeleted?: () => void;
 }
 
-export const Users: React.FC<UsersProps> = ({ user, allUsers, onUserDeleted }) => {
+export const Users: React.FC<UsersProps> = ({ user, onUserDeleted }) => {
+  const { allUsers } = useAppData();
   const [activeTab, setActiveTab] = useState<'students' | 'teachers' | 'directors'>('students');
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const [showInviteModal, setShowInviteModal] = useState(false);

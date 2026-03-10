@@ -1,5 +1,6 @@
 import React from 'react';
 import { Notification } from '../types';
+import { formatDateTimeShortKo } from '../services/dateUtils';
 
 interface NotificationsProps {
   notifications: Notification[];
@@ -30,7 +31,7 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onC
                 <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notif.read ? 'bg-slate-300' : notif.type === 'warning' ? 'bg-red-500' : notif.type === 'success' ? 'bg-green-500' : 'bg-brand-500'}`} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-slate-700 leading-snug break-keep">{notif.message}</p>
-                  <p className="text-xs text-slate-400 mt-1">{new Date(notif.date).toLocaleDateString()} {new Date(notif.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                  <p className="text-xs text-slate-400 mt-1">{formatDateTimeShortKo(notif.date)}</p>
                 </div>
               </div>
             </div>

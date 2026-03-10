@@ -5,7 +5,7 @@ import { assignmentApi, dietApi, lessonApi, auditionApi, journalApi, portfolioAp
 import { useDataRefresh } from '../services/useWebSocket';
 import toast from 'react-hot-toast';
 import { EmptyState } from './EmptyState';
-import { formatRelativeKo } from '../services/dateUtils';
+import { formatRelativeKo, formatDateFullKo } from '../services/dateUtils';
 
 function toLocalDateStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -125,7 +125,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
           <p className="text-slate-500 mt-1">{isStudent ? '오늘도 멋진 연기를 보여주세요.' : '오늘도 좋은 하루 되세요.'}</p>
         </div>
         <div className="hidden md:block text-right">
-          <p className="text-sm font-semibold text-slate-600">{new Date().toLocaleDateString('ko-KR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'})}</p>
+          <p className="text-sm font-semibold text-slate-600">{formatDateFullKo(new Date().toString())}</p>
         </div>
       </div>
 

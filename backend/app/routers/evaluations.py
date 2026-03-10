@@ -46,6 +46,8 @@ def list_evaluations(
     class_id: Optional[str] = Query(None),
     subject: Optional[str] = Query(None),
     period: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -73,7 +75,7 @@ def list_evaluations(
             pass
     if period:
         query = query.filter(Evaluation.period == period)
-    evals = query.order_by(Evaluation.created_at.desc()).all()
+    evals = query.order_by(Evaluation.created_at.desc()).offset(skip).limit(limit).all()
     return [evaluation_to_response(e) for e in evals]
 
 

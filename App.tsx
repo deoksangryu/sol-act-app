@@ -14,11 +14,14 @@ import { AcademyManagement } from './components/AcademyManagement';
 import { ProfileSettings } from './components/ProfileSettings';
 import { Notifications } from './components/Notifications';
 import { InstallPrompt } from './components/InstallPrompt';
-import { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
+import { UploadProvider, useUpload } from './services/UploadContext';
+import { AppDataProvider } from './services/AppContext';
+import { UploadIndicator } from './components/UploadIndicator';
 import { getSavedUser, clearAuth, userApi, classApi, notificationApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
 import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
 
-const App: React.FC = () => {
+const AppInner: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('dashboard');
   const [allUsers, setAllUsers] = useState<User[]>([]);
@@ -27,6 +30,7 @@ const App: React.FC = () => {
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const { isUploading } = useUpload();
 
   // Online/Offline detection
   useEffect(() => {
@@ -38,6 +42,15 @@ const App: React.FC = () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
     };
+  }, []);
+
+  // Session expiry warning (soft handling — shows toast before redirect)
+  useEffect(() => {
+    const handler = () => {
+      toast.error('세션이 만료되었습니다. 3초 후 로그인 화면으로 이동합니다.', { duration: 3000 });
+    };
+    window.addEventListener('session-expired', handler);
+    return () => window.removeEventListener('session-expired', handler);
   }, []);
 
   // Unified WebSocket connection (single connection for chat + notifications)
@@ -98,7 +111,7 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-    if ((window as any).__solact_uploading) {
+    if (isUploading) {
       if (!window.confirm('영상을 업로드 중입니다. 로그아웃하면 업로드가 중단됩니다. 계속하시겠습니까?')) {
         return;
       }
@@ -143,29 +156,23 @@ const App: React.FC = () => {
       case 'dashboard':
         return <Dashboard user={user!} onChangeView={setCurrentView} />;
       case 'lessons':
-        return <Lessons user={user!} classes={classes} allUsers={allUsers} />;
+        return <Lessons user={user!} />;
       case 'assignments':
-        return <Assignments user={user!} allUsers={allUsers} classes={classes} />;
+        return <Assignments user={user!} />;
       case 'growth':
-        return <Growth user={user!} allUsers={allUsers} classes={classes} />;
+        return <Growth user={user!} />;
       case 'diet':
         return <Diet user={user!} />;
       case 'community':
         return (
           <Community
             user={user!}
-            classes={classes}
-            setClasses={setClasses}
-            allUsers={allUsers}
           />
         );
       case 'academy':
         return (
           <AcademyManagement
             user={user!}
-            classes={classes}
-            setClasses={setClasses}
-            allUsers={allUsers}
           />
         );
       case 'profile':
@@ -200,6 +207,7 @@ const App: React.FC = () => {
   const isAppView = ['assignments', 'diet', 'lessons', 'community', 'academy'].includes(currentView);
 
   return (
+    <AppDataProvider value={{ allUsers, classes, setClasses }}>
     <div className="flex flex-col h-[100dvh] bg-slate-50 text-slate-800 overflow-hidden">
       {/* Offline Banner */}
       {isOffline && (
@@ -280,6 +288,9 @@ const App: React.FC = () => {
       {/* PWA Install Prompt */}
       <InstallPrompt />
 
+      {/* Global Upload Progress Indicator */}
+      <UploadIndicator />
+
       {/* Global Toast Container */}
       <Toaster
         position="top-center"
@@ -300,7 +311,14 @@ const App: React.FC = () => {
       />
     </div>
     </div>
+    </AppDataProvider>
   );
 };
+
+const App: React.FC = () => (
+  <UploadProvider>
+    <AppInner />
+  </UploadProvider>
+);
 
 export default App;

@@ -69,7 +69,7 @@ export const DEMO_NOTIFICATIONS: Notification[] = [
 // ── Questions ──
 export const DEMO_QUESTIONS: Question[] = [
   { id: 'q001', title: '오디션 자기소개는 어떻게 준비하나요?', content: '다음 주 대학 입시 오디션이 있는데, 자기소개를 어떻게 구성하면 좋을까요?', authorId: 's1', authorName: '김배우', views: 12, date: yesterday, answers: [
-    { id: 'ans001', content: '자기소개는 1분 이내로, 자신만의 강점과 연기 경험을 중심으로 구성하세요.', authorName: '최선생', authorRole: UserRole.TEACHER, isAi: false, date: yesterday },
+    { id: 'ans001', content: '자기소개는 1분 이내로, 자신만의 강점과 연기 경험을 중심으로 구성하세요.', authorId: 't1', authorName: '최선생', authorRole: UserRole.TEACHER, isAi: false, date: yesterday },
   ]},
   { id: 'q002', title: '감정 전환이 잘 안될 때 어떻게 하나요?', content: '연기 중 감정 전환이 매끄럽지 않아서 고민입니다.', authorId: 's2', authorName: '이연기', views: 8, date: yesterday, answers: [] },
 ];

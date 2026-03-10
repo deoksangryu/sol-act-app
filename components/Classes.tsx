@@ -4,6 +4,7 @@ import { User, ClassInfo, UserRole, Subject, SUBJECT_LABELS, ScheduleSlot } from
 import { classApi, resolveFileUrl } from '../services/api';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from './ConfirmDialog';
+import { useAppData } from '../services/AppContext';
 
 const DAY_OPTIONS = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -15,12 +16,10 @@ function formatSchedule(schedule: ScheduleSlot[] | string): string {
 
 interface ClassesProps {
   user: User;
-  classes: ClassInfo[];
-  setClasses: (classes: ClassInfo[]) => void;
-  allUsers: User[];
 }
 
-export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, allUsers }) => {
+export const Classes: React.FC<ClassesProps> = ({ user }) => {
+  const { allUsers, classes, setClasses } = useAppData();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassInfo | null>(null);
   const [saving, setSaving] = useState(false);
@@ -166,12 +165,14 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                <div className="absolute top-4 right-4 flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <button
                     onClick={() => handleOpenModal(cls)}
+                    aria-label="수정"
                     className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                   </button>
                   <button
                     onClick={() => setDeleteClassId(cls.id)}
+                    aria-label="삭제"
                     className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -231,7 +232,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
       {/* Modal — full screen on mobile */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center backdrop-blur-sm animate-fade-in">
-          <div className="bg-white w-full md:rounded-3xl md:max-w-lg md:max-h-[90vh] h-full md:h-auto flex flex-col shadow-2xl relative">
+          <div role="dialog" aria-modal="true" className="bg-white w-full md:rounded-3xl md:max-w-lg md:max-h-[90vh] h-full md:h-auto flex flex-col shadow-2xl relative">
              {/* Header */}
              <div className="flex items-center justify-between px-6 pt-6 pb-3 border-b border-slate-100 shrink-0">
                <h3 className="text-xl font-bold text-slate-800">
@@ -239,6 +240,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                </h3>
                <button
                  onClick={() => setIsModalOpen(false)}
+                 aria-label="닫기"
                  className="text-slate-400 hover:text-slate-600 p-2"
                >
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -248,8 +250,9 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
              {/* Scrollable Content */}
              <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">클래스 이름</label>
+                   <label htmlFor="input-class-name" className="block text-xs font-bold text-slate-500 mb-1">클래스 이름 <span className="text-red-400">*</span></label>
                    <input
+                     id="input-class-name"
                      value={name}
                      onChange={(e) => setName(e.target.value)}
                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors"
@@ -258,8 +261,9 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                 </div>
 
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">설명</label>
+                   <label htmlFor="input-class-desc" className="block text-xs font-bold text-slate-500 mb-1">설명</label>
                    <textarea
+                     id="input-class-desc"
                      value={description}
                      onChange={(e) => setDescription(e.target.value)}
                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors resize-none h-20"
@@ -297,6 +301,7 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                          />
                          <button
                            onClick={() => removeScheduleSlot(idx)}
+                           aria-label="일정 삭제"
                            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-red-500 shrink-0"
                          >
                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -314,8 +319,9 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                 </div>
 
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-2">과목</label>
+                   <label htmlFor="input-class-subject" className="block text-xs font-bold text-slate-500 mb-2">과목</label>
                    <select
+                     id="input-class-subject"
                      value={subject}
                      onChange={(e) => setSubject(e.target.value as Subject)}
                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-500 transition-colors"
@@ -327,8 +333,9 @@ export const Classes: React.FC<ClassesProps> = ({ user, classes, setClasses, all
                 </div>
 
                 <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-2">담당 선생님</label>
+                   <label htmlFor="input-class-teacher" className="block text-xs font-bold text-slate-500 mb-2">담당 선생님</label>
                    <select
+                     id="input-class-teacher"
                      value={teacherId}
                      onChange={(e) => setTeacherId(e.target.value)}
                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-500 transition-colors"

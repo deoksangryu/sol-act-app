@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from typing import List
 from app.database import get_db
@@ -37,11 +37,18 @@ def question_to_response(q: Question) -> dict:
 
 
 @router.get("/questions", response_model=List[QuestionResponse])
-def list_questions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def list_questions(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     questions = (
         db.query(Question)
         .options(joinedload(Question.author), joinedload(Question.answers))
         .order_by(Question.created_at.desc())
+        .offset(skip)
+        .limit(limit)
         .all()
     )
     return [question_to_response(q) for q in questions]

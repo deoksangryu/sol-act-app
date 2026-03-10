@@ -1,18 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { User, UserRole, ClassInfo } from '../types';
+import { User, UserRole } from '../types';
 import { noticeApi } from '../services/api';
 import { Notice } from '../types';
 import { useDataRefresh } from '../services/useWebSocket';
 import { formatDateKo } from '../services/dateUtils';
 import { ConfirmDialog } from './ConfirmDialog';
 import toast from 'react-hot-toast';
+import { useAppData } from '../services/AppContext';
 
 interface NoticesProps {
   user: User;
-  classes?: ClassInfo[];
 }
 
-export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
+export const Notices: React.FC<NoticesProps> = ({ user }) => {
+  const { classes } = useAppData();
   const [notices, setNotices] = useState<Notice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -35,6 +36,17 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
   }, []);
 
   useDataRefresh('notices', loadData);
+
+  // ESC key handler for modal
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isCreateOpen) { setIsCreateOpen(false); setEditingNotice(null); return; }
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isCreateOpen]);
 
   const handleCreateNotice = async () => {
     if (!newTitle.trim() || !newContent.trim()) {
@@ -166,14 +178,15 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
 
       {/* Create Notice Modal */}
       {isCreateOpen && user.role !== UserRole.STUDENT && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => { setIsCreateOpen(false); setEditingNotice(null); }}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-xl" onClick={e => e.stopPropagation()}>
             <h3 className="text-xl font-bold text-slate-800 mb-4">{editingNotice ? '공지사항 수정' : '공지사항 작성'}</h3>
 
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">제목</label>
+                <label htmlFor="input-notice-title" className="block text-sm font-bold text-slate-700 mb-2">제목 <span className="text-red-400">*</span></label>
                 <input
+                  id="input-notice-title"
                   type="text"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
@@ -183,8 +196,9 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">내용</label>
+                <label htmlFor="input-notice-content" className="block text-sm font-bold text-slate-700 mb-2">내용 <span className="text-red-400">*</span></label>
                 <textarea
+                  id="input-notice-content"
                   value={newContent}
                   onChange={(e) => setNewContent(e.target.value)}
                   className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
@@ -194,8 +208,9 @@ export const Notices: React.FC<NoticesProps> = ({ user, classes = [] }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-bold text-slate-700 mb-2">대상</label>
+                <label htmlFor="input-notice-target" className="block text-sm font-bold text-slate-700 mb-2">대상</label>
                 <select
+                  id="input-notice-target"
                   value={newClassId}
                   onChange={(e) => setNewClassId(e.target.value)}
                   className="w-full p-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:border-brand-500"

@@ -1,19 +1,16 @@
 
 import React, { useState } from 'react';
-import { User, UserRole, ClassInfo } from '../types';
+import { User, UserRole } from '../types';
 import { Classes } from './Classes';
 import { Users } from './Users';
 
 interface AcademyManagementProps {
   user: User;
-  classes: ClassInfo[];
-  setClasses: (classes: ClassInfo[]) => void;
-  allUsers: User[];
 }
 
 type AcademyTab = 'classes' | 'users';
 
-export const AcademyManagement: React.FC<AcademyManagementProps> = ({ user, classes, setClasses, allUsers }) => {
+export const AcademyManagement: React.FC<AcademyManagementProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<AcademyTab>('classes');
 
   // Only staff can access
@@ -53,10 +50,10 @@ export const AcademyManagement: React.FC<AcademyManagementProps> = ({ user, clas
       {/* Tab Content */}
       <div className="flex-1 min-h-0 overflow-y-auto pt-4">
         {activeTab === 'classes' && (
-          <Classes user={user} classes={classes} setClasses={setClasses} allUsers={allUsers} />
+          <Classes user={user} />
         )}
         {activeTab === 'users' && (
-          <Users user={user} allUsers={allUsers} />
+          <Users user={user} />
         )}
       </div>
     </div>

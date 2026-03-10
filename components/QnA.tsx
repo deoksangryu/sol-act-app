@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, Question, Answer } from '../types';
 import { qnaApi } from '../services/api';
 import toast from 'react-hot-toast';
+import { formatDateTimeShortKo, formatDateKo } from '../services/dateUtils';
 import { useDataRefresh } from '../services/useWebSocket';
 
 interface QnAProps {
@@ -76,7 +77,7 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return formatDateTimeShortKo(dateString);
   };
 
   if (loading) {
@@ -140,7 +141,7 @@ export const QnA: React.FC<QnAProps> = ({ user }) => {
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-slate-600">{q.authorName}</span>
                     <span>•</span>
-                    <span>{new Date(q.date).toLocaleDateString()}</span>
+                    <span>{formatDateKo(q.date)}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="flex items-center gap-1">

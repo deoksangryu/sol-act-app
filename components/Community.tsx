@@ -1,20 +1,17 @@
 
 import React, { useState } from 'react';
-import { User, ClassInfo } from '../types';
+import { User } from '../types';
 import { Chat } from './Chat';
 import { QnA } from './QnA';
 import { Notices } from './Notices';
 
 interface CommunityProps {
   user: User;
-  classes: ClassInfo[];
-  setClasses: (classes: ClassInfo[]) => void;
-  allUsers: User[];
 }
 
 type CommunityTab = 'chat' | 'qna' | 'notices';
 
-export const Community: React.FC<CommunityProps> = ({ user, classes, setClasses, allUsers }) => {
+export const Community: React.FC<CommunityProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<CommunityTab>('chat');
 
   const tabs: { id: CommunityTab; label: string; icon: string }[] = [
@@ -47,9 +44,6 @@ export const Community: React.FC<CommunityProps> = ({ user, classes, setClasses,
           <div className="h-full">
             <Chat
               user={user}
-              classes={classes}
-              setClasses={setClasses}
-              allUsers={allUsers}
             />
           </div>
         )}
@@ -62,7 +56,7 @@ export const Community: React.FC<CommunityProps> = ({ user, classes, setClasses,
 
         {activeTab === 'notices' && (
           <div className="h-full overflow-y-auto p-4">
-            <Notices user={user} classes={classes} />
+            <Notices user={user} />
           </div>
         )}
       </div>

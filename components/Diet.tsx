@@ -5,6 +5,7 @@ import { dietApi, uploadApi, API_URL } from '../services/api';
 import toast from 'react-hot-toast';
 import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
+import { formatDateKo, formatTimeKo, formatDateWeekdayKo } from '../services/dateUtils';
 
 /** 로컬 날짜를 YYYY-MM-DD 형식으로 반환 */
 function toLocalDateStr(d: Date): string {
@@ -59,6 +60,17 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   useEffect(() => { loadData(); }, [loadData]);
 
   useDataRefresh('diet', loadData);
+
+  // ESC key handler for modal
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isModalOpen) { setIsModalOpen(false); return; }
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isModalOpen]);
 
   // --- Calendar Logic ---
   const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
@@ -315,14 +327,14 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
             {viewMode === 'calendar' ? (
                 <div className="animate-fade-in">
                     <div className="flex justify-between items-center mb-4 px-2 mt-2">
-                        <button onClick={handlePrevMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
+                        <button onClick={handlePrevMonth} aria-label="이전 달" className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                         </button>
                         <div className="text-center cursor-pointer hover:bg-slate-50 px-3 py-2 rounded-lg" onClick={handleToday}>
                             <h3 className="text-sm font-bold text-slate-800">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
                             {selectedDate && <p className="text-xs text-green-500">선택됨: {selectedDate}</p>}
                         </div>
-                        <button onClick={handleNextMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
+                        <button onClick={handleNextMonth} aria-label="다음 달" className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                         </button>
                     </div>
@@ -345,7 +357,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                      {filteredLogs.map(log => (
                          <div key={log.id} className="p-3 bg-white border border-slate-100 rounded-xl shadow-sm">
                              <div className="flex justify-between text-xs mb-1">
-                                 <span className="font-bold text-slate-700">{new Date(log.date).toLocaleDateString()}</span>
+                                 <span className="font-bold text-slate-700">{formatDateKo(log.date)}</span>
                                  <span className="text-slate-400">{log.mealType}</span>
                              </div>
                              <p className="text-sm text-slate-800 line-clamp-1">{log.description}</p>
@@ -361,7 +373,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
          {/* Mobile Header for Detail View */}
          <div className="md:hidden p-4 bg-white border-b border-slate-100 flex items-center gap-3 shrink-0">
-            <button onClick={() => { setSelectedDate(null); if (viewMode === 'list') setViewMode('calendar'); }} className="p-2 -ml-2 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center">
+            <button onClick={() => { setSelectedDate(null); if (viewMode === 'list') setViewMode('calendar'); }} aria-label="뒤로 가기" className="p-2 -ml-2 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
             </button>
             <h3 className="font-bold text-slate-800">
@@ -381,7 +393,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                     {/* Header for Desktop */}
                     <div className="hidden md:flex justify-between items-center mb-2">
                         <h3 className="font-bold text-xl text-slate-800">
-                            {selectedDate ? `${new Date(selectedDate).toLocaleDateString('ko-KR', { weekday: 'long', month: 'long', day: 'numeric' })} 식단` : '전체 식단'}
+                            {selectedDate ? `${formatDateWeekdayKo(selectedDate)} 식단` : '전체 식단'}
                         </h3>
                         {selectedDate && (
                             <span className="text-sm font-medium text-slate-500 bg-white px-3 py-1 rounded-full shadow-sm">
@@ -408,7 +420,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                                 </>
                               )}
                               <span className="text-xs text-slate-400 ml-1">
-                                {new Date(log.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                {formatTimeKo(log.date)}
                               </span>
                             </div>
                             </div>
@@ -496,10 +508,11 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
       {/* Add Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsModalOpen(false)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setIsModalOpen(false)}
+              aria-label="닫기"
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -541,6 +554,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                   <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                     <button
                       onClick={() => setSelectedImage(null)}
+                      aria-label="이미지 삭제"
                       className="bg-white/20 hover:bg-white/30 text-white rounded-full p-2 backdrop-blur-md"
                     >
                       <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>

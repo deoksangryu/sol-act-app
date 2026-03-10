@@ -5,15 +5,15 @@ import { chatApi, classApi, resolveFileUrl } from '../services/api';
 import { useChatWebSocket } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
 import toast from 'react-hot-toast';
+import { formatTimeKo } from '../services/dateUtils';
+import { useAppData } from '../services/AppContext';
 
 interface ChatProps {
   user: User;
-  classes: ClassInfo[];
-  setClasses: (classes: ClassInfo[]) => void;
-  allUsers: User[];
 }
 
-export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers }) => {
+export const Chat: React.FC<ChatProps> = ({ user }) => {
+  const { allUsers, classes, setClasses } = useAppData();
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -100,6 +100,18 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, selectedClassId]);
+
+  // ESC key handler for modals
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isCreateModalOpen) { setIsCreateModalOpen(false); return; }
+        if (isInviteOpen) { setIsInviteOpen(false); return; }
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isCreateModalOpen, isInviteOpen]);
 
   const currentClassMessages = messages;
   const currentClass = classes.find(c => c.id === selectedClassId);
@@ -197,6 +209,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
               onClick={() => setIsCreateModalOpen(true)}
               className="p-2 bg-white rounded-full text-slate-400 hover:text-brand-500 hover:shadow-sm transition-all"
               title="새 채팅방 만들기"
+              aria-label="새 채팅방 만들기"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
             </button>
@@ -216,7 +229,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                 <div className="flex justify-between items-start mb-1">
                   <h3 className={`font-bold text-sm ${selectedClassId === c.id ? 'text-brand-600' : 'text-slate-700'}`}>{c.name}</h3>
                   <div className="flex items-center gap-1.5">
-                    {lastMsg && <span className="text-xs text-slate-400">{new Date(lastMsg.timestamp).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>}
+                    {lastMsg && <span className="text-xs text-slate-400">{formatTimeKo(lastMsg.timestamp)}</span>}
                     {unread > 0 && (
                       <span className="min-w-[18px] h-[18px] px-1 flex items-center justify-center bg-brand-500 text-white text-xs font-bold rounded-full">
                         {unread > 99 ? '99+' : unread}
@@ -244,7 +257,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
             {/* Chat Header */}
             <div className="h-16 px-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                <div className="flex items-center gap-3">
-                 <button onClick={() => setSelectedClassId(null)} className="md:hidden text-slate-400 hover:text-slate-600">
+                 <button onClick={() => setSelectedClassId(null)} aria-label="뒤로 가기" className="md:hidden text-slate-400 hover:text-slate-600">
                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                  </button>
                  <div>
@@ -254,6 +267,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                </div>
                <button
                  onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+                 aria-label="채팅방 정보"
                  className={`p-2 rounded-full transition-colors ${isSettingsOpen ? 'bg-slate-100 text-slate-800' : 'text-slate-400 hover:bg-slate-50'}`}
                >
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -277,7 +291,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                            {msg.content}
                          </div>
                          <span className="text-xs text-slate-300 mt-1 px-1">
-                           {new Date(msg.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                           {formatTimeKo(msg.timestamp)}
                          </span>
                       </div>
                    </div>
@@ -298,6 +312,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                  />
                  <button
                    onClick={handleSend}
+                   aria-label="메시지 보내기"
                    className="bg-brand-500 text-white p-3 rounded-xl hover:bg-brand-600 transition-colors shadow-lg shadow-brand-100"
                  >
                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9-2-9-18-9 18 9-2zm0 0v-8" /></svg>
@@ -310,7 +325,7 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
               <div className="absolute inset-y-0 right-0 w-full md:w-72 bg-white shadow-2xl border-l border-slate-100 z-10 animate-fade-in-right flex flex-col">
                  <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h3 className="font-bold text-slate-800">채팅방 정보</h3>
-                    <button onClick={() => setIsSettingsOpen(false)} className="text-slate-400 hover:text-slate-600">
+                    <button onClick={() => setIsSettingsOpen(false)} aria-label="닫기" className="text-slate-400 hover:text-slate-600">
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                     </button>
                  </div>
@@ -389,8 +404,8 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
 
       {/* Invite Modal */}
       {isInviteOpen && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/20 backdrop-blur-sm p-0 md:p-4 animate-fade-in">
-           <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-sm p-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/20 backdrop-blur-sm p-0 md:p-4 animate-fade-in" onClick={() => setIsInviteOpen(false)}>
+           <div role="dialog" aria-modal="true" className="bg-white rounded-t-2xl md:rounded-2xl shadow-xl w-full md:max-w-sm p-4 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <h3 className="font-bold text-slate-800 mb-4">대화상대 초대</h3>
               <div className="max-h-60 overflow-y-auto space-y-1 mb-4">
                  {allUsers
@@ -417,10 +432,11 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
 
       {/* Create Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-fade-in">
-           <div className="bg-white rounded-t-3xl md:rounded-3xl shadow-2xl w-full md:max-w-md p-5 md:p-6 relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center bg-black/50 backdrop-blur-sm p-0 md:p-4 animate-fade-in" onClick={() => setIsCreateModalOpen(false)}>
+           <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl shadow-2xl w-full md:max-w-md p-5 md:p-6 relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
               <button
                onClick={() => setIsCreateModalOpen(false)}
+               aria-label="닫기"
                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -429,8 +445,9 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
               <h3 className="text-xl font-bold text-slate-800 mb-6">새 채팅방 개설</h3>
               <div className="space-y-4">
                  <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">채팅방 이름</label>
+                   <label htmlFor="input-chat-name" className="block text-xs font-bold text-slate-500 mb-1">채팅방 이름 <span className="text-red-400">*</span></label>
                    <input
+                     id="input-chat-name"
                      value={newClassName}
                      onChange={(e) => setNewClassName(e.target.value)}
                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500"
@@ -438,8 +455,9 @@ export const Chat: React.FC<ChatProps> = ({ user, classes, setClasses, allUsers 
                    />
                  </div>
                  <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-1">설명</label>
+                   <label htmlFor="input-chat-desc" className="block text-xs font-bold text-slate-500 mb-1">설명</label>
                    <textarea
+                     id="input-chat-desc"
                      value={newClassDesc}
                      onChange={(e) => setNewClassDesc(e.target.value)}
                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 resize-none h-20"

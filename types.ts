@@ -69,6 +69,7 @@ export interface DietLog {
 export interface Answer {
   id: string;
   content: string;
+  authorId: string;
   authorName: string;
   authorRole: UserRole | 'AI';
   date: string;

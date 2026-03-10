@@ -79,6 +79,8 @@ def list_practice_groups(
 def list_portfolios(
     student_id: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -101,7 +103,7 @@ def list_portfolios(
             query = query.filter(Portfolio.category == cat)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
-    portfolios = query.order_by(Portfolio.created_at.desc()).all()
+    portfolios = query.order_by(Portfolio.created_at.desc()).offset(skip).limit(limit).all()
     return [portfolio_to_response(p) for p in portfolios]
 
 

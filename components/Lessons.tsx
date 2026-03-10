@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import { lessonApi, journalApi, attendanceApi, privateLessonApi, uploadApi, API_URL, resolveFileUrl } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
+import { formatDateKo } from '../services/dateUtils';
+import { useAppData } from '../services/AppContext';
 
 function toLocalDateStr(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -13,8 +15,6 @@ function toLocalDateStr(d: Date): string {
 
 interface LessonsProps {
   user: User;
-  classes: ClassInfo[];
-  allUsers: User[];
 }
 
 // Helper: determine media type from URL extension
@@ -32,7 +32,8 @@ function getFileName(url: string): string {
   return decodeURIComponent(parts[parts.length - 1] || 'file');
 }
 
-export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => {
+export const Lessons: React.FC<LessonsProps> = ({ user }) => {
+  const { allUsers, classes } = useAppData();
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [journals, setJournals] = useState<LessonJournal[]>([]);
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
@@ -112,6 +113,20 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
   }, []);
 
   useDataRefresh(['lessons', 'private_lessons', 'attendance', 'journals'], loadData);
+
+  // ESC key handler for all modals
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (isRequestsPanelOpen) { setIsRequestsPanelOpen(false); setRejectingId(null); setRejectNote(''); return; }
+        if (isJournalOverviewOpen) { setIsJournalOverviewOpen(false); setJournalFilterStudent(''); return; }
+        if (isRequestModalOpen) { setIsRequestModalOpen(false); return; }
+        if (isCreateModalOpen) { setIsCreateModalOpen(false); return; }
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [isRequestsPanelOpen, isJournalOverviewOpen, isRequestModalOpen, isCreateModalOpen]);
 
   // Fetch journals and attendance when a lesson is selected
   useEffect(() => {
@@ -605,14 +620,14 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
           {/* Calendar */}
           <div className="p-2 animate-fade-in">
             <div className="flex justify-between items-center mb-4 px-2">
-              <button onClick={handlePrevMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
+              <button onClick={handlePrevMonth} aria-label="이전 달" className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
               </button>
               <div className="text-center cursor-pointer hover:bg-slate-50 px-3 py-1 rounded-lg" onClick={handleToday}>
                 <h3 className="text-sm font-bold text-slate-800">{currentDate.getFullYear()}년 {currentDate.getMonth() + 1}월</h3>
                 {selectedDate && <p className="text-xs text-brand-500">선택됨: {selectedDate}</p>}
               </div>
-              <button onClick={handleNextMonth} className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
+              <button onClick={handleNextMonth} aria-label="다음 달" className="p-2.5 hover:bg-slate-100 rounded-full text-slate-400 min-w-[44px] min-h-[44px] flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
               </button>
             </div>
@@ -723,6 +738,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               <div className="flex items-start gap-4">
                 <button
                   onClick={() => setSelectedLessonId(null)}
+                  aria-label="뒤로 가기"
                   className="md:hidden p-2 -ml-2 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center"
                 >
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -811,7 +827,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                         </div>
                         <div className="flex-1">
                           <p className="text-xs font-bold text-slate-700">{j.authorName}</p>
-                          <p className="text-xs text-slate-400">{new Date(j.date).toLocaleDateString('ko-KR')}</p>
+                          <p className="text-xs text-slate-400">{formatDateKo(j.date)}</p>
                         </div>
                         {(j.authorId === user.id || isStaff) && (
                           <div className="flex items-center gap-1">
@@ -1000,6 +1016,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveJournalMedia(idx)}
+                                  aria-label="미디어 삭제"
                                   className="ml-0.5 text-brand-400 hover:text-red-500 transition-colors"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1105,10 +1122,11 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
       {/* Create Lesson Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsCreateModalOpen(false)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setIsCreateModalOpen(false)}
+              aria-label="닫기"
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1121,8 +1139,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
               {!editingLesson && (
                 <>
                   <div>
-                    <label className="block text-xs font-bold text-slate-500 mb-1">클래스</label>
+                    <label htmlFor="input-lesson-class" className="block text-xs font-bold text-slate-500 mb-1">클래스 <span className="text-red-400">*</span></label>
                     <select
+                      id="input-lesson-class"
                       value={newClassId}
                       onChange={e => {
                         const classId = e.target.value;
@@ -1164,22 +1183,22 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 </div>
               )}
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">날짜</label>
-                <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
+                <label htmlFor="input-lesson-date" className="block text-xs font-bold text-slate-500 mb-1">날짜 <span className="text-red-400">*</span></label>
+                <input id="input-lesson-date" type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">시작 시간</label>
-                  <input type="time" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
+                  <label htmlFor="input-lesson-start-time" className="block text-xs font-bold text-slate-500 mb-1">시작 시간 <span className="text-red-400">*</span></label>
+                  <input id="input-lesson-start-time" type="time" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">종료 시간</label>
-                  <input type="time" value={newEndTime} onChange={e => setNewEndTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
+                  <label htmlFor="input-lesson-end-time" className="block text-xs font-bold text-slate-500 mb-1">종료 시간 <span className="text-red-400">*</span></label>
+                  <input id="input-lesson-end-time" type="time" value={newEndTime} onChange={e => setNewEndTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">장소</label>
-                <input value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" placeholder="예: 301호" />
+                <label htmlFor="input-lesson-location" className="block text-xs font-bold text-slate-500 mb-1">장소</label>
+                <input id="input-lesson-location" value={newLocation} onChange={e => setNewLocation(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500" placeholder="예: 301호" />
               </div>
               <button
                 onClick={editingLesson ? handleUpdateLesson : handleCreateLesson}
@@ -1194,10 +1213,11 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
       {/* Private Lesson Request Modal (Student) */}
       {isRequestModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsRequestModalOpen(false)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-md p-5 md:p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setIsRequestModalOpen(false)}
+              aria-label="닫기"
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1208,8 +1228,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">선생님</label>
+                <label htmlFor="input-req-teacher" className="block text-xs font-bold text-slate-500 mb-1">선생님 <span className="text-red-400">*</span></label>
                 <select
+                  id="input-req-teacher"
                   value={reqTeacherId}
                   onChange={e => setReqTeacherId(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-violet-500"
@@ -1221,8 +1242,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">과목</label>
+                <label htmlFor="input-req-subject" className="block text-xs font-bold text-slate-500 mb-1">과목 <span className="text-red-400">*</span></label>
                 <select
+                  id="input-req-subject"
                   value={reqSubject}
                   onChange={e => setReqSubject(e.target.value as Subject | '')}
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-violet-500"
@@ -1234,22 +1256,23 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">희망 날짜</label>
-                <input type="date" value={reqDate} onChange={e => setReqDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-violet-500" />
+                <label htmlFor="input-req-date" className="block text-xs font-bold text-slate-500 mb-1">희망 날짜 <span className="text-red-400">*</span></label>
+                <input id="input-req-date" type="date" value={reqDate} onChange={e => setReqDate(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-violet-500" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">시작 시간</label>
-                  <input type="time" value={reqStartTime} onChange={e => setReqStartTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-violet-500" />
+                  <label htmlFor="input-req-start-time" className="block text-xs font-bold text-slate-500 mb-1">시작 시간 <span className="text-red-400">*</span></label>
+                  <input id="input-req-start-time" type="time" value={reqStartTime} onChange={e => setReqStartTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-violet-500" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">종료 시간</label>
-                  <input type="time" value={reqEndTime} onChange={e => setReqEndTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-violet-500" />
+                  <label htmlFor="input-req-end-time" className="block text-xs font-bold text-slate-500 mb-1">종료 시간 <span className="text-red-400">*</span></label>
+                  <input id="input-req-end-time" type="time" value={reqEndTime} onChange={e => setReqEndTime(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-violet-500" />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">신청 사유</label>
+                <label htmlFor="input-req-reason" className="block text-xs font-bold text-slate-500 mb-1">신청 사유 <span className="text-red-400">*</span></label>
                 <textarea
+                  id="input-req-reason"
                   value={reqReason}
                   onChange={e => setReqReason(e.target.value)}
                   className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-500 resize-none h-24"
@@ -1269,10 +1292,11 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
       {/* Journal Overview Modal (Teacher/Director - All Journals) */}
       {isJournalOverviewOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl p-5 md:p-6 shadow-2xl relative max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => { setIsJournalOverviewOpen(false); setJournalFilterStudent(''); }}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-2xl p-5 md:p-6 shadow-2xl relative max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => { setIsJournalOverviewOpen(false); setJournalFilterStudent(''); }}
+              aria-label="닫기"
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1283,8 +1307,9 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
             {/* Student Filter */}
             <div className="mb-4">
-              <label className="text-xs font-bold text-slate-600 block mb-2">학생 필터</label>
+              <label htmlFor="input-journal-filter-student" className="text-xs font-bold text-slate-600 block mb-2">학생 필터</label>
               <select
+                id="input-journal-filter-student"
                 value={journalFilterStudent}
                 onChange={e => setJournalFilterStudent(e.target.value)}
                 className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:border-blue-400"
@@ -1318,7 +1343,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-700">{journal.authorName}</p>
-                              <p className="text-xs text-slate-400">{new Date(journal.date).toLocaleDateString('ko-KR')}</p>
+                              <p className="text-xs text-slate-400">{formatDateKo(journal.date)}</p>
                             </div>
                           </div>
                           <span className={`px-2 py-0.5 rounded text-xs font-bold ${journal.journalType === 'teacher' ? 'bg-blue-100 text-blue-600' : 'bg-green-100 text-green-600'}`}>
@@ -1373,10 +1398,11 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
 
       {/* Private Lesson Requests Panel (Teacher/Director) */}
       {isRequestsPanelOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-lg p-5 md:p-6 shadow-2xl relative max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => { setIsRequestsPanelOpen(false); setRejectingId(null); setRejectNote(''); }}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full md:max-w-lg p-5 md:p-6 shadow-2xl relative max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => { setIsRequestsPanelOpen(false); setRejectingId(null); setRejectNote(''); }}
+              aria-label="닫기"
               className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -1395,7 +1421,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user, classes, allUsers }) => 
                       </div>
                       <div>
                         <p className="text-sm font-bold text-slate-700">{req.studentName}</p>
-                        <p className="text-xs text-slate-400">{new Date(req.createdAt).toLocaleDateString('ko-KR')} 신청</p>
+                        <p className="text-xs text-slate-400">{formatDateKo(req.createdAt)} 신청</p>
                       </div>
                     </div>
                     <span className="px-2 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-600">대기중</span>

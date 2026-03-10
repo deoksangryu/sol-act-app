@@ -47,6 +47,17 @@ export function formatDateTimeShortKo(dateStr: string): string {
   }
 }
 
+/** "일요일, 3월 2일" */
+export function formatDateWeekdayKo(dateStr: string): string {
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return d.toLocaleDateString('ko-KR', { weekday: 'long', month: 'long', day: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
 /** "2분 전", "1시간 전", "3일 전" */
 export function formatRelativeKo(dateStr: string): string {
   try {

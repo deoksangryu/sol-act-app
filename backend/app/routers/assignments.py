@@ -41,6 +41,8 @@ def list_assignments(
     student_id: Optional[str] = Query(None),
     assigned_by: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -62,7 +64,7 @@ def list_assignments(
             query = query.filter(Assignment.status == s)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
-    assignments = query.order_by(Assignment.due_date.desc()).all()
+    assignments = query.order_by(Assignment.due_date.desc()).offset(skip).limit(limit).all()
     return [assignment_to_response(a) for a in assignments]
 
 

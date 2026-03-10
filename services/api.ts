@@ -9,6 +9,9 @@ import type {
 export const API_URL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8000';
 export const DEMO_MODE = (import.meta as any).env?.VITE_DEMO_MODE === 'true';
 
+// Prevent duplicate session-expired redirects
+let _sessionExpiredScheduled = false;
+
 // Demo mode: re-export mock APIs (overrides real APIs at bottom of file)
 import {
   demoAuthApi, demoUserApi, demoClassApi, demoLessonApi, demoAssignmentApi,
@@ -29,6 +32,7 @@ export function setToken(token: string): void {
   localStorage.setItem(TOKEN_KEY, token);
 }
 export function clearAuth(): void {
+  _sessionExpiredScheduled = false;
   sessionStorage.removeItem(TOKEN_KEY);
   sessionStorage.removeItem(USER_KEY);
   localStorage.removeItem(TOKEN_KEY);
@@ -50,36 +54,36 @@ function snakeToCamel(s: string): string {
 function camelToSnake(s: string): string {
   return s.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 }
-function convertKeys(obj: any, converter: (s: string) => string): any {
+function convertKeys(obj: unknown, converter: (s: string) => string): unknown {
   if (Array.isArray(obj)) return obj.map((v) => convertKeys(v, converter));
   if (obj !== null && typeof obj === 'object' && !(obj instanceof Date)) {
     return Object.fromEntries(
-      Object.entries(obj).map(([k, v]) => [converter(k), convertKeys(v, converter)])
+      Object.entries(obj as Record<string, unknown>).map(([k, v]) => [converter(k), convertKeys(v, converter)])
     );
   }
   return obj;
 }
-function toCamel(obj: any): any { return convertKeys(obj, snakeToCamel); }
-function toSnake(obj: any): any { return convertKeys(obj, camelToSnake); }
+function toCamel(obj: unknown): unknown { return convertKeys(obj, snakeToCamel); }
+function toSnake(obj: unknown): unknown { return convertKeys(obj, camelToSnake); }
 
 // Map createdAt → date for types that frontend expects 'date'
 function withDateAlias<T>(obj: T): T {
   if (Array.isArray(obj)) return obj.map(withDateAlias) as T;
   if (obj && typeof obj === 'object') {
-    const o = obj as any;
+    const o = obj as Record<string, unknown>;
     if (o.createdAt && !o.date) o.date = o.createdAt;
-    return o;
+    return o as T;
   }
   return obj;
 }
 
 // Map portfolio: tags string → array, comments date alias
-function mapPortfolio(raw: any): any {
+function mapPortfolio(raw: Record<string, unknown>): PortfolioItem {
   return {
-    ...raw,
-    tags: typeof raw.tags === 'string' ? (raw.tags ? raw.tags.split(',').map((t: string) => t.trim()) : []) : (raw.tags || []),
-    comments: (raw.comments || []).map(withDateAlias),
-    date: raw.createdAt || raw.date,
+    ...(raw as unknown as PortfolioItem),
+    tags: typeof raw.tags === 'string' ? (raw.tags ? raw.tags.split(',').map((t: string) => t.trim()) : []) : ((raw.tags as string[]) || []),
+    comments: ((raw.comments as Record<string, unknown>[]) || []).map(withDateAlias) as unknown as PortfolioComment[],
+    date: (raw.createdAt as string) || (raw.date as string),
   };
 }
 
@@ -113,8 +117,13 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
 
   if (response.status === 401) {
     clearAuth();
-    window.location.reload();
-    throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
+    // Soft handling: warn before redirect to avoid losing unsaved work
+    if (!_sessionExpiredScheduled) {
+      _sessionExpiredScheduled = true;
+      window.dispatchEvent(new CustomEvent('session-expired'));
+      setTimeout(() => window.location.reload(), 3000);
+    }
+    throw new Error('세션이 만료되었습니다. 3초 후 로그인 화면으로 이동합니다.');
   }
   if (!response.ok) {
     if (!navigator.onLine) {
@@ -262,13 +271,13 @@ export const lessonApi = {
   get(id: string): Promise<Lesson> {
     return apiRequest(`/api/lessons/${id}`);
   },
-  create(data: any): Promise<Lesson> {
+  create(data: Partial<Lesson>): Promise<Lesson> {
     return apiRequest('/api/lessons', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
   },
-  update(id: string, data: any): Promise<Lesson> {
+  update(id: string, data: Partial<Lesson>): Promise<Lesson> {
     return apiRequest(`/api/lessons/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
@@ -283,7 +292,7 @@ export const lessonApi = {
   delete(id: string): Promise<void> {
     return apiRequest(`/api/lessons/${id}`, { method: 'DELETE' });
   },
-  createBulk(data: any): Promise<Lesson[]> {
+  createBulk(data: Partial<Lesson> | Partial<Lesson>[]): Promise<Lesson[]> {
     return apiRequest('/api/lessons/bulk', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
@@ -300,7 +309,7 @@ export const attendanceApi = {
     const qs = q.toString();
     return apiRequest(`/api/attendance${qs ? '?' + qs : ''}`);
   },
-  create(data: any): Promise<AttendanceRecord> {
+  create(data: Partial<AttendanceRecord>): Promise<AttendanceRecord> {
     return apiRequest('/api/attendance', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
@@ -315,13 +324,13 @@ export const attendanceApi = {
       }),
     });
   },
-  update(id: string, data: any): Promise<AttendanceRecord> {
+  update(id: string, data: Partial<AttendanceRecord>): Promise<AttendanceRecord> {
     return apiRequest(`/api/attendance/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
     });
   },
-  getStats(params?: { studentId?: string; classId?: string; dateFrom?: string; dateTo?: string }): Promise<any[]> {
+  getStats(params?: { studentId?: string; classId?: string; dateFrom?: string; dateTo?: string }): Promise<Record<string, unknown>[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.classId) q.set('class_id', params.classId);
@@ -333,8 +342,8 @@ export const attendanceApi = {
 };
 
 // --- Journal API ---
-function mapJournal(raw: any): LessonJournal {
-  return { ...raw, date: raw.lessonDate || raw.createdAt || raw.date };
+function mapJournal(raw: Record<string, unknown>): LessonJournal {
+  return { ...(raw as unknown as LessonJournal), date: (raw.lessonDate as string) || (raw.createdAt as string) || (raw.date as string) };
 }
 
 export const journalApi = {
@@ -343,25 +352,25 @@ export const journalApi = {
     if (params?.lessonId) q.set('lesson_id', params.lessonId);
     if (params?.authorId) q.set('author_id', params.authorId);
     const qs = q.toString();
-    const data = await apiRequest<any[]>(`/api/journals${qs ? '?' + qs : ''}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/journals${qs ? '?' + qs : ''}`);
     return data.map(mapJournal);
   },
-  async create(data: any): Promise<LessonJournal> {
-    const res = await apiRequest<any>('/api/journals', {
+  async create(data: Partial<LessonJournal>): Promise<LessonJournal> {
+    const res = await apiRequest<Record<string, unknown>>('/api/journals', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
     return mapJournal(res);
   },
-  async update(id: string, data: any): Promise<LessonJournal> {
-    const res = await apiRequest<any>(`/api/journals/${id}`, {
+  async update(id: string, data: Partial<LessonJournal>): Promise<LessonJournal> {
+    const res = await apiRequest<Record<string, unknown>>(`/api/journals/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
     });
     return mapJournal(res);
   },
   async get(id: string): Promise<LessonJournal> {
-    const res = await apiRequest<any>(`/api/journals/${id}`);
+    const res = await apiRequest<Record<string, unknown>>(`/api/journals/${id}`);
     return mapJournal(res);
   },
   getAiFeedback(id: string): Promise<{ aiFeedback: string }> {
@@ -385,13 +394,13 @@ export const assignmentApi = {
   get(id: string): Promise<Assignment> {
     return apiRequest(`/api/assignments/${id}`);
   },
-  create(data: any): Promise<Assignment[]> {
+  create(data: Partial<Assignment>): Promise<Assignment[]> {
     return apiRequest('/api/assignments', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
   },
-  update(id: string, data: any): Promise<Assignment> {
+  update(id: string, data: Partial<Assignment>): Promise<Assignment> {
     return apiRequest(`/api/assignments/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
@@ -429,13 +438,13 @@ export const dietApi = {
     const qs = q.toString();
     return apiRequest(`/api/diet${qs ? '?' + qs : ''}`);
   },
-  create(data: any): Promise<DietLog> {
+  create(data: Partial<DietLog>): Promise<DietLog> {
     return apiRequest('/api/diet', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
   },
-  update(id: string, data: any): Promise<DietLog> {
+  update(id: string, data: Partial<DietLog>): Promise<DietLog> {
     return apiRequest(`/api/diet/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
@@ -461,28 +470,28 @@ export const evaluationApi = {
     if (params?.subject) q.set('subject', params.subject);
     if (params?.period) q.set('period', params.period);
     const qs = q.toString();
-    const data = await apiRequest<any[]>(`/api/evaluations${qs ? '?' + qs : ''}`);
+    const data = await apiRequest<Evaluation[]>(`/api/evaluations${qs ? '?' + qs : ''}`);
     return data.map(withDateAlias);
   },
   async get(id: string): Promise<Evaluation> {
-    const data = await apiRequest<any>(`/api/evaluations/${id}`);
+    const data = await apiRequest<Evaluation>(`/api/evaluations/${id}`);
     return withDateAlias(data);
   },
-  async create(data: any): Promise<Evaluation> {
-    const res = await apiRequest<any>('/api/evaluations', {
+  async create(data: Partial<Evaluation>): Promise<Evaluation> {
+    const res = await apiRequest<Evaluation>('/api/evaluations', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
     return withDateAlias(res);
   },
-  async update(id: string, data: any): Promise<Evaluation> {
-    const res = await apiRequest<any>(`/api/evaluations/${id}`, {
+  async update(id: string, data: Partial<Evaluation>): Promise<Evaluation> {
+    const res = await apiRequest<Evaluation>(`/api/evaluations/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
     });
     return withDateAlias(res);
   },
-  getReport(studentId: string): Promise<any> {
+  getReport(studentId: string): Promise<Record<string, unknown>> {
     return apiRequest(`/api/evaluations/report/${studentId}`);
   },
   delete(id: string): Promise<void> {
@@ -516,38 +525,38 @@ export const chatApi = {
 };
 
 // --- Q&A API ---
-function mapQuestion(raw: any): Question {
-  return { ...raw, date: raw.createdAt || raw.date, answers: (raw.answers || []).map(mapAnswer) };
+function mapQuestion(raw: Record<string, unknown>): Question {
+  return { ...(raw as unknown as Question), date: (raw.createdAt as string) || (raw.date as string), answers: ((raw.answers as Record<string, unknown>[]) || []).map(mapAnswer) };
 }
-function mapAnswer(raw: any): Answer {
-  return { ...raw, date: raw.createdAt || raw.date };
+function mapAnswer(raw: Record<string, unknown>): Answer {
+  return { ...(raw as unknown as Answer), date: (raw.createdAt as string) || (raw.date as string) };
 }
 
 export const qnaApi = {
   async listQuestions(): Promise<Question[]> {
-    const data = await apiRequest<any[]>('/api/qna/questions');
+    const data = await apiRequest<Record<string, unknown>[]>('/api/qna/questions');
     return data.map(mapQuestion);
   },
   async getQuestion(id: string): Promise<Question> {
-    const data = await apiRequest<any>(`/api/qna/questions/${id}`);
+    const data = await apiRequest<Record<string, unknown>>(`/api/qna/questions/${id}`);
     return mapQuestion(data);
   },
   async createQuestion(data: { title: string; content: string }): Promise<Question> {
-    const res = await apiRequest<any>('/api/qna/questions', {
+    const res = await apiRequest<Record<string, unknown>>('/api/qna/questions', {
       method: 'POST',
       body: JSON.stringify({ title: data.title, content: data.content }),
     });
     return mapQuestion(res);
   },
   async createAnswer(questionId: string, data: { content: string }): Promise<Answer> {
-    const res = await apiRequest<any>(`/api/qna/questions/${questionId}/answers`, {
+    const res = await apiRequest<Record<string, unknown>>(`/api/qna/questions/${questionId}/answers`, {
       method: 'POST',
       body: JSON.stringify({ content: data.content }),
     });
     return mapAnswer(res);
   },
   async getAiAnswer(questionId: string): Promise<Answer> {
-    const res = await apiRequest<any>(`/api/qna/questions/${questionId}/answers/ai`, { method: 'POST' });
+    const res = await apiRequest<Record<string, unknown>>(`/api/qna/questions/${questionId}/answers/ai`, { method: 'POST' });
     return mapAnswer(res);
   },
   deleteQuestion(id: string): Promise<void> {
@@ -561,20 +570,20 @@ export const qnaApi = {
 // --- Notice API ---
 export const noticeApi = {
   async list(): Promise<Notice[]> {
-    const data = await apiRequest<any[]>('/api/notices');
+    const data = await apiRequest<Notice[]>('/api/notices');
     return data.map(withDateAlias);
   },
   async get(id: string): Promise<Notice> {
-    const data = await apiRequest<any>(`/api/notices/${id}`);
+    const data = await apiRequest<Notice>(`/api/notices/${id}`);
     return withDateAlias(data);
   },
-  create(data: any): Promise<Notice> {
+  create(data: Partial<Notice> & Record<string, unknown>): Promise<Notice> {
     return apiRequest('/api/notices', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
   },
-  update(id: string, data: any): Promise<Notice> {
+  update(id: string, data: Partial<Notice> & Record<string, unknown>): Promise<Notice> {
     return apiRequest(`/api/notices/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
@@ -588,10 +597,10 @@ export const noticeApi = {
 // --- Notification API ---
 export const notificationApi = {
   async list(): Promise<Notification[]> {
-    const data = await apiRequest<any[]>('/api/notifications');
+    const data = await apiRequest<Notification[]>('/api/notifications');
     return data.map(withDateAlias);
   },
-  create(data: any): Promise<Notification> {
+  create(data: Partial<Notification>): Promise<Notification> {
     return apiRequest('/api/notifications', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
@@ -615,36 +624,36 @@ export const portfolioApi = {
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.category) q.set('category', params.category);
     const qs = q.toString();
-    const data = await apiRequest<any[]>(`/api/portfolios${qs ? '?' + qs : ''}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/portfolios${qs ? '?' + qs : ''}`);
     return data.map(mapPortfolio);
   },
   async get(id: string): Promise<PortfolioItem> {
-    const data = await apiRequest<any>(`/api/portfolios/${id}`);
+    const data = await apiRequest<Record<string, unknown>>(`/api/portfolios/${id}`);
     return mapPortfolio(data);
   },
-  async create(data: any): Promise<PortfolioItem> {
+  async create(data: Partial<PortfolioItem>): Promise<PortfolioItem> {
     // Convert tags array to comma-separated string for backend
-    const payload = { ...data };
-    if (Array.isArray(payload.tags)) payload.tags = payload.tags.join(',');
-    const res = await apiRequest<any>('/api/portfolios', {
+    const payload: Record<string, unknown> = { ...data };
+    if (Array.isArray(payload.tags)) payload.tags = (payload.tags as string[]).join(',');
+    const res = await apiRequest<Record<string, unknown>>('/api/portfolios', {
       method: 'POST',
       body: JSON.stringify(toSnake(payload)),
     });
     return mapPortfolio(res);
   },
-  async update(id: string, data: any): Promise<PortfolioItem> {
-    const payload = { ...data };
-    if (Array.isArray(payload.tags)) payload.tags = payload.tags.join(',');
-    const res = await apiRequest<any>(`/api/portfolios/${id}`, {
+  async update(id: string, data: Partial<PortfolioItem>): Promise<PortfolioItem> {
+    const payload: Record<string, unknown> = { ...data };
+    if (Array.isArray(payload.tags)) payload.tags = (payload.tags as string[]).join(',');
+    const res = await apiRequest<Record<string, unknown>>(`/api/portfolios/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(payload)),
     });
     return mapPortfolio(res);
   },
   async addComment(portfolioId: string, content: string, timestampSec?: number): Promise<PortfolioComment> {
-    const body: any = { content };
+    const body: Record<string, unknown> = { content };
     if (timestampSec != null) body.timestamp_sec = timestampSec;
-    const res = await apiRequest<any>(`/api/portfolios/${portfolioId}/comments`, {
+    const res = await apiRequest<PortfolioComment>(`/api/portfolios/${portfolioId}/comments`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
@@ -652,10 +661,10 @@ export const portfolioApi = {
   },
   async listPracticeGroups(studentId?: string): Promise<{ groupName: string; items: PortfolioItem[] }[]> {
     const q = studentId ? `?student_id=${studentId}` : '';
-    const data = await apiRequest<any[]>(`/api/portfolios/practice-groups${q}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/portfolios/practice-groups${q}`);
     return data.map(g => ({
-      groupName: g.groupName,
-      items: (g.items || []).map(mapPortfolio),
+      groupName: g.groupName as string,
+      items: ((g.items as Record<string, unknown>[]) || []).map(mapPortfolio),
     }));
   },
   getAiFeedback(id: string): Promise<{ aiFeedback: string }> {
@@ -668,18 +677,18 @@ export const portfolioApi = {
 
 // --- Audition API ---
 // Map backend audition response to frontend CompetitionEvent
-function mapAudition(raw: any): CompetitionEvent {
+function mapAudition(raw: Record<string, unknown>): CompetitionEvent {
   return {
-    ...raw,
-    checklist: (raw.checklists || raw.checklist || []).map((c: any) => ({
-      id: c.id,
-      text: c.content || c.text || '',
-      completed: c.isChecked ?? c.completed ?? false,
+    ...(raw as unknown as CompetitionEvent),
+    checklist: ((raw.checklists as Record<string, unknown>[]) || (raw.checklist as Record<string, unknown>[]) || []).map((c: Record<string, unknown>) => ({
+      id: c.id as string,
+      text: (c.content as string) || (c.text as string) || '',
+      completed: (c.isChecked as boolean) ?? (c.completed as boolean) ?? false,
     })),
   };
 }
-function mapChecklistItem(raw: any): ChecklistItem {
-  return { id: raw.id, text: raw.content || raw.text || '', completed: raw.isChecked ?? raw.completed ?? false };
+function mapChecklistItem(raw: Record<string, unknown>): ChecklistItem {
+  return { id: raw.id as string, text: (raw.content as string) || (raw.text as string) || '', completed: (raw.isChecked as boolean) ?? (raw.completed as boolean) ?? false };
 }
 
 export const auditionApi = {
@@ -689,41 +698,41 @@ export const auditionApi = {
     if (params?.classId) q.set('class_id', params.classId);
     if (params?.status) q.set('status', params.status);
     const qs = q.toString();
-    const data = await apiRequest<any[]>(`/api/auditions${qs ? '?' + qs : ''}`);
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/auditions${qs ? '?' + qs : ''}`);
     return data.map(mapAudition);
   },
   async get(id: string): Promise<CompetitionEvent> {
-    const data = await apiRequest<any>(`/api/auditions/${id}`);
+    const data = await apiRequest<Record<string, unknown>>(`/api/auditions/${id}`);
     return mapAudition(data);
   },
-  async create(data: any): Promise<CompetitionEvent> {
-    const res = await apiRequest<any>('/api/auditions', {
+  async create(data: Partial<CompetitionEvent> & Record<string, unknown>): Promise<CompetitionEvent> {
+    const res = await apiRequest<Record<string, unknown>>('/api/auditions', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
     });
     return mapAudition(res);
   },
-  async update(id: string, data: any): Promise<CompetitionEvent> {
-    const res = await apiRequest<any>(`/api/auditions/${id}`, {
+  async update(id: string, data: Partial<CompetitionEvent>): Promise<CompetitionEvent> {
+    const res = await apiRequest<Record<string, unknown>>(`/api/auditions/${id}`, {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
     });
     return mapAudition(res);
   },
   async addChecklist(auditionId: string, data: { content: string }): Promise<ChecklistItem> {
-    const res = await apiRequest<any>(`/api/auditions/${auditionId}/checklists`, {
+    const res = await apiRequest<Record<string, unknown>>(`/api/auditions/${auditionId}/checklists`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
     return mapChecklistItem(res);
   },
-  async updateChecklist(auditionId: string, checklistId: string, data: any): Promise<ChecklistItem> {
+  async updateChecklist(auditionId: string, checklistId: string, data: { completed?: boolean; text?: string; sortOrder?: number }): Promise<ChecklistItem> {
     // Map frontend field names to backend: completed→is_checked, text→content
-    const backendData: any = {};
+    const backendData: Record<string, unknown> = {};
     if (data.completed !== undefined) backendData.is_checked = data.completed;
     if (data.text !== undefined) backendData.content = data.text;
     if (data.sortOrder !== undefined) backendData.sort_order = data.sortOrder;
-    const res = await apiRequest<any>(`/api/auditions/${auditionId}/checklists/${checklistId}`, {
+    const res = await apiRequest<Record<string, unknown>>(`/api/auditions/${auditionId}/checklists/${checklistId}`, {
       method: 'PUT',
       body: JSON.stringify(backendData),
     });
@@ -747,7 +756,7 @@ export const privateLessonApi = {
     const qs = q.toString();
     return apiRequest(`/api/private-lessons${qs ? '?' + qs : ''}`);
   },
-  create(data: any): Promise<PrivateLessonRequest> {
+  create(data: Partial<PrivateLessonRequest>): Promise<PrivateLessonRequest> {
     return apiRequest('/api/private-lessons', {
       method: 'POST',
       body: JSON.stringify(toSnake(data)),
@@ -773,6 +782,18 @@ export const uploadApi = {
     targetType?: string,
     targetId?: string,
   ): Promise<{ url: string; filename: string }> & { abort: () => void } {
+    // Client-side file size pre-validation
+    const VIDEO_EXTS = ['.mp4', '.mov', '.webm'];
+    const dotIdx = file.name.lastIndexOf('.');
+    const ext = dotIdx >= 0 ? file.name.toLowerCase().slice(dotIdx) : '';
+    const maxSize = VIDEO_EXTS.includes(ext) ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+    if (file.size > maxSize) {
+      const maxMb = maxSize / (1024 * 1024);
+      const err = Promise.reject(new Error(`파일이 너무 큽니다. 최대 ${maxMb}MB까지 업로드 가능합니다.`)) as any;
+      err.abort = () => {};
+      return err;
+    }
+
     let xhrRef: XMLHttpRequest | null = null;
 
     const promise = new Promise<{ url: string; filename: string }>((resolve, reject) => {
@@ -811,8 +832,12 @@ export const uploadApi = {
           resolve(toCamel(data) as { url: string; filename: string });
         } else if (xhr.status === 401) {
           clearAuth();
-          window.location.reload();
-          reject(new Error('세션이 만료되었습니다.'));
+          if (!_sessionExpiredScheduled) {
+            _sessionExpiredScheduled = true;
+            window.dispatchEvent(new CustomEvent('session-expired'));
+            setTimeout(() => window.location.reload(), 3000);
+          }
+          reject(new Error('세션이 만료되었습니다. 3초 후 로그인 화면으로 이동합니다.'));
         } else {
           try {
             const err = JSON.parse(xhr.responseText);
