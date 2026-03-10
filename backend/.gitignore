@@ -28,8 +28,8 @@ wheels/
 .env.local
 
 # Database
-*.db
-*.sqlite
+# *.db  # temporarily tracked for server migration
+# *.sqlite
 
 # IDE
 .vscode/

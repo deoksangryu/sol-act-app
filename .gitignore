@@ -4,6 +4,6 @@ dist
 *.log
 .env
 .env.local
-sol_act.db
-backend/backend/uploads/
-backend/static/uploads/
+# sol_act.db  # temporarily tracked for server migration
+# backend/backend/uploads/  # temporarily tracked for server migration
+# backend/static/uploads/
