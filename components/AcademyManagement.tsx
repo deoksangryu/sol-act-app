@@ -3,12 +3,13 @@ import React, { useState } from 'react';
 import { User, UserRole } from '../types';
 import { Classes } from './Classes';
 import { Users } from './Users';
+import { Diet } from './Diet';
 
 interface AcademyManagementProps {
   user: User;
 }
 
-type AcademyTab = 'classes' | 'users';
+type AcademyTab = 'classes' | 'users' | 'diet';
 
 export const AcademyManagement: React.FC<AcademyManagementProps> = ({ user }) => {
   const [activeTab, setActiveTab] = useState<AcademyTab>('classes');
@@ -21,6 +22,7 @@ export const AcademyManagement: React.FC<AcademyManagementProps> = ({ user }) =>
   const tabs: { id: AcademyTab; label: string; icon: string }[] = [
     { id: 'classes', label: '클래스 관리', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10' },
     { id: 'users', label: '구성원 관리', icon: 'M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z' },
+    { id: 'diet', label: '식단 관리', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
   ];
 
   return (
@@ -54,6 +56,9 @@ export const AcademyManagement: React.FC<AcademyManagementProps> = ({ user }) =>
         )}
         {activeTab === 'users' && (
           <Users user={user} />
+        )}
+        {activeTab === 'diet' && (
+          <Diet user={user} />
         )}
       </div>
     </div>
