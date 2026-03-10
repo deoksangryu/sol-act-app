@@ -35,17 +35,32 @@ app.add_middleware(
 )
 
 
-# ngrok 경고 우회 + 리다이렉트 응답 CORS 보장 미들웨어
+# ngrok 경고 우회 + CORS 보장 미들웨어
 @app.middleware("http")
 async def add_extra_headers(request, call_next):
+    from starlette.responses import Response as StarletteResponse
+    origin = request.headers.get("origin")
+
+    # Handle CORS preflight (OPTIONS) directly — ngrok can strip CORSMiddleware headers
+    if request.method == "OPTIONS" and origin and origin in settings.CORS_ORIGINS:
+        return StarletteResponse(
+            status_code=204,
+            headers={
+                "access-control-allow-origin": origin,
+                "access-control-allow-credentials": "true",
+                "access-control-allow-methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+                "access-control-allow-headers": "authorization, content-type, ngrok-skip-browser-warning",
+                "access-control-max-age": "86400",
+                "ngrok-skip-browser-warning": "true",
+            },
+        )
+
     response = await call_next(request)
     response.headers["ngrok-skip-browser-warning"] = "true"
-    # CORSMiddleware가 리다이렉트(307) 응답에 CORS 헤더를 누락할 수 있으므로 보완
-    origin = request.headers.get("origin")
-    if origin and "access-control-allow-origin" not in response.headers:
-        if origin in settings.CORS_ORIGINS:
-            response.headers["access-control-allow-origin"] = origin
-            response.headers["access-control-allow-credentials"] = "true"
+    # Ensure CORS headers on all responses (307 redirects, errors, etc.)
+    if origin and origin in settings.CORS_ORIGINS:
+        response.headers["access-control-allow-origin"] = origin
+        response.headers["access-control-allow-credentials"] = "true"
     return response
 
 
