@@ -45,6 +45,16 @@ class WsClient {
     const token = getToken();
     if (!token || !this.userId || this.closed) return;
 
+    // Check if token is expired before attempting connection
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      if (payload.exp && payload.exp * 1000 < Date.now()) {
+        console.warn('WS: token expired, stopping reconnect');
+        this.closed = true;
+        return;
+      }
+    } catch { /* ignore parse errors, let server validate */ }
+
     this.ws = new WebSocket(`${getWsBaseUrl()}/ws/stream?token=${token}`);
 
     this.ws.onopen = () => {
@@ -73,7 +83,15 @@ class WsClient {
     this.ws.onclose = () => {
       this.ws = null;
       this.stopHeartbeat();
-      if (!this.closed) this.scheduleReconnect();
+      if (!this.closed) {
+        // Stop retrying after 10 consecutive failures (likely auth issue)
+        if (this.reconnectAttempt >= 10) {
+          console.warn('WS: too many reconnect failures, stopping');
+          this.closed = true;
+          return;
+        }
+        this.scheduleReconnect();
+      }
     };
 
     this.ws.onerror = () => {
