@@ -22,13 +22,15 @@ async def upload_file(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # Pre-validate Content-Length before reading the full body
+    # Pre-validate Content-Length before reading the full body.
+    # Add 1MB headroom for multipart boundary overhead to avoid false rejections.
     content_length = request.headers.get("content-length")
     if content_length and file.filename:
         try:
             declared_size = int(content_length)
             max_size = get_max_size(file.filename)
-            if declared_size > max_size:
+            headroom = 1 * 1024 * 1024  # 1MB for multipart overhead
+            if declared_size > max_size + headroom:
                 max_mb = max_size // (1024 * 1024)
                 raise HTTPException(status_code=400, detail=f"File too large. Maximum size: {max_mb}MB")
         except ValueError:

@@ -44,6 +44,7 @@ def is_video(filename: str) -> bool:
 
 
 CHUNK_SIZE = 4 * 1024 * 1024  # 4MB chunks
+MIN_VIDEO_SIZE = 1024  # 1KB — anything smaller is a failed/corrupt upload
 
 # Limit concurrent ffmpeg processes to prevent CPU/memory overload
 _compression_semaphore = threading.Semaphore(3)
@@ -83,8 +84,20 @@ async def save_file(
         target_path.unlink(missing_ok=True)
         raise
 
+    # Validate saved file is not empty/corrupt (e.g. network disconnected mid-upload)
+    if total == 0:
+        target_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="업로드된 파일이 비어있습니다.")
+    if is_video(file.filename) and total < MIN_VIDEO_SIZE:
+        target_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400,
+            detail="영상 파일이 손상되었거나 너무 작습니다. 다시 업로드해주세요.",
+        )
+
     url_path = f"{subfolder}/{user_id}/{unique_name}" if user_id else f"{subfolder}/{unique_name}"
     relative_url = f"/uploads/{url_path}"
+    logger.info(f"File saved: {relative_url} ({total // 1024}KB)")
     return relative_url, file.filename
 
 
@@ -186,11 +199,15 @@ def _do_compress(src: Path, user_id: Optional[str]) -> None:
             _notify_file_ready(user_id)
 
     except subprocess.TimeoutExpired:
-        logger.error(f"ffmpeg timeout for {src}")
+        logger.error(f"ffmpeg timeout (600s) for {src} ({src.stat().st_size // 1024}KB)")
         tmp_out.unlink(missing_ok=True)
+        if user_id:
+            _notify_compression_failed(user_id)
     except Exception as e:
         logger.error(f"compress_video error: {e}")
         tmp_out.unlink(missing_ok=True)
+        if user_id:
+            _notify_compression_failed(user_id)
 
 
 def _update_video_urls_in_db(old_path: str, new_path: str) -> None:
@@ -277,3 +294,29 @@ def _push_file_ready(user_id: str) -> None:
         notify_user_sync(user_id, "영상 최적화가 완료되었습니다.")
     except Exception as e:
         logger.warning(f"Failed to push file_ready: {e}")
+
+
+def _notify_compression_failed(user_id: str) -> None:
+    """Notify user that video compression failed (original file is preserved)."""
+    try:
+        from app.services.websocket_manager import manager
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(manager.send_to_user(user_id, {
+                "type": "file_ready",
+                "data": {"message": "영상 최적화에 실패했습니다. 원본 영상은 유지됩니다."},
+            }))
+    except Exception:
+        pass
+    threading.Thread(
+        target=lambda: _push_compression_failed(user_id),
+        daemon=True,
+    ).start()
+
+
+def _push_compression_failed(user_id: str) -> None:
+    try:
+        from app.services.notification_service import notify_user_sync
+        notify_user_sync(user_id, "영상 최적화에 실패했습니다. 원본 영상은 유지됩니다.")
+    except Exception:
+        pass
