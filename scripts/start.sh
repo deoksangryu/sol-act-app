@@ -14,6 +14,11 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 BACKEND_PORT=8000
+LOG_DIR="backend/logs"
+mkdir -p "$LOG_DIR"
+LOG_FILE="$LOG_DIR/backend_$(date +%Y%m%d_%H%M%S).log"
+# 7일 이상 된 로그 자동 삭제
+find "$LOG_DIR" -name "backend_*.log" -mtime +7 -delete 2>/dev/null || true
 
 echo -e "${YELLOW}"
 echo "╔══════════════════════════════════════╗"
@@ -39,7 +44,7 @@ fi
 # ── 백엔드 시작 ──
 echo -e "${GREEN}[2/3] 백엔드 서버 시작 (포트 $BACKEND_PORT)...${NC}"
 cd backend
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --reload &
+python3 -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --reload 2>&1 | tee "../$LOG_FILE" &
 BACKEND_PID=$!
 cd ..
 sleep 2
@@ -51,6 +56,7 @@ fi
 echo -e "  ${GREEN}✓ 백엔드 실행 중 (PID: $BACKEND_PID)${NC}"
 echo -e "  ${CYAN}  로컬: http://localhost:$BACKEND_PORT${NC}"
 echo -e "  ${CYAN}  API 문서: http://localhost:$BACKEND_PORT/docs${NC}"
+echo -e "  ${CYAN}  로그 파일: $LOG_FILE${NC}"
 
 # ── ngrok 시작 ──
 echo -e "${GREEN}[3/3] ngrok 터널 시작...${NC}"

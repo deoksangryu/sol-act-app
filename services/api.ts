@@ -782,6 +782,22 @@ const CHUNKED_THRESHOLD = 10 * 1024 * 1024;
 // Chunk size for chunked uploads (8MB — completes in ~10s on LTE)
 const UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
 
+// Wake Lock: prevent screen sleep during upload (critical for mobile)
+let _wakeLock: any = null;
+async function acquireWakeLock() {
+  try {
+    if ('wakeLock' in navigator) {
+      _wakeLock = await (navigator as any).wakeLock.request('screen');
+    }
+  } catch { /* Wake Lock not supported or denied */ }
+}
+function releaseWakeLock() {
+  if (_wakeLock) {
+    _wakeLock.release().catch(() => {});
+    _wakeLock = null;
+  }
+}
+
 export const uploadApi = {
   upload(
     file: File,
@@ -819,6 +835,7 @@ function _singleUpload(
   targetId?: string,
 ): Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void } {
   let xhrRef: XMLHttpRequest | null = null;
+  acquireWakeLock();
 
   const promise = new Promise<{ url: string; filename: string }>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
@@ -850,6 +867,7 @@ function _singleUpload(
     }
 
     xhr.onload = () => {
+      releaseWakeLock();
       if (xhr.status >= 200 && xhr.status < 300) {
         const data = JSON.parse(xhr.responseText);
         resolve(toCamel(data) as { url: string; filename: string; thumbnailUrl?: string });
@@ -871,9 +889,9 @@ function _singleUpload(
       }
     };
 
-    xhr.onerror = () => reject(new Error('네트워크 오류로 업로드에 실패했습니다.'));
-    xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다. 다시 시도해주세요.'));
-    xhr.onabort = () => reject(new Error('업로드가 취소되었습니다.'));
+    xhr.onerror = () => { releaseWakeLock(); reject(new Error('네트워크 오류로 업로드에 실패했습니다.')); };
+    xhr.ontimeout = () => { releaseWakeLock(); reject(new Error('업로드 시간이 초과되었습니다. 다시 시도해주세요.')); };
+    xhr.onabort = () => { releaseWakeLock(); reject(new Error('업로드가 취소되었습니다.')); };
     xhr.send(formData);
   });
 
@@ -891,6 +909,7 @@ function _chunkedUpload(
   let aborted = false;
 
   const promise = (async () => {
+    await acquireWakeLock();
     // 1. Init session
     const initRes = await apiRequest<{ uploadId: string }>('/api/upload/chunked/init', {
       method: 'POST',
@@ -962,8 +981,9 @@ function _chunkedUpload(
       { method: 'POST' },
     );
     if (onProgress) onProgress(100);
+    releaseWakeLock();
     return result;
-  })();
+  })().catch((e) => { releaseWakeLock(); throw e; });
 
   (promise as any).abort = () => { aborted = true; };
   return promise as Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void };
