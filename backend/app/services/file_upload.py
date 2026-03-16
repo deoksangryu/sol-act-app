@@ -19,16 +19,21 @@ MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500MB
 MAX_DOC_SIZE = 50 * 1024 * 1024  # 50MB
 
 
-def validate_file(file: UploadFile) -> None:
-    if not file.filename:
-        raise HTTPException(status_code=400, detail="No filename provided")
-
-    ext = Path(file.filename).suffix.lower()
+def validate_file_ext(filename: str) -> None:
+    """Validate file extension only (for chunked upload init)."""
+    ext = Path(filename).suffix.lower()
     if ext not in ALLOWED_ALL:
         raise HTTPException(
             status_code=400,
             detail=f"File type '{ext}' not allowed. Allowed: {', '.join(sorted(ALLOWED_ALL))}",
         )
+
+
+def validate_file(file: UploadFile) -> None:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+
+    validate_file_ext(file.filename)
 
     # Check size by reading content
     # (file.size may not be available for all upload methods)

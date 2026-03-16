@@ -776,6 +776,12 @@ export const privateLessonApi = {
 };
 
 // --- Upload API ---
+
+// Threshold for switching to chunked upload (10MB)
+const CHUNKED_THRESHOLD = 10 * 1024 * 1024;
+// Chunk size for chunked uploads (8MB — completes in ~10s on LTE)
+const UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
+
 export const uploadApi = {
   upload(
     file: File,
@@ -796,71 +802,172 @@ export const uploadApi = {
       return err;
     }
 
-    let xhrRef: XMLHttpRequest | null = null;
+    // Use chunked upload for large files (>10MB) to avoid mobile timeout
+    if (file.size > CHUNKED_THRESHOLD) {
+      return _chunkedUpload(file, onProgress, subfolder, targetType, targetId);
+    }
 
-    const promise = new Promise<{ url: string; filename: string }>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhrRef = xhr;
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const params = new URLSearchParams();
-      if (subfolder) params.set('subfolder', subfolder);
-      if (targetType) params.set('target_type', targetType);
-      if (targetId) params.set('target_id', targetId);
-      const uploadUrl = `${API_URL}/api/upload?${params.toString()}`;
-      xhr.open('POST', uploadUrl);
-
-      // 5 minute timeout for large video files
-      xhr.timeout = 5 * 60 * 1000;
-
-      const token = getToken();
-      if (token) {
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      }
-      xhr.setRequestHeader('ngrok-skip-browser-warning', 'true');
-
-      if (onProgress) {
-        xhr.upload.onprogress = (e) => {
-          if (e.lengthComputable) {
-            onProgress(Math.round((e.loaded / e.total) * 100));
-          }
-        };
-      }
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          const data = JSON.parse(xhr.responseText);
-          resolve(toCamel(data) as { url: string; filename: string; thumbnailUrl?: string });
-        } else if (xhr.status === 401) {
-          clearAuth();
-          if (!_sessionExpiredScheduled) {
-            _sessionExpiredScheduled = true;
-            window.dispatchEvent(new CustomEvent('session-expired'));
-            setTimeout(() => window.location.reload(), 3000);
-          }
-          reject(new Error('세션이 만료되었습니다. 3초 후 로그인 화면으로 이동합니다.'));
-        } else {
-          try {
-            const err = JSON.parse(xhr.responseText);
-            reject(new Error(err.detail || '업로드에 실패했습니다.'));
-          } catch {
-            reject(new Error('업로드에 실패했습니다.'));
-          }
-        }
-      };
-
-      xhr.onerror = () => reject(new Error('네트워크 오류로 업로드에 실패했습니다.'));
-      xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다. 다시 시도해주세요.'));
-      xhr.onabort = () => reject(new Error('업로드가 취소되었습니다.'));
-      xhr.send(formData);
-    });
-
-    // Attach abort method to the promise
-    (promise as any).abort = () => xhrRef?.abort();
-    return promise as Promise<{ url: string; filename: string }> & { abort: () => void };
+    return _singleUpload(file, onProgress, subfolder, targetType, targetId);
   },
 };
+
+function _singleUpload(
+  file: File,
+  onProgress?: (pct: number) => void,
+  subfolder?: string,
+  targetType?: string,
+  targetId?: string,
+): Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void } {
+  let xhrRef: XMLHttpRequest | null = null;
+
+  const promise = new Promise<{ url: string; filename: string }>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhrRef = xhr;
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const params = new URLSearchParams();
+    if (subfolder) params.set('subfolder', subfolder);
+    if (targetType) params.set('target_type', targetType);
+    if (targetId) params.set('target_id', targetId);
+    const uploadUrl = `${API_URL}/api/upload?${params.toString()}`;
+    xhr.open('POST', uploadUrl);
+
+    xhr.timeout = 5 * 60 * 1000;
+
+    const token = getToken();
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    xhr.setRequestHeader('ngrok-skip-browser-warning', 'true');
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const data = JSON.parse(xhr.responseText);
+        resolve(toCamel(data) as { url: string; filename: string; thumbnailUrl?: string });
+      } else if (xhr.status === 401) {
+        clearAuth();
+        if (!_sessionExpiredScheduled) {
+          _sessionExpiredScheduled = true;
+          window.dispatchEvent(new CustomEvent('session-expired'));
+          setTimeout(() => window.location.reload(), 3000);
+        }
+        reject(new Error('세션이 만료되었습니다. 3초 후 로그인 화면으로 이동합니다.'));
+      } else {
+        try {
+          const err = JSON.parse(xhr.responseText);
+          reject(new Error(err.detail || '업로드에 실패했습니다.'));
+        } catch {
+          reject(new Error('업로드에 실패했습니다.'));
+        }
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('네트워크 오류로 업로드에 실패했습니다.'));
+    xhr.ontimeout = () => reject(new Error('업로드 시간이 초과되었습니다. 다시 시도해주세요.'));
+    xhr.onabort = () => reject(new Error('업로드가 취소되었습니다.'));
+    xhr.send(formData);
+  });
+
+  (promise as any).abort = () => xhrRef?.abort();
+  return promise as Promise<{ url: string; filename: string }> & { abort: () => void };
+}
+
+function _chunkedUpload(
+  file: File,
+  onProgress?: (pct: number) => void,
+  subfolder?: string,
+  targetType?: string,
+  targetId?: string,
+): Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void } {
+  let aborted = false;
+
+  const promise = (async () => {
+    // 1. Init session
+    const initRes = await apiRequest<{ uploadId: string }>('/api/upload/chunked/init', {
+      method: 'POST',
+      body: JSON.stringify({
+        filename: file.name,
+        total_size: file.size,
+        subfolder: subfolder || 'assignments',
+        target_type: targetType || null,
+        target_id: targetId || null,
+      }),
+    });
+    const uploadId = initRes.uploadId;
+
+    // 2. Send chunks
+    let offset = 0;
+    const totalChunks = Math.ceil(file.size / UPLOAD_CHUNK_SIZE);
+    let chunkIndex = 0;
+
+    while (offset < file.size) {
+      if (aborted) throw new Error('업로드가 취소되었습니다.');
+
+      const end = Math.min(offset + UPLOAD_CHUNK_SIZE, file.size);
+      const chunk = file.slice(offset, end);
+
+      const formData = new FormData();
+      formData.append('file', chunk, `chunk_${chunkIndex}`);
+
+      // Use fetch for each chunk (short request, no timeout issue)
+      const token = getToken();
+      const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+
+      let retries = 0;
+      const MAX_RETRIES = 3;
+      while (true) {
+        try {
+          const res = await fetch(`${API_URL}/api/upload/chunked/${uploadId}`, {
+            method: 'POST',
+            headers,
+            body: formData,
+          });
+          if (res.status === 401) {
+            clearAuth();
+            throw new Error('세션이 만료되었습니다.');
+          }
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({ detail: '업로드에 실패했습니다.' }));
+            throw new Error(err.detail || '업로드에 실패했습니다.');
+          }
+          break; // success
+        } catch (e: any) {
+          retries++;
+          if (retries >= MAX_RETRIES || aborted || e.message?.includes('세션')) throw e;
+          // Wait before retry (1s, 2s, 3s)
+          await new Promise(r => setTimeout(r, retries * 1000));
+        }
+      }
+
+      offset = end;
+      chunkIndex++;
+      if (onProgress) {
+        onProgress(Math.round((chunkIndex / totalChunks) * 95)); // Reserve 5% for finalize
+      }
+    }
+
+    // 3. Complete
+    const result = await apiRequest<{ url: string; filename: string; thumbnailUrl?: string }>(
+      `/api/upload/chunked/${uploadId}/complete`,
+      { method: 'POST' },
+    );
+    if (onProgress) onProgress(100);
+    return result;
+  })();
+
+  (promise as any).abort = () => { aborted = true; };
+  return promise as Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void };
+}
 
 // --- Push Notification API ---
 export const pushApi = {
