@@ -7,7 +7,7 @@
     ↓ 정적 파일
 GitHub Pages (프론트엔드)
     ↓ API 요청 (VITE_API_URL)
-ngrok 터널 (sol-manager.app.server.ngrok-free.dev)
+ngrok 터널 (sol-act-server.ngrok.app)
     ↓
 로컬 PC (FastAPI 백엔드 + SQLite)
 ```
@@ -41,7 +41,7 @@ setup.sh가 자동으로:
 
 | Name | Value |
 |------|-------|
-| `VITE_API_URL` | `https://sol-manager.app.server.ngrok-free.dev` |
+| `VITE_API_URL` | `https://sol-act-server.ngrok.app` |
 
 ### 3. 프론트엔드 배포 트리거
 
@@ -66,7 +66,7 @@ bash scripts/start.sh
 
   백엔드 (로컬):  http://localhost:8000
   API 문서:       http://localhost:8000/docs
-  백엔드 (외부):  https://sol-manager.app.server.ngrok-free.dev
+  백엔드 (외부):  https://sol-act-server.ngrok.app
 ```
 
 ### 서비스 종료

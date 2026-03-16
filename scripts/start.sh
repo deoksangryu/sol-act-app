@@ -75,7 +75,7 @@ if ! command -v ngrok &> /dev/null; then
 fi
 
 # 고정 도메인 사용 (ngrok 대시보드에서 설정한 도메인)
-NGROK_DOMAIN="sol-manager.app.server.ngrok-free.dev"
+NGROK_DOMAIN="sol-act-server.ngrok.app"
 ngrok http $BACKEND_PORT --domain=$NGROK_DOMAIN --log=stdout &
 NGROK_PID=$!
 sleep 3
