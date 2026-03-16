@@ -688,7 +688,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                     {/* Video player or file link */}
                     {selectedAssignment.submissionFileUrl
                       ? renderFileAttachment(selectedAssignment.submissionFileUrl)
-                      : pendingFileAssignmentIdRef.current === selectedAssignment.id && isUploading && (
+                      : pendingFileAssignmentIdRef.current === selectedAssignment.id && isUploading ? (
                         <div className="mt-3 flex flex-col gap-1">
                           <div className="flex items-center gap-2 text-xs text-slate-500">
                             <svg className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
@@ -698,7 +698,48 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                             <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
                           </div>
                         </div>
-                      )
+                      ) : isStudent && selectedAssignment.status === 'submitted' ? (
+                        <div className="mt-3">
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            className="hidden"
+                            accept=".mp4,.mov,.webm,.mp3,.m4a,.wav,.pdf,.jpg,.jpeg,.png"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (!file || !selectedAssignment) return;
+                              if (fileInputRef.current) fileInputRef.current.value = '';
+                              setIsUploading(true);
+                              setUploadProgress(0);
+                              pendingFileAssignmentIdRef.current = selectedAssignment.id;
+                              globalStartUpload(selectedAssignment.id, `파일 업로드: ${file.name}`);
+                              uploadApi.upload(file, (pct) => { setUploadProgress(pct); globalUpdateProgress(selectedAssignment.id, pct); }, 'assignments', 'assignment', selectedAssignment.id).then(async (result) => {
+                                const pendingId = pendingFileAssignmentIdRef.current;
+                                if (pendingId) {
+                                  pendingFileAssignmentIdRef.current = null;
+                                  const patched = await assignmentApi.patchFile(pendingId, result.url);
+                                  setAssignments(prev => prev.map(a => a.id === pendingId ? patched : a));
+                                  toast.success('파일이 과제에 첨부되었습니다.');
+                                }
+                              }).catch((err: any) => {
+                                toast.error(err.message || '파일 업로드에 실패했습니다.');
+                                pendingFileAssignmentIdRef.current = null;
+                              }).finally(() => {
+                                setIsUploading(false);
+                                setUploadProgress(0);
+                                globalFinishUpload(selectedAssignment.id);
+                              });
+                            }}
+                          />
+                          <button
+                            onClick={() => fileInputRef.current?.click()}
+                            className="flex items-center gap-2 text-xs text-brand-500 bg-brand-50 px-3 py-2 rounded-lg hover:bg-brand-100 transition-colors font-bold"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                            파일 첨부하기
+                          </button>
+                        </div>
+                      ) : null
                     }
 
                     {/* Stamp for completed */}
