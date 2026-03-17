@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Assignment, User, UserRole, ClassInfo } from '../types';
-import { assignmentApi, uploadApi, API_URL } from '../services/api';
+import { assignmentApi, uploadApi, API_URL, type UploadPhase } from '../services/api';
 import toast from 'react-hot-toast';
 import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -39,7 +39,7 @@ interface AssignmentsProps {
 
 export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
   const { allUsers, classes } = useAppData();
-  const { startUpload: globalStartUpload, updateProgress: globalUpdateProgress, finishUpload: globalFinishUpload } = useUpload();
+  const { startUpload: globalStartUpload, updateProgress: globalUpdateProgress, updatePhase: globalUpdatePhase, finishUpload: globalFinishUpload } = useUpload();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -50,6 +50,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
   // File upload state
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<UploadPhase>('uploading');
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Tracks assignment ID pending a background file upload (async pattern)
@@ -255,7 +256,10 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
 
         // Pass target_type + target_id so server patches DB directly on upload completion
         // This ensures the file URL is saved even if the client disconnects before the patch call
-        uploadApi.upload(fileToUpload, (pct) => { setUploadProgress(pct); globalUpdateProgress(id, pct); }, 'assignments', 'assignment', id).then(async (result) => {
+        uploadApi.upload(fileToUpload, (pct) => { setUploadProgress(pct); globalUpdateProgress(id, pct); }, 'assignments', 'assignment', id, (phase, pct) => {
+          setUploadPhase(phase);
+          globalUpdatePhase(id, phase, pct);
+        }).then(async (result) => {
           const pendingId = pendingFileAssignmentIdRef.current;
           if (pendingId) {
             pendingFileAssignmentIdRef.current = null;
@@ -692,10 +696,14 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                         <div className="mt-3 flex flex-col gap-1">
                           <div className="flex items-center gap-2 text-xs text-slate-500">
                             <svg className="w-4 h-4 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
-                            <span>파일 업로드 중 {uploadProgress}% — 완료될 때까지 앱을 유지해주세요</span>
+                            <span>
+                              {uploadPhase === 'compressing'
+                                ? '영상 최적화 중... 완료될 때까지 앱을 유지해주세요'
+                                : `파일 업로드 중 ${uploadProgress}% — 완료될 때까지 앱을 유지해주세요`}
+                            </span>
                           </div>
                           <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
-                            <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                            <div className={`h-full rounded-full transition-all duration-300 ${uploadPhase === 'compressing' ? 'bg-purple-500' : 'bg-brand-500'}`} style={{ width: `${uploadProgress}%` }} />
                           </div>
                         </div>
                       ) : isStudent && selectedAssignment.status === 'submitted' ? (
@@ -713,7 +721,10 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                               setUploadProgress(0);
                               pendingFileAssignmentIdRef.current = selectedAssignment.id;
                               globalStartUpload(selectedAssignment.id, `파일 업로드: ${file.name}`);
-                              uploadApi.upload(file, (pct) => { setUploadProgress(pct); globalUpdateProgress(selectedAssignment.id, pct); }, 'assignments', 'assignment', selectedAssignment.id).then(async (result) => {
+                              uploadApi.upload(file, (pct) => { setUploadProgress(pct); globalUpdateProgress(selectedAssignment.id, pct); }, 'assignments', 'assignment', selectedAssignment.id, (phase, pct) => {
+                                setUploadPhase(phase);
+                                globalUpdatePhase(selectedAssignment.id, phase, pct);
+                              }).then(async (result) => {
                                 const pendingId = pendingFileAssignmentIdRef.current;
                                 if (pendingId) {
                                   pendingFileAssignmentIdRef.current = null;

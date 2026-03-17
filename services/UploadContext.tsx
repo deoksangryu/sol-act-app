@@ -1,9 +1,12 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 
+export type UploadPhase = 'compressing' | 'uploading';
+
 interface UploadEntry {
   id: string;
   label: string;
   progress: number; // 0-100
+  phase: UploadPhase;
 }
 
 interface UploadContextType {
@@ -11,6 +14,7 @@ interface UploadContextType {
   isUploading: boolean;
   startUpload: (id: string, label: string) => void;
   updateProgress: (id: string, progress: number) => void;
+  updatePhase: (id: string, phase: UploadPhase, progress: number) => void;
   finishUpload: (id: string) => void;
 }
 
@@ -19,6 +23,7 @@ const UploadContext = createContext<UploadContextType>({
   isUploading: false,
   startUpload: () => {},
   updateProgress: () => {},
+  updatePhase: () => {},
   finishUpload: () => {},
 });
 
@@ -28,11 +33,15 @@ export const UploadProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [uploads, setUploads] = useState<UploadEntry[]>([]);
 
   const startUpload = useCallback((id: string, label: string) => {
-    setUploads(prev => [...prev.filter(u => u.id !== id), { id, label, progress: 0 }]);
+    setUploads(prev => [...prev.filter(u => u.id !== id), { id, label, progress: 0, phase: 'uploading' }]);
   }, []);
 
   const updateProgress = useCallback((id: string, progress: number) => {
     setUploads(prev => prev.map(u => u.id === id ? { ...u, progress } : u));
+  }, []);
+
+  const updatePhase = useCallback((id: string, phase: UploadPhase, progress: number) => {
+    setUploads(prev => prev.map(u => u.id === id ? { ...u, phase, progress } : u));
   }, []);
 
   const finishUpload = useCallback((id: string) => {
@@ -40,7 +49,7 @@ export const UploadProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   return (
-    <UploadContext.Provider value={{ uploads, isUploading: uploads.length > 0, startUpload, updateProgress, finishUpload }}>
+    <UploadContext.Provider value={{ uploads, isUploading: uploads.length > 0, startUpload, updateProgress, updatePhase, finishUpload }}>
       {children}
     </UploadContext.Provider>
   );

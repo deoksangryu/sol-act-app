@@ -779,8 +779,14 @@ export const privateLessonApi = {
 
 // Threshold for switching to chunked upload (10MB)
 const CHUNKED_THRESHOLD = 10 * 1024 * 1024;
-// Chunk size for chunked uploads (8MB — completes in ~10s on LTE)
-const UPLOAD_CHUNK_SIZE = 8 * 1024 * 1024;
+// Chunk size: 2MB for mobile reliability (completes in ~3s on LTE)
+const UPLOAD_CHUNK_SIZE = 2 * 1024 * 1024;
+// localStorage key for resumable uploads
+const UPLOAD_STATE_KEY = 'sol_act_pending_upload';
+
+// Upload phase for UI display
+export type UploadPhase = 'compressing' | 'uploading';
+export type UploadPhaseCallback = (phase: UploadPhase, pct: number) => void;
 
 // Wake Lock: prevent screen sleep during upload (critical for mobile)
 let _wakeLock: any = null;
@@ -799,18 +805,29 @@ function releaseWakeLock() {
 }
 
 export const uploadApi = {
+  /**
+   * Upload a file with automatic video compression and resumable chunked upload.
+   *
+   * For video files > 30MB:
+   *   1. Compress in browser (720p, ~80% size reduction)
+   *   2. Upload compressed file in 2MB chunks with resume support
+   *
+   * @param onPhase - optional callback for phase+progress: ('compressing', 0-100) then ('uploading', 0-100)
+   */
   upload(
     file: File,
     onProgress?: (pct: number) => void,
     subfolder?: string,
     targetType?: string,
     targetId?: string,
+    onPhase?: UploadPhaseCallback,
   ): Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void } {
     // Client-side file size pre-validation
     const VIDEO_EXTS = ['.mp4', '.mov', '.webm'];
     const dotIdx = file.name.lastIndexOf('.');
     const ext = dotIdx >= 0 ? file.name.toLowerCase().slice(dotIdx) : '';
-    const maxSize = VIDEO_EXTS.includes(ext) ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+    const isVideo = VIDEO_EXTS.includes(ext);
+    const maxSize = isVideo ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
     if (file.size > maxSize) {
       const maxMb = maxSize / (1024 * 1024);
       const err = Promise.reject(new Error(`파일이 너무 큽니다. 최대 ${maxMb}MB까지 업로드 가능합니다.`)) as any;
@@ -818,12 +835,65 @@ export const uploadApi = {
       return err;
     }
 
-    // Use chunked upload for large files (>10MB) to avoid mobile timeout
-    if (file.size > CHUNKED_THRESHOLD) {
-      return _chunkedUpload(file, onProgress, subfolder, targetType, targetId);
-    }
+    let aborted = false;
+    let innerAbort: (() => void) | null = null;
+    const promise = (async () => {
+      let fileToUpload = file;
 
-    return _singleUpload(file, onProgress, subfolder, targetType, targetId);
+      // Auto-compress large videos in browser before upload
+      if (isVideo && file.size > 30 * 1024 * 1024) {
+        try {
+          const { compressVideo, isCompressionSupported } = await import('./videoCompress');
+          if (isCompressionSupported()) {
+            onPhase?.('compressing', 0);
+            fileToUpload = await compressVideo(file, (phase, pct) => {
+              if (phase === 'compressing') {
+                onPhase?.('compressing', pct);
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('Video compression not available, uploading original:', e);
+        }
+      }
+
+      if (aborted) throw new Error('업로드가 취소되었습니다.');
+
+      // Upload phase
+      onPhase?.('uploading', 0);
+      const wrappedProgress = (pct: number) => {
+        onProgress?.(pct);
+        onPhase?.('uploading', pct);
+      };
+
+      let uploadPromise;
+      if (fileToUpload.size > CHUNKED_THRESHOLD) {
+        uploadPromise = _chunkedUpload(fileToUpload, wrappedProgress, subfolder, targetType, targetId);
+      } else {
+        uploadPromise = _singleUpload(fileToUpload, wrappedProgress, subfolder, targetType, targetId);
+      }
+      innerAbort = uploadPromise.abort;
+      if (aborted) { uploadPromise.abort(); throw new Error('업로드가 취소되었습니다.'); }
+      return uploadPromise;
+    })();
+
+    (promise as any).abort = () => { aborted = true; innerAbort?.(); };
+    return promise as Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void };
+  },
+
+  /** Check if there's a pending upload that can be resumed */
+  getPendingUpload(): { filename: string; targetType?: string; targetId?: string } | null {
+    try {
+      const raw = localStorage.getItem(UPLOAD_STATE_KEY);
+      if (!raw) return null;
+      const state = JSON.parse(raw);
+      return { filename: state.filename, targetType: state.targetType, targetId: state.targetId };
+    } catch { return null; }
+  },
+
+  /** Clear pending upload state (e.g., user dismisses resume prompt) */
+  clearPendingUpload() {
+    localStorage.removeItem(UPLOAD_STATE_KEY);
   },
 };
 
@@ -910,23 +980,36 @@ function _chunkedUpload(
 
   const promise = (async () => {
     await acquireWakeLock();
-    // 1. Init session
-    const initRes = await apiRequest<{ uploadId: string }>('/api/upload/chunked/init', {
-      method: 'POST',
-      body: JSON.stringify({
-        filename: file.name,
-        total_size: file.size,
-        subfolder: subfolder || 'assignments',
-        target_type: targetType || null,
-        target_id: targetId || null,
-      }),
-    });
-    const uploadId = initRes.uploadId;
+
+    // Check for resumable upload
+    let uploadId: string;
+    let startChunk = 0;
+    const savedState = _loadUploadState(file, subfolder, targetType, targetId);
+
+    if (savedState) {
+      // Resume from saved state
+      uploadId = savedState.uploadId;
+      startChunk = savedState.chunkIndex;
+      console.log(`Resuming upload ${uploadId} from chunk ${startChunk}`);
+    } else {
+      // 1. Init new session
+      const initRes = await apiRequest<{ uploadId: string }>('/api/upload/chunked/init', {
+        method: 'POST',
+        body: JSON.stringify({
+          filename: file.name,
+          total_size: file.size,
+          subfolder: subfolder || 'assignments',
+          target_type: targetType || null,
+          target_id: targetId || null,
+        }),
+      });
+      uploadId = initRes.uploadId;
+    }
 
     // 2. Send chunks
-    let offset = 0;
     const totalChunks = Math.ceil(file.size / UPLOAD_CHUNK_SIZE);
-    let chunkIndex = 0;
+    let chunkIndex = startChunk;
+    let offset = startChunk * UPLOAD_CHUNK_SIZE;
 
     while (offset < file.size) {
       if (aborted) throw new Error('업로드가 취소되었습니다.');
@@ -937,13 +1020,12 @@ function _chunkedUpload(
       const formData = new FormData();
       formData.append('file', chunk, `chunk_${chunkIndex}`);
 
-      // Use fetch for each chunk (short request, no timeout issue)
       const token = getToken();
       const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
       if (token) headers['Authorization'] = `Bearer ${token}`;
 
       let retries = 0;
-      const MAX_RETRIES = 3;
+      const MAX_RETRIES = 5;
       while (true) {
         try {
           const res = await fetch(`${API_URL}/api/upload/chunked/${uploadId}`, {
@@ -955,6 +1037,11 @@ function _chunkedUpload(
             clearAuth();
             throw new Error('세션이 만료되었습니다.');
           }
+          if (res.status === 404) {
+            // Session expired on server — clear saved state and restart
+            _clearUploadState();
+            throw new Error('업로드 세션이 만료되었습니다. 다시 시도해주세요.');
+          }
           if (!res.ok) {
             const err = await res.json().catch(() => ({ detail: '업로드에 실패했습니다.' }));
             throw new Error(err.detail || '업로드에 실패했습니다.');
@@ -962,14 +1049,27 @@ function _chunkedUpload(
           break; // success
         } catch (e: any) {
           retries++;
-          if (retries >= MAX_RETRIES || aborted || e.message?.includes('세션')) throw e;
-          // Wait before retry (1s, 2s, 3s)
-          await new Promise(r => setTimeout(r, retries * 1000));
+          if (retries >= MAX_RETRIES || aborted || e.message?.includes('세션') || e.message?.includes('만료')) throw e;
+          // Exponential backoff: 1s, 2s, 4s, 8s
+          await new Promise(r => setTimeout(r, Math.min(retries * 1000 * retries, 8000)));
         }
       }
 
       offset = end;
       chunkIndex++;
+
+      // Save progress to localStorage after each chunk
+      _saveUploadState({
+        uploadId,
+        filename: file.name,
+        fileSize: file.size,
+        chunkIndex,
+        subfolder: subfolder || 'assignments',
+        targetType,
+        targetId,
+        timestamp: Date.now(),
+      });
+
       if (onProgress) {
         onProgress(Math.round((chunkIndex / totalChunks) * 95)); // Reserve 5% for finalize
       }
@@ -981,12 +1081,75 @@ function _chunkedUpload(
       { method: 'POST' },
     );
     if (onProgress) onProgress(100);
+
+    // Clear saved state on success
+    _clearUploadState();
     releaseWakeLock();
     return result;
-  })().catch((e) => { releaseWakeLock(); throw e; });
+  })().catch((e) => {
+    releaseWakeLock();
+    throw e;
+  });
 
-  (promise as any).abort = () => { aborted = true; };
+  (promise as any).abort = () => {
+    aborted = true;
+    _clearUploadState();
+  };
   return promise as Promise<{ url: string; filename: string; thumbnailUrl?: string }> & { abort: () => void };
+}
+
+// --- Upload state persistence for resume ---
+
+interface UploadState {
+  uploadId: string;
+  filename: string;
+  fileSize: number;
+  chunkIndex: number;
+  subfolder: string;
+  targetType?: string;
+  targetId?: string;
+  timestamp: number;
+}
+
+function _saveUploadState(state: UploadState) {
+  try {
+    localStorage.setItem(UPLOAD_STATE_KEY, JSON.stringify(state));
+  } catch { /* localStorage full or unavailable */ }
+}
+
+function _loadUploadState(
+  file: File,
+  subfolder?: string,
+  targetType?: string,
+  targetId?: string,
+): UploadState | null {
+  try {
+    const raw = localStorage.getItem(UPLOAD_STATE_KEY);
+    if (!raw) return null;
+    const state: UploadState = JSON.parse(raw);
+
+    // Validate: same file + same target, not too old (1 hour max)
+    if (
+      state.filename !== file.name ||
+      state.fileSize !== file.size ||
+      state.subfolder !== (subfolder || 'assignments') ||
+      state.targetType !== targetType ||
+      state.targetId !== targetId ||
+      Date.now() - state.timestamp > 60 * 60 * 1000
+    ) {
+      _clearUploadState();
+      return null;
+    }
+
+    return state;
+  } catch {
+    _clearUploadState();
+    return null;
+  }
+}
+
+function _clearUploadState() {
+  try { localStorage.removeItem(UPLOAD_STATE_KEY); } catch {}
 }
 
 // --- Push Notification API ---

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Evaluation, PortfolioItem, PortfolioComment, CompetitionEvent, ChecklistItem, Subject, SUBJECT_LABELS, ClassInfo } from '../types';
 import toast from 'react-hot-toast';
-import { evaluationApi, portfolioApi, auditionApi, API_URL, getToken } from '../services/api';
+import { evaluationApi, portfolioApi, auditionApi, uploadApi, API_URL, getToken } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useUpload } from '../services/UploadContext';
@@ -33,7 +33,7 @@ function formatTimestamp(sec: number): string {
 
 export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const { allUsers, classes } = useAppData();
-  const { startUpload: globalStartUpload, updateProgress: globalUpdateProgress, finishUpload: globalFinishUpload } = useUpload();
+  const { startUpload: globalStartUpload, updateProgress: globalUpdateProgress, updatePhase: globalUpdatePhase, finishUpload: globalFinishUpload } = useUpload();
   const [activeTab, setActiveTab] = useState<GrowthTab>('evaluation');
 
   // Evaluations
@@ -311,31 +311,43 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     setUploadError(null);
     setFailedUpload(null);
     pendingVideoPortfolioIdRef.current = portfolioId;
-    globalStartUpload(portfolioId, `영상 업로드: ${file.name}`);
+    globalStartUpload(portfolioId, `영상: ${file.name}`);
 
-    const token = getToken();
-    const formData = new FormData();
-    formData.append('file', file);
-
-    const params = new URLSearchParams({
-      subfolder: 'portfolios',
-      target_type: 'portfolio',
-      target_id: portfolioId,
-    });
-
-    const xhr = new XMLHttpRequest();
-    xhr.timeout = 5 * 60 * 1000; // 5 minute timeout
-    uploadAbortRef.current = () => xhr.abort();
-
-    xhr.upload.addEventListener('progress', (evt) => {
-      if (evt.lengthComputable) {
-        const pct = Math.round((evt.loaded / evt.total) * 100);
+    // Use uploadApi which handles compression + chunked upload + resume
+    const uploadPromise = uploadApi.upload(
+      file,
+      (pct) => {
         setUploadProgress(pct);
         globalUpdateProgress(portfolioId, pct);
-      }
-    });
+      },
+      'portfolios',
+      'portfolio',
+      portfolioId,
+      (phase, pct) => {
+        globalUpdatePhase(portfolioId, phase, pct);
+        if (phase === 'compressing') {
+          setUploadProgress(null); // hide percentage during compression
+        }
+      },
+    );
+    uploadAbortRef.current = () => uploadPromise.abort();
 
-    const handleUploadFailure = (errorMsg: string) => {
+    uploadPromise.then(async (result) => {
+      const pendingId = pendingVideoPortfolioIdRef.current;
+      if (pendingId) {
+        pendingVideoPortfolioIdRef.current = null;
+        const updated = await portfolioApi.update(pendingId, { videoUrl: result.url });
+        setPortfolios(prev => prev.map(p => p.id === pendingId ? updated : p));
+        toast.success('영상이 포트폴리오에 저장되었습니다.');
+      }
+      setUploadError(null);
+      setFailedUpload(null);
+      setIsPfVideoUploading(false);
+      setUploadProgress(null);
+      uploadAbortRef.current = null;
+      globalFinishUpload(portfolioId);
+    }).catch((err: any) => {
+      const errorMsg = err.message || '영상 업로드에 실패했습니다.';
       setIsPfVideoUploading(false);
       setUploadProgress(null);
       setUploadError(errorMsg);
@@ -343,50 +355,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       uploadAbortRef.current = null;
       globalFinishUpload(portfolioId);
       toast.error(errorMsg);
-    };
-
-    xhr.addEventListener('load', async () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const result = JSON.parse(xhr.responseText);
-          const url: string = result.url;
-          const pendingId = pendingVideoPortfolioIdRef.current;
-          if (pendingId) {
-            pendingVideoPortfolioIdRef.current = null;
-            const updated = await portfolioApi.update(pendingId, { videoUrl: url });
-            setPortfolios(prev => prev.map(p => p.id === pendingId ? updated : p));
-            toast.success('영상이 포트폴리오에 저장되었습니다.');
-          }
-          setUploadError(null);
-          setFailedUpload(null);
-        } catch {
-          handleUploadFailure('영상 저장 중 오류가 발생했습니다.');
-          return;
-        }
-      } else {
-        handleUploadFailure('영상 업로드에 실패했습니다.');
-        return;
-      }
-      setIsPfVideoUploading(false);
-      setUploadProgress(null);
-      uploadAbortRef.current = null;
-      globalFinishUpload(portfolioId);
     });
-    xhr.addEventListener('error', () => handleUploadFailure('네트워크 오류로 업로드에 실패했습니다.'));
-    xhr.addEventListener('timeout', () => handleUploadFailure('업로드 시간이 초과되었습니다.'));
-    xhr.addEventListener('abort', () => {
-      setIsPfVideoUploading(false);
-      setUploadProgress(null);
-      setUploadError(null);
-      setFailedUpload(null);
-      uploadAbortRef.current = null;
-      globalFinishUpload(portfolioId);
-      toast('업로드가 취소되었습니다.');
-    });
-
-    xhr.open('POST', `${API_URL}/api/upload?${params}`);
-    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-    xhr.send(formData);
   };
 
   const handleRetryUpload = () => {
@@ -905,7 +874,8 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                     {/* Video Thumbnail Placeholder */}
                     <div className="aspect-video bg-slate-100 relative flex items-center justify-center overflow-hidden">
                       {pf.videoUrl ? (() => {
-                        const thumbUrl = `${API_URL}${pf.videoUrl.replace(/\.(mp4|mov|webm)$/i, '.thumb.jpg')}`;
+                        const thumbBase = pf.videoUrl.replace(/\.(mp4|mov|webm)$/i, '.thumb.jpg');
+                        const thumbUrl = thumbBase.startsWith('/') ? `${API_URL}${thumbBase}` : thumbBase;
                         return (
                           <>
                             <img
@@ -955,25 +925,19 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                           <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                           <span className="text-xs font-medium">영상없음</span>
                           {isStudent && pf.studentId === user.id && (
-                            <>
+                            <label className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-3 py-1.5 rounded-full cursor-pointer">
+                              영상 업로드
                               <input
-                                ref={pfVideoInputRef}
                                 type="file"
                                 className="hidden"
                                 accept="video/*"
                                 onChange={(e) => {
                                   const file = e.target.files?.[0];
                                   if (file) startPfVideoUpload(file, pf.id);
-                                  if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
+                                  e.target.value = '';
                                 }}
                               />
-                              <button
-                                onClick={() => pfVideoInputRef.current?.click()}
-                                className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-3 py-1.5 rounded-full"
-                              >
-                                영상 업로드
-                              </button>
-                            </>
+                            </label>
                           )}
                         </div>
                       )}
@@ -1040,7 +1004,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                               <div className="aspect-video bg-slate-100 relative flex items-center justify-center overflow-hidden">
                                 {pf.videoUrl && (
                                   <img
-                                    src={`${API_URL}${pf.videoUrl.replace(/\.(mp4|mov|webm)$/i, '.thumb.jpg')}`}
+                                    src={(() => { const t = pf.videoUrl.replace(/\.(mp4|mov|webm)$/i, '.thumb.jpg'); return t.startsWith('/') ? `${API_URL}${t}` : t; })()}
                                     alt=""
                                     className="absolute inset-0 w-full h-full object-cover"
                                     onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
