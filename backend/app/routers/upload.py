@@ -80,7 +80,7 @@ class ChunkedInitRequest(BaseModel):
     target_id: Optional[str] = None
 
 
-@router.post("/upload/chunked/init")
+@router.post("/upload/chunked/init/")
 async def chunked_init(
     data: ChunkedInitRequest,
     current_user: User = Depends(get_current_user),
@@ -114,7 +114,7 @@ async def chunked_init(
     return {"upload_id": upload_id}
 
 
-@router.post("/upload/chunked/{upload_id}")
+@router.post("/upload/chunked/{upload_id}/")
 async def chunked_upload(
     upload_id: str,
     file: UploadFile = File(...),
@@ -142,7 +142,7 @@ async def chunked_upload(
     return {"received": meta["received"], "progress": pct}
 
 
-@router.post("/upload/chunked/{upload_id}/complete")
+@router.post("/upload/chunked/{upload_id}/complete/")
 async def chunked_complete(
     upload_id: str,
     background_tasks: BackgroundTasks,

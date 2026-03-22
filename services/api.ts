@@ -1028,7 +1028,7 @@ function _chunkedUpload(
       const MAX_RETRIES = 5;
       while (true) {
         try {
-          const res = await fetch(`${API_URL}/api/upload/chunked/${uploadId}`, {
+          const res = await fetch(`${API_URL}/api/upload/chunked/${uploadId}/`, {
             method: 'POST',
             headers,
             body: formData,
