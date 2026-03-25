@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sol-act-v2';
+const CACHE_NAME = 'sol-act-v3';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -18,14 +18,28 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // Never cache API requests or WebSocket upgrades
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws/')) return;
+
+  // Static assets (JS/CSS/images): stale-while-revalidate
   event.respondWith(
-    fetch(event.request)
-      .then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        return response;
-      })
-      .catch(() => caches.match(event.request))
+    caches.match(event.request).then((cached) => {
+      const fetchPromise = fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return response;
+        })
+        .catch(() => cached);  // network error: fall back to cache
+
+      // Return cached immediately if available, update in background
+      return cached || fetchPromise;
+    })
   );
 });
 

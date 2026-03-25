@@ -220,6 +220,10 @@ async def request_ai_feedback(
     if not p:
         raise HTTPException(status_code=404, detail="Portfolio not found")
 
+    # Students can only request AI feedback on their own portfolios
+    if current_user.role == UserRole.STUDENT and p.student_id != current_user.id:
+        raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
+
     feedback = analyze_portfolio(p.title, p.description, p.category.value)
     p.ai_feedback = feedback
     db.commit()

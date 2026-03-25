@@ -1,10 +1,13 @@
 import asyncio
-from fastapi import FastAPI
+import logging
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from app.config import settings
 from app.database import engine, Base
+
+logger = logging.getLogger(__name__)
 
 # Import routers
 from app.routers import (
@@ -16,19 +19,30 @@ from app.routers import (
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
 Base.metadata.create_all(bind=engine)
 
-# FastAPI 앱 생성
+# FastAPI 앱 생성 — 프로덕션에서는 API 문서 비활성화
 app = FastAPI(
     title=settings.APP_NAME,
     description="Acting academy management platform with AI-powered feedback",
     version=settings.VERSION,
-    docs_url="/docs",
-    redoc_url="/redoc"
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
 )
+
+
+# 글로벌 예외 핸들러 — 스택 트레이스 노출 방지
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled error on {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "서버 내부 오류가 발생했습니다."},
+    )
+
 
 # CORS 미들웨어 설정
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.effective_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +56,7 @@ async def add_extra_headers(request, call_next):
     origin = request.headers.get("origin")
 
     # Handle CORS preflight (OPTIONS) directly — ngrok can strip CORSMiddleware headers
-    if request.method == "OPTIONS" and origin and origin in settings.CORS_ORIGINS:
+    if request.method == "OPTIONS" and origin and origin in settings.effective_cors_origins:
         return StarletteResponse(
             status_code=204,
             headers={
@@ -58,7 +72,7 @@ async def add_extra_headers(request, call_next):
     response = await call_next(request)
     response.headers["ngrok-skip-browser-warning"] = "true"
     # Ensure CORS headers on all responses (307 redirects, errors, etc.)
-    if origin and origin in settings.CORS_ORIGINS:
+    if origin and origin in settings.effective_cors_origins:
         response.headers["access-control-allow-origin"] = origin
         response.headers["access-control-allow-credentials"] = "true"
     return response
@@ -87,10 +101,27 @@ app.include_router(admin.router, prefix="/api/admin", tags=["Admin (localhost on
 app.include_router(push.router, prefix="/api/push", tags=["Push Notifications"])
 app.include_router(praise_stickers.router, prefix="/api/praise-stickers", tags=["Praise Stickers"])
 
-# Static file serving for uploads
+# Static file serving for uploads — with security headers
 import os
 os.makedirs("backend/uploads", exist_ok=True)
-app.mount("/uploads", StaticFiles(directory="backend/uploads"), name="uploads")
+
+_uploads_app = StaticFiles(directory="backend/uploads")
+
+@app.middleware("http")
+async def uploads_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/uploads/"):
+        # Prevent uploaded files from executing scripts
+        response.headers["Content-Security-Policy"] = "default-src 'none'"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        # Force download for non-media types
+        ct = response.headers.get("content-type", "")
+        if not ct.startswith(("image/", "video/", "audio/")):
+            fname = request.url.path.split("/")[-1]
+            response.headers["Content-Disposition"] = f'attachment; filename="{fname}"'
+    return response
+
+app.mount("/uploads", _uploads_app, name="uploads")
 
 
 # Admin dashboard (local access only)

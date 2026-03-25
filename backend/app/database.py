@@ -8,12 +8,20 @@ _connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
     _connect_args = {"check_same_thread": False}
 
-engine = create_engine(
-    settings.DATABASE_URL,
-    connect_args=_connect_args,
-    pool_pre_ping=not settings.DATABASE_URL.startswith("sqlite"),
-    echo=settings.DEBUG
-)
+_engine_kwargs = {
+    "connect_args": _connect_args,
+    "echo": settings.DEBUG,
+}
+# Connection pool settings for non-SQLite databases
+if not settings.DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs.update({
+        "pool_pre_ping": True,
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_recycle": 1800,  # recycle connections after 30 min
+    })
+
+engine = create_engine(settings.DATABASE_URL, **_engine_kwargs)
 
 # 세션 팩토리
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

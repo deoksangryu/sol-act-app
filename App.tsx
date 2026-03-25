@@ -18,8 +18,22 @@ import toast, { Toaster } from 'react-hot-toast';
 import { UploadProvider, useUpload } from './services/UploadContext';
 import { AppDataProvider } from './services/AppContext';
 import { UploadIndicator } from './components/UploadIndicator';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { getSavedUser, clearAuth, userApi, classApi, notificationApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
 import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
+
+/** Retry a function up to `n` times with exponential backoff */
+async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Promise<T> {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i === retries) throw err;
+      await new Promise(r => setTimeout(r, delay * (i + 1)));
+    }
+  }
+  throw new Error('withRetry: unreachable');
+}
 
 const AppInner: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -85,11 +99,11 @@ const AppInner: React.FC = () => {
 
   const loadAppData = async (currentUser: User) => {
     try {
-      // Load each independently so one failure doesn't block the others
+      // Load each independently with retry so transient failures don't leave empty data
       const [usersData, classesData, notifsData] = await Promise.all([
-        userApi.list().catch((err) => { console.error('Failed to load users:', err); return [] as User[]; }),
-        classApi.list().catch((err) => { console.error('Failed to load classes:', err); return [] as ClassInfo[]; }),
-        notificationApi.list().catch(() => [] as Notification[]),
+        withRetry(() => userApi.list()).catch((err) => { console.error('Failed to load users:', err); return [] as User[]; }),
+        withRetry(() => classApi.list()).catch((err) => { console.error('Failed to load classes:', err); return [] as ClassInfo[]; }),
+        withRetry(() => notificationApi.list()).catch(() => [] as Notification[]),
       ]);
       setAllUsers(usersData);
       setClasses(classesData);
@@ -275,7 +289,9 @@ const AppInner: React.FC = () => {
 
         <div className={`flex-1 flex flex-col ${isAppView ? 'overflow-hidden pb-20 md:pb-8' : 'overflow-y-auto pb-24 md:pb-8'} p-4 md:p-8 scroll-smooth`}>
           <div className={`max-w-5xl mx-auto w-full flex-1 flex flex-col ${isAppView ? 'h-full min-h-0' : ''}`}>
-            {renderView()}
+            <ErrorBoundary key={currentView}>
+              {renderView()}
+            </ErrorBoundary>
           </div>
         </div>
 

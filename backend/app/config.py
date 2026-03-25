@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     # Application
     APP_NAME: str = "SOL-ACT API"
     VERSION: str = "1.0.0"
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # Database (SQLite by default — no installation needed)
     DATABASE_URL: str = "sqlite:///./sol_act.db"
@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # JWT Authentication
     SECRET_KEY: str = os.environ.get("SECRET_KEY", os.urandom(32).hex())
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours (school day)
 
     # Gemini AI
     GEMINI_API_KEY: str = ""
@@ -33,17 +33,25 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""
     VAPID_CLAIMS_EMAIL: str = "mailto:admin@sol-manager.com"
 
-    # CORS
+    # CORS — localhost origins only active when DEBUG=True
     CORS_ORIGINS: List[str] = [
         "https://sol-manager.com",
         "https://www.sol-manager.com",
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:5173",
     ]
+
+    @property
+    def effective_cors_origins(self) -> List[str]:
+        origins = list(self.CORS_ORIGINS)
+        if self.DEBUG:
+            origins.extend([
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "http://localhost:5173",
+                "http://127.0.0.1:3000",
+                "http://127.0.0.1:3001",
+                "http://127.0.0.1:5173",
+            ])
+        return origins
 
     class Config:
         env_file = ".env"

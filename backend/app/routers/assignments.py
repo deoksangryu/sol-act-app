@@ -285,6 +285,10 @@ def analyze_assignment(
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
 
+    # Only the student themselves or teacher/director can trigger analysis
+    if current_user.role == UserRole.STUDENT and a.student_id != current_user.id:
+        raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
+
     if not a.submission_text:
         raise HTTPException(status_code=400, detail="No submission to analyze")
 

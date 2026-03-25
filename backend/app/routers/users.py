@@ -33,6 +33,12 @@ def list_users(
 
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Teachers can only see students in their classes + self
+    if current_user.role == UserRole.TEACHER and user_id != current_user.id:
+        visible_ids = set(get_teacher_student_ids(db, current_user.id))
+        if user_id not in visible_ids:
+            raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")

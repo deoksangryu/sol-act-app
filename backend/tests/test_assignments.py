@@ -20,15 +20,18 @@ def _create_assignment(client, teacher_headers, body=None):
 
 
 # ── CREATE ───────────────────────────────────────────────────────────
-def test_create_assignment_teacher(client, teacher_headers, db):
+def test_create_assignment_teacher(client, teacher_headers, seed_class, db):
     res = _create_assignment(client, teacher_headers)
     assert res.status_code == 201
     data = res.json()
-    assert data["title"] == CREATE_BODY["title"]
-    assert data["student_name"] == "김배우"
+    # Response is a list of created assignments
+    assert isinstance(data, list) and len(data) == 1
+    item = data[0]
+    assert item["title"] == CREATE_BODY["title"]
+    assert item["student_name"] == "김배우"
 
     # verify persisted in DB
-    row = db.query(Assignment).filter(Assignment.id == data["id"]).first()
+    row = db.query(Assignment).filter(Assignment.id == item["id"]).first()
     assert row is not None
     assert row.title == CREATE_BODY["title"]
 
@@ -39,7 +42,7 @@ def test_create_assignment_student_forbidden(client, student_headers):
 
 
 # ── LIST / FILTER ────────────────────────────────────────────────────
-def test_list_assignments(client, seed_assignment, teacher_headers):
+def test_list_assignments(client, seed_assignment, seed_class, teacher_headers):
     res = client.get(BASE, headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()
@@ -47,14 +50,14 @@ def test_list_assignments(client, seed_assignment, teacher_headers):
     assert len(data) >= 1
 
 
-def test_list_filter_by_status(client, seed_assignment, teacher_headers):
+def test_list_filter_by_status(client, seed_assignment, seed_class, teacher_headers):
     res = client.get(BASE, params={"status": "pending"}, headers=teacher_headers)
     assert res.status_code == 200
     for item in res.json():
         assert item["status"] == "pending"
 
 
-def test_list_filter_by_student(client, seed_assignment, teacher_headers):
+def test_list_filter_by_student(client, seed_assignment, seed_class, teacher_headers):
     res = client.get(BASE, params={"student_id": "s1"}, headers=teacher_headers)
     assert res.status_code == 200
     for item in res.json():
@@ -62,7 +65,7 @@ def test_list_filter_by_student(client, seed_assignment, teacher_headers):
 
 
 # ── GET single ───────────────────────────────────────────────────────
-def test_get_assignment(client, seed_assignment, teacher_headers):
+def test_get_assignment(client, seed_assignment, seed_class, teacher_headers):
     res = client.get(f"{BASE}/asgn001", headers=teacher_headers)
     assert res.status_code == 200
     assert res.json()["id"] == "asgn001"
@@ -96,7 +99,7 @@ def test_submit_forbidden(client, seed_assignment, student2_headers):
 
 
 # ── GRADE ────────────────────────────────────────────────────────────
-def test_grade_by_teacher(client, seed_assignment, teacher_headers, db):
+def test_grade_by_teacher(client, seed_assignment, seed_class, teacher_headers, db):
     # first submit so the assignment is in 'submitted' state
     client.put(
         f"{BASE}/asgn001/submit",
@@ -126,7 +129,7 @@ def test_grade_forbidden(client, seed_assignment, student_headers):
 
 
 # ── UPDATE ───────────────────────────────────────────────────────────
-def test_update_assignment(client, seed_assignment, teacher_headers):
+def test_update_assignment(client, seed_assignment, seed_class, teacher_headers):
     res = client.put(
         f"{BASE}/asgn001",
         json={"feedback": "수정된 피드백"},
@@ -137,7 +140,7 @@ def test_update_assignment(client, seed_assignment, teacher_headers):
 
 
 # ── DELETE ───────────────────────────────────────────────────────────
-def test_delete_assignment_teacher(client, seed_assignment, teacher_headers, db):
+def test_delete_assignment_teacher(client, seed_assignment, seed_class, teacher_headers, db):
     res = client.delete(f"{BASE}/asgn001", headers=teacher_headers)
     assert res.status_code == 200
 
@@ -151,11 +154,11 @@ def test_delete_assignment_forbidden(client, seed_assignment, student_headers):
 
 
 # ── FULL LIFECYCLE ───────────────────────────────────────────────────
-def test_full_lifecycle(client, seed_users, teacher_headers, student_headers, db):
+def test_full_lifecycle(client, seed_users, seed_class, teacher_headers, student_headers, db):
     # 1. teacher creates assignment
     res = _create_assignment(client, teacher_headers)
     assert res.status_code == 201
-    aid = res.json()["id"]
+    aid = res.json()[0]["id"]
 
     # 2. student submits
     res = client.put(
@@ -179,7 +182,7 @@ def test_full_lifecycle(client, seed_users, teacher_headers, student_headers, db
 
 
 # ── ANALYZE ──────────────────────────────────────────────────────────
-def test_analyze_endpoint(client, seed_assignment, student_headers, teacher_headers):
+def test_analyze_endpoint(client, seed_assignment, seed_class, student_headers, teacher_headers):
     # submit first so there is text to analyze
     client.put(
         f"{BASE}/asgn001/submit",
@@ -193,7 +196,7 @@ def test_analyze_endpoint(client, seed_assignment, student_headers, teacher_head
 
 
 # ── RESPONSE FORMAT ──────────────────────────────────────────────────
-def test_response_has_student_name(client, seed_assignment, teacher_headers):
+def test_response_has_student_name(client, seed_assignment, seed_class, teacher_headers):
     res = client.get(f"{BASE}/asgn001", headers=teacher_headers)
     assert res.status_code == 200
     data = res.json()

@@ -48,7 +48,7 @@ class TestAssignmentResponseKeys:
     submission_file_url, ai_analysis, created_at, updated_at
     """
 
-    def test_assignment_response_keys(self, client, seed_users, teacher_headers):
+    def test_assignment_response_keys(self, client, seed_users, seed_class, teacher_headers):
         resp = client.post("/api/assignments/", json={
             "title": "독백 연습",
             "description": "셰익스피어 독백 1편",
@@ -57,12 +57,15 @@ class TestAssignmentResponseKeys:
         }, headers=teacher_headers)
         assert resp.status_code == 201
         data = resp.json()
+        # Response is a list of created assignments
+        assert isinstance(data, list) and len(data) >= 1
+        item = data[0]
         expected_keys = {
             "student_id", "student_name", "due_date",
             "submission_text", "submission_file_url",
             "ai_analysis", "created_at", "updated_at",
         }
-        assert expected_keys.issubset(data.keys())
+        assert expected_keys.issubset(item.keys())
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,23 @@ logger = logging.getLogger(__name__)
 # In-memory registry of active chunked uploads {upload_id: metadata}
 _chunked_uploads: dict[str, dict] = {}
 
+# TTL for abandoned upload sessions (30 minutes)
+_UPLOAD_SESSION_TTL = 30 * 60
+
+
+def _cleanup_expired_uploads():
+    """Remove upload sessions older than TTL and delete their partial files."""
+    import time
+    now = time.time()
+    expired = [uid for uid, meta in _chunked_uploads.items()
+               if now - meta.get("created_at", 0) > _UPLOAD_SESSION_TTL]
+    for uid in expired:
+        meta = _chunked_uploads.pop(uid, None)
+        if meta:
+            partial = Path(meta["path"])
+            partial.unlink(missing_ok=True)
+            logger.info(f"Cleaned up expired upload session: {uid}")
+
 
 @router.post("/upload")
 async def upload_file(
@@ -93,6 +110,10 @@ async def chunked_init(
         max_mb = max_size // (1024 * 1024)
         raise HTTPException(status_code=400, detail=f"File too large. Maximum size: {max_mb}MB")
 
+    import time
+    # Clean up expired sessions before creating new ones
+    _cleanup_expired_uploads()
+
     upload_id = uuid.uuid4().hex[:16]
     unique_name = f"{uuid.uuid4().hex[:12]}_{data.filename}"
     target_dir = UPLOAD_DIR / data.subfolder / current_user.id
@@ -109,6 +130,7 @@ async def chunked_init(
         "target_type": data.target_type,
         "target_id": data.target_id,
         "unique_name": unique_name,
+        "created_at": time.time(),
     }
     logger.info(f"Chunked upload init: {upload_id} ({data.filename}, {data.total_size // 1024}KB)")
     return {"upload_id": upload_id}

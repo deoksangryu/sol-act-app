@@ -19,7 +19,16 @@ def verify_ws_token(token: str) -> Optional[str]:
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM],
             options={"verify_exp": True}
         )
-        return payload.get("sub")
+        user_id = payload.get("sub")
+        if not user_id:
+            return None
+        # Verify user actually exists in DB
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter(User.id == user_id).first()
+            return user_id if user else None
+        finally:
+            db.close()
     except JWTError:
         return None
 
