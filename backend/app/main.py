@@ -26,6 +26,7 @@ app = FastAPI(
     version=settings.VERSION,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
+    redirect_slashes=False,  # Prevent 307 redirects that strip auth headers in cross-origin
 )
 
 

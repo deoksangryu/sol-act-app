@@ -106,14 +106,8 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // Ensure trailing slash before query params to prevent FastAPI 307 redirects
-  // which can cause CORS/auth-header issues in cross-origin environments
-  const qIdx = path.indexOf('?');
-  const pathname = qIdx >= 0 ? path.substring(0, qIdx) : path;
-  const query = qIdx >= 0 ? path.substring(qIdx) : '';
-  const normalizedPath = pathname.endsWith('/') ? path : pathname + '/' + query;
-
-  const response = await fetch(`${API_URL}${normalizedPath}`, { ...options, headers });
+  // Do NOT add trailing slashes — FastAPI redirect_slashes is disabled on backend
+  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
 
   if (response.status === 401) {
     clearAuth();
@@ -840,8 +834,10 @@ export const uploadApi = {
     const promise = (async () => {
       let fileToUpload = file;
 
-      // Auto-compress large videos in browser before upload
-      if (isVideo && file.size > 30 * 1024 * 1024) {
+      // Auto-compress videos 30MB~200MB in browser before upload
+      // Skip compression for files >200MB — FFmpeg.wasm can't handle them in mobile browsers (OOM)
+      const COMPRESS_MAX = 200 * 1024 * 1024;
+      if (isVideo && file.size > 30 * 1024 * 1024 && file.size <= COMPRESS_MAX) {
         try {
           const { compressVideo, isCompressionSupported } = await import('./videoCompress');
           if (isCompressionSupported()) {
@@ -1028,7 +1024,7 @@ function _chunkedUpload(
       const MAX_RETRIES = 5;
       while (true) {
         try {
-          const res = await fetch(`${API_URL}/api/upload/chunked/${uploadId}/`, {
+          const res = await fetch(`${API_URL}/api/upload/chunked/${uploadId}`, {
             method: 'POST',
             headers,
             body: formData,
