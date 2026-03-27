@@ -15,7 +15,7 @@ UPLOAD_DIR = Path("backend/uploads")
 ALLOWED_VIDEO = {".mp4", ".mov", ".webm"}
 ALLOWED_DOCS = {".pdf", ".jpg", ".jpeg", ".png", ".mp3", ".m4a", ".wav", ".doc", ".docx"}
 ALLOWED_ALL = ALLOWED_VIDEO | ALLOWED_DOCS
-MAX_VIDEO_SIZE = 500 * 1024 * 1024  # 500MB
+MAX_VIDEO_SIZE = 1500 * 1024 * 1024  # 1.5GB
 MAX_DOC_SIZE = 50 * 1024 * 1024  # 50MB
 
 

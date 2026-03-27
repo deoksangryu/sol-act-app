@@ -106,7 +106,7 @@ async function apiRequest<T>(path: string, options: RequestInit = {}): Promise<T
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  // Do NOT add trailing slashes — FastAPI redirect_slashes is disabled on backend
+  // Do NOT add trailing slashes — 307 redirects strip auth headers in cross-origin (ngrok)
   const response = await fetch(`${API_URL}${path}`, { ...options, headers });
 
   if (response.status === 401) {
@@ -821,7 +821,7 @@ export const uploadApi = {
     const dotIdx = file.name.lastIndexOf('.');
     const ext = dotIdx >= 0 ? file.name.toLowerCase().slice(dotIdx) : '';
     const isVideo = VIDEO_EXTS.includes(ext);
-    const maxSize = isVideo ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+    const maxSize = isVideo ? 1500 * 1024 * 1024 : 50 * 1024 * 1024;
     if (file.size > maxSize) {
       const maxMb = maxSize / (1024 * 1024);
       const err = Promise.reject(new Error(`파일이 너무 큽니다. 최대 ${maxMb}MB까지 업로드 가능합니다.`)) as any;

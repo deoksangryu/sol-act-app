@@ -631,6 +631,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                           <svg className="w-8 h-8 text-slate-300 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                           <span className="text-xs text-slate-500 block">파일 첨부 (영상/문서)</span>
                           <span className="text-xs text-slate-400">MP4, MOV, WebM, MP3, M4A, WAV, PDF, JPG, PNG</span>
+                          <span className="text-xs text-slate-300 block mt-0.5">영상은 10분 이내 권장 (최대 1.5GB)</span>
                         </div>
                       </label>
                     ) : (

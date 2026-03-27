@@ -26,7 +26,7 @@ app = FastAPI(
     version=settings.VERSION,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
-    redirect_slashes=False,  # Disabled — trailing slashes handled by middleware below
+    # redirect_slashes=True (default) — lets FastAPI handle slash normalization
 )
 
 
@@ -48,19 +48,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-# Normalize trailing slashes internally (no 307 redirect, preserves auth headers)
-# FastAPI routes use "/" suffix (e.g. prefix="/api/users" + route="/"),
-# and clients may or may not send trailing slashes.
-# This middleware ensures the path always has a trailing slash for /api/ routes.
-@app.middleware("http")
-async def normalize_trailing_slash(request, call_next):
-    path = request.scope.get("path", "")
-    if path.startswith("/api/") and not path.endswith("/"):
-        request.scope["path"] = path + "/"
-    response = await call_next(request)
-    return response
 
 
 # ngrok 경고 우회 + CORS 보장 미들웨어

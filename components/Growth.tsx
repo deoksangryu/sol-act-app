@@ -939,6 +939,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                               />
                             </label>
                           )}
+                          <span className="text-xs text-slate-300">10분 이내</span>
                         </div>
                       )}
                       <span className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-0.5 rounded">{PORTFOLIO_CATEGORY_LABELS[pf.category] || pf.category}</span>
@@ -1408,6 +1409,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                         if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
                       }} />
                       <button onClick={() => pfVideoInputRef.current?.click()} className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-4 py-1.5 rounded-full">영상 업로드</button>
+                      <span className="text-xs text-slate-400">10분 이내 권장</span>
                     </>
                   )}
                 </div>
@@ -1524,6 +1526,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                     <span className="text-xs font-bold text-slate-500">클릭하여 영상을 선택하세요</span>
                   </button>
                 )}
+                <p className="text-xs text-slate-400 mt-1">10분 이내 영상을 권장합니다 (최대 1.5GB)</p>
               </div>
               {/* Collapsible detail settings */}
               <details className="group">
