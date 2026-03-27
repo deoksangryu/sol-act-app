@@ -17,7 +17,7 @@ def verify_ws_token(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM],
-            options={"verify_exp": True}
+            options={"verify_exp": False}
         )
         user_id = payload.get("sub")
         if not user_id:
