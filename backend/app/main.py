@@ -26,7 +26,7 @@ app = FastAPI(
     version=settings.VERSION,
     docs_url="/docs" if settings.DEBUG else None,
     redoc_url="/redoc" if settings.DEBUG else None,
-    # redirect_slashes=True (default) — lets FastAPI handle slash normalization
+    redirect_slashes=False,  # We handle slash normalization in middleware below
 )
 
 
@@ -48,6 +48,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# Trailing-slash normalization: try current path first, if no route matches,
+# toggle the trailing slash and retry internally. This avoids 307 redirects
+# which strip Authorization headers in cross-origin (ngrok) environments.
+from starlette.routing import Match
+
+@app.middleware("http")
+async def normalize_trailing_slash(request, call_next):
+    path = request.scope.get("path", "")
+    # Only normalize /api/ paths (skip /uploads/, /ws/, etc.)
+    if path.startswith("/api/"):
+        # Check if current path matches any route
+        matched = any(
+            route.matches(request.scope)[0] != Match.NONE
+            for route in app.routes
+        )
+        if not matched:
+            # Toggle trailing slash and try again
+            alt = path.rstrip("/") if path.endswith("/") else path + "/"
+            request.scope["path"] = alt
+    return await call_next(request)
 
 
 # ngrok 경고 우회 + CORS 보장 미들웨어
