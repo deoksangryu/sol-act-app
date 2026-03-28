@@ -124,27 +124,34 @@ app.include_router(admin.router, prefix="/api/admin", tags=["Admin (localhost on
 app.include_router(push.router, prefix="/api/push", tags=["Push Notifications"])
 app.include_router(praise_stickers.router, prefix="/api/praise-stickers", tags=["Praise Stickers"])
 
-# Static file serving for uploads — with security headers
+# Static file serving for uploads — with security headers + Range support
 import os
 os.makedirs("backend/uploads", exist_ok=True)
 
-_uploads_app = StaticFiles(directory="backend/uploads")
 
-@app.middleware("http")
-async def uploads_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    if request.url.path.startswith("/uploads/"):
-        # Prevent uploaded files from executing scripts
-        response.headers["Content-Security-Policy"] = "default-src 'none'"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        # Force download for non-media types
-        ct = response.headers.get("content-type", "")
-        if not ct.startswith(("image/", "video/", "audio/")):
-            fname = request.url.path.split("/")[-1]
-            response.headers["Content-Disposition"] = f'attachment; filename="{fname}"'
-    return response
+class SecureStaticFiles(StaticFiles):
+    """StaticFiles with security headers. Preserves Range request support."""
 
-app.mount("/uploads", _uploads_app, name="uploads")
+    async def __call__(self, scope, receive, send):
+        async def send_with_headers(message):
+            if message.get("type") == "http.response.start":
+                headers = dict(message.get("headers", []))
+                ct = headers.get(b"content-type", b"").decode()
+                extra = [
+                    (b"x-content-type-options", b"nosniff"),
+                    (b"content-security-policy", b"default-src 'none'"),
+                ]
+                # Force download for non-media types
+                if not ct.startswith(("image/", "video/", "audio/")):
+                    path = scope.get("path", "")
+                    fname = path.split("/")[-1]
+                    extra.append((b"content-disposition", f'attachment; filename="{fname}"'.encode()))
+                message["headers"] = list(message.get("headers", [])) + extra
+            await send(message)
+        await super().__call__(scope, receive, send_with_headers)
+
+
+app.mount("/uploads", SecureStaticFiles(directory="backend/uploads"), name="uploads")
 
 
 # Admin dashboard (local access only)
