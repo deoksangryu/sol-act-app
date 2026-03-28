@@ -336,9 +336,14 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       const pendingId = pendingVideoPortfolioIdRef.current;
       if (pendingId) {
         pendingVideoPortfolioIdRef.current = null;
-        const updated = await portfolioApi.update(pendingId, { videoUrl: result.url });
-        setPortfolios(prev => prev.map(p => p.id === pendingId ? updated : p));
-        toast.success('영상이 포트폴리오에 저장되었습니다.');
+        try {
+          const updated = await portfolioApi.update(pendingId, { videoUrl: result.url });
+          setPortfolios(prev => prev.map(p => p.id === pendingId ? updated : p));
+          toast.success('영상이 포트폴리오에 저장되었습니다.');
+        } catch (updateErr: any) {
+          console.error('Failed to link video to portfolio:', updateErr);
+          toast.error('영상은 업로드되었지만 포트폴리오 연결에 실패했습니다. 새로고침 후 다시 시도해주세요.');
+        }
       }
       setUploadError(null);
       setFailedUpload(null);

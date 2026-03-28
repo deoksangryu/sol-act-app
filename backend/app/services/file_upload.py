@@ -277,12 +277,19 @@ def _notify_file_ready(user_id: str) -> None:
     """Send WS notification and push that video compression is done."""
     try:
         from app.services.websocket_manager import manager
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(manager.send_to_user(user_id, {
-                "type": "file_ready",
-                "data": {"message": "영상 최적화가 완료되었습니다."},
-            }))
+        # Background tasks run in a separate thread — get the main event loop safely
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop and loop.is_running():
+            loop.call_soon_threadsafe(
+                asyncio.ensure_future,
+                manager.send_to_user(user_id, {
+                    "type": "file_ready",
+                    "data": {"message": "영상 최적화가 완료되었습니다."},
+                })
+            )
     except Exception as e:
         logger.warning(f"Failed to send file_ready WS: {e}")
     # Create DB notification + send Web Push in a background thread
@@ -305,12 +312,18 @@ def _notify_compression_failed(user_id: str) -> None:
     """Notify user that video compression failed (original file is preserved)."""
     try:
         from app.services.websocket_manager import manager
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.ensure_future(manager.send_to_user(user_id, {
-                "type": "file_ready",
-                "data": {"message": "영상 최적화에 실패했습니다. 원본 영상은 유지됩니다."},
-            }))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop and loop.is_running():
+            loop.call_soon_threadsafe(
+                asyncio.ensure_future,
+                manager.send_to_user(user_id, {
+                    "type": "file_ready",
+                    "data": {"message": "영상 최적화에 실패했습니다. 원본 영상은 유지됩니다."},
+                })
+            )
     except Exception:
         pass
     threading.Thread(
