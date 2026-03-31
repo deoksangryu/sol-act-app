@@ -125,6 +125,7 @@ app.include_router(push.router, prefix="/api/push", tags=["Push Notifications"])
 app.include_router(praise_stickers.router, prefix="/api/praise-stickers", tags=["Praise Stickers"])
 
 # Static file serving for uploads — with security headers + Range support
+# Serves from external SSD if available, falls back to local directory
 import os
 os.makedirs("backend/uploads", exist_ok=True)
 
@@ -151,7 +152,33 @@ class SecureStaticFiles(StaticFiles):
         await super().__call__(scope, receive, send_with_headers)
 
 
-app.mount("/uploads", SecureStaticFiles(directory="backend/uploads"), name="uploads")
+class FallbackStaticFiles:
+    """Try external SSD first, fall back to local uploads directory."""
+
+    def __init__(self):
+        self._local = SecureStaticFiles(directory="backend/uploads")
+
+    def _get_external(self):
+        name = settings.EXTERNAL_DRIVE_NAME
+        if name:
+            ext_dir = f"/Volumes/{name}/sol-act-uploads"
+            if os.path.isdir(ext_dir):
+                return SecureStaticFiles(directory=ext_dir)
+        return None
+
+    async def __call__(self, scope, receive, send):
+        path = scope.get("path", "")
+        # Try external first
+        ext = self._get_external()
+        if ext:
+            file_path = os.path.join(f"/Volumes/{settings.EXTERNAL_DRIVE_NAME}/sol-act-uploads", path.lstrip("/"))
+            if os.path.isfile(file_path):
+                return await ext(scope, receive, send)
+        # Fall back to local
+        return await self._local(scope, receive, send)
+
+
+app.mount("/uploads", FallbackStaticFiles(), name="uploads")
 
 
 # Admin dashboard (local access only)

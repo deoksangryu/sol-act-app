@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     AWS_SECRET_ACCESS_KEY: str = ""
     S3_BUCKET_NAME: str = "sol-act-files"
 
+    # External SSD name (leave empty to use local storage)
+    EXTERNAL_DRIVE_NAME: str = ""
+
     # Redis (Optional)
     REDIS_URL: str = "redis://localhost:6379"
 

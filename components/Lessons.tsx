@@ -593,27 +593,10 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
         <div className="p-4 border-b border-slate-100 bg-slate-50 flex justify-between items-center shrink-0">
           <div className="flex items-center gap-2">
             <h2 className="font-bold text-slate-800">수업</h2>
-            {isStaff && pendingRequests.length > 0 && (
-              <button
-                onClick={() => setIsRequestsPanelOpen(true)}
-                className="relative flex items-center gap-1 text-xs bg-violet-50 text-violet-600 border border-violet-200 px-2.5 py-1.5 rounded-lg font-bold hover:bg-violet-100 transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6 6 0 10-12 0v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                신청
-                <span className="bg-violet-500 text-white text-xs w-4 h-4 rounded-full flex items-center justify-center font-bold">{pendingRequests.length}</span>
-              </button>
-            )}
+            {/* Private lesson requests badge — hidden for now */}
           </div>
           <div className="flex items-center gap-2">
-            {isStudent && (
-              <button
-                onClick={() => setIsRequestModalOpen(true)}
-                className="text-xs flex items-center gap-1 bg-violet-50 border border-violet-200 px-3 py-2 rounded-lg hover:bg-violet-100 hover:text-violet-600 transition-colors shadow-sm text-violet-500 font-bold"
-              >
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                <span>개인 레슨 신청</span>
-              </button>
-            )}
+            {/* Private lesson request button — hidden for now */}
             {isStaff && (
               <>
                 <button
@@ -676,8 +659,8 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
             </div>
           </div>
 
-          {/* Student's private lesson requests */}
-          {isStudent && myRequests.length > 0 && (
+          {/* Student's private lesson requests — hidden for now */}
+          {false && isStudent && myRequests.length > 0 && (
             <div className="px-2 pb-2 border-t border-slate-100">
               <h4 className="px-2 pt-3 pb-1 text-xs font-bold text-violet-500">내 개인 레슨 신청</h4>
               <div className="space-y-1.5">

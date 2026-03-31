@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SOL-ACT 사용 가이드</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Noto Sans KR',sans-serif; background:#f1f5f9; color:#1e293b; line-height:1.6; }
+
+  /* Layout */
+  .container { max-width:1200px; margin:0 auto; padding:40px 20px; }
+  h1 { text-align:center; font-size:2rem; margin-bottom:8px; }
+  .subtitle { text-align:center; color:#64748b; margin-bottom:48px; font-size:0.95rem; }
+  h2 { font-size:1.4rem; margin:48px 0 8px; color:#334155; border-bottom:2px solid #fbbf24; padding-bottom:8px; display:inline-block; }
+  h2 .badge { background:#fbbf24; color:#fff; font-size:0.7rem; padding:2px 8px; border-radius:99px; vertical-align:middle; margin-left:8px; }
+  .section-desc { color:#64748b; margin-bottom:24px; font-size:0.9rem; }
+
+  /* Screen row */
+  .screen-row { display:flex; gap:32px; align-items:flex-start; margin:24px 0 48px; flex-wrap:wrap; }
+  .screen-row.reverse { flex-direction:row-reverse; }
+  .screen-info { flex:1; min-width:280px; }
+  .screen-info h3 { font-size:1.1rem; margin-bottom:8px; color:#1e293b; }
+  .screen-info p { color:#475569; font-size:0.9rem; margin-bottom:12px; }
+  .screen-info ul { padding-left:20px; color:#475569; font-size:0.85rem; }
+  .screen-info ul li { margin-bottom:6px; }
+  .screen-info .tip { background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:12px 16px; font-size:0.85rem; color:#92400e; margin-top:16px; }
+  .screen-info .tip::before { content:"💡 "; }
+
+  /* Phone frame */
+  .phone { width:280px; min-width:280px; height:560px; background:#fff; border-radius:32px; border:3px solid #1e293b; position:relative; overflow:hidden; box-shadow:0 8px 32px rgba(0,0,0,0.12); flex-shrink:0; }
+  .phone .notch { width:100px; height:24px; background:#1e293b; border-radius:0 0 16px 16px; margin:0 auto; position:relative; z-index:10; }
+  .phone .screen { height:calc(100% - 24px); overflow-y:auto; background:#f8fafc; position:relative; }
+  .phone .screen::-webkit-scrollbar { display:none; }
+
+  /* App components */
+  .app-header { background:#fff; padding:12px 16px; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:5; }
+  .app-header .logo { font-size:1.1rem; font-weight:800; color:#fbbf24; letter-spacing:-1px; }
+  .app-header .user-info { text-align:right; }
+  .app-header .user-info .name { font-size:0.7rem; font-weight:700; color:#334155; }
+  .app-header .user-info .role { font-size:0.6rem; color:#94a3b8; }
+  .avatar { width:28px; height:28px; border-radius:50%; background:#fde68a; display:inline-flex; align-items:center; justify-content:center; font-size:0.65rem; font-weight:700; color:#92400e; }
+
+  .bottom-nav { position:absolute; bottom:0; left:0; right:0; background:#fff; border-top:1px solid #e2e8f0; display:flex; padding:6px 0 12px; z-index:5; }
+  .bottom-nav .nav-item { flex:1; text-align:center; font-size:0.55rem; color:#94a3b8; cursor:pointer; }
+  .bottom-nav .nav-item.active { color:#f59e0b; font-weight:700; }
+  .bottom-nav .nav-item .icon { font-size:1rem; margin-bottom:1px; display:block; }
+
+  /* Content helpers */
+  .content { padding:12px 14px 80px; }
+  .greeting { font-size:0.85rem; font-weight:700; color:#334155; margin-bottom:2px; }
+  .greeting-sub { font-size:0.65rem; color:#94a3b8; margin-bottom:12px; }
+
+  .stat-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+  .stat-card { background:#fff; border-radius:14px; padding:12px; border:1px solid #f1f5f9; }
+  .stat-card .label { font-size:0.6rem; color:#94a3b8; }
+  .stat-card .value { font-size:1.2rem; font-weight:700; color:#334155; }
+  .stat-card .unit { font-size:0.6rem; color:#94a3b8; }
+  .stat-card.dday { background:linear-gradient(135deg,#fbbf24,#ec4899); color:#fff; }
+  .stat-card.dday .label, .stat-card.dday .unit { color:rgba(255,255,255,0.8); }
+  .stat-card.dday .value { color:#fff; }
+
+  .quick-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+  .quick-btn { background:#fff; border:1px solid #f1f5f9; border-radius:14px; padding:14px 12px; text-align:center; cursor:pointer; }
+  .quick-btn .icon { font-size:1.4rem; margin-bottom:4px; }
+  .quick-btn .title { font-size:0.7rem; font-weight:700; color:#334155; }
+  .quick-btn .desc { font-size:0.55rem; color:#94a3b8; }
+
+  .section-title { font-size:0.75rem; font-weight:700; color:#334155; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; }
+  .section-title a { font-size:0.6rem; color:#f59e0b; text-decoration:none; }
+
+  .lesson-card { background:#fff; border-radius:12px; padding:10px 12px; margin-bottom:6px; display:flex; align-items:center; gap:10px; border:1px solid #f1f5f9; }
+  .lesson-card .time-badge { background:#eff6ff; color:#3b82f6; font-size:0.6rem; font-weight:700; padding:4px 8px; border-radius:8px; white-space:nowrap; }
+  .lesson-card .info .title { font-size:0.75rem; font-weight:600; color:#334155; }
+  .lesson-card .info .sub { font-size:0.6rem; color:#94a3b8; }
+
+  .event-card { background:#fff; border-radius:12px; padding:10px 12px; margin-bottom:6px; display:flex; align-items:center; gap:10px; border:1px solid #f1f5f9; }
+  .event-card .dday-badge { background:#fef3c7; color:#d97706; font-size:0.6rem; font-weight:700; padding:4px 8px; border-radius:8px; white-space:nowrap; }
+
+  /* Form elements */
+  .form-group { margin-bottom:10px; }
+  .form-label { font-size:0.6rem; font-weight:700; color:#64748b; margin-bottom:3px; display:block; }
+  .form-label .req { color:#f87171; }
+  .form-input { width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:10px; font-size:0.7rem; background:#f8fafc; outline:none; font-family:inherit; }
+  .form-input:focus { border-color:#fbbf24; }
+  .btn { padding:8px 16px; border:none; border-radius:10px; font-size:0.7rem; font-weight:700; cursor:pointer; font-family:inherit; }
+  .btn-brand { background:#f59e0b; color:#fff; width:100%; }
+  .btn-brand:hover { background:#d97706; }
+  .btn-sm { padding:5px 12px; font-size:0.6rem; border-radius:99px; }
+  .btn-outline { background:#fff; border:1px solid #e2e8f0; color:#334155; }
+
+  /* Calendar mock */
+  .calendar-mock { background:#fff; border-radius:14px; padding:10px; margin-bottom:12px; border:1px solid #f1f5f9; }
+  .calendar-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .calendar-header .month { font-size:0.8rem; font-weight:700; color:#334155; }
+  .calendar-header .nav-btn { background:none; border:none; color:#94a3b8; cursor:pointer; font-size:0.9rem; }
+  .calendar-days { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:0.55rem; color:#94a3b8; margin-bottom:4px; }
+  .calendar-grid { display:grid; grid-template-columns:repeat(7,1fr); text-align:center; gap:2px; }
+  .calendar-grid .day { padding:4px 0; font-size:0.6rem; color:#475569; border-radius:8px; position:relative; }
+  .calendar-grid .day.today { background:#fbbf24; color:#fff; font-weight:700; }
+  .calendar-grid .day.has-event::after { content:''; width:4px; height:4px; background:#3b82f6; border-radius:50%; position:absolute; bottom:2px; left:50%; transform:translateX(-50%); }
+  .calendar-grid .day.empty { color:transparent; }
+
+  /* Portfolio grid */
+  .pf-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .pf-card { background:#fff; border-radius:12px; overflow:hidden; border:1px solid #f1f5f9; }
+  .pf-thumb { height:80px; background:#1e293b; display:flex; align-items:center; justify-content:center; color:#475569; font-size:1.2rem; }
+  .pf-thumb.has-video { background:#0f172a; color:#94a3b8; }
+  .pf-body { padding:8px; }
+  .pf-body .title { font-size:0.7rem; font-weight:600; color:#334155; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pf-body .meta { font-size:0.55rem; color:#94a3b8; }
+  .pf-badge { font-size:0.5rem; background:#f1f5f9; color:#64748b; padding:2px 6px; border-radius:4px; }
+
+  /* Chat */
+  .chat-msg { display:flex; gap:8px; margin-bottom:10px; }
+  .chat-msg.mine { flex-direction:row-reverse; }
+  .chat-bubble { max-width:75%; padding:8px 12px; border-radius:14px; font-size:0.7rem; }
+  .chat-bubble.other { background:#fff; border:1px solid #e2e8f0; color:#334155; border-top-left-radius:4px; }
+  .chat-bubble.mine { background:#fbbf24; color:#fff; border-top-right-radius:4px; }
+  .chat-name { font-size:0.55rem; font-weight:600; color:#64748b; margin-bottom:2px; }
+  .chat-time { font-size:0.5rem; color:#94a3b8; margin-top:2px; }
+  .chat-input-bar { position:absolute; bottom:52px; left:0; right:0; background:#fff; border-top:1px solid #e2e8f0; padding:8px 12px; display:flex; gap:8px; }
+  .chat-input-bar input { flex:1; padding:8px 12px; border:1px solid #e2e8f0; border-radius:99px; font-size:0.7rem; outline:none; }
+  .chat-input-bar .send-btn { width:32px; height:32px; background:#fbbf24; border:none; border-radius:50%; color:#fff; font-size:0.8rem; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+
+  /* Tabs */
+  .tabs { display:flex; border-bottom:2px solid #f1f5f9; margin-bottom:12px; }
+  .tab { flex:1; text-align:center; padding:8px 0; font-size:0.7rem; color:#94a3b8; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-2px; }
+  .tab.active { color:#f59e0b; border-bottom-color:#f59e0b; font-weight:700; }
+
+  /* Meal cards */
+  .meal-card { background:#fff; border-radius:12px; padding:10px 12px; margin-bottom:6px; display:flex; gap:10px; border:1px solid #f1f5f9; }
+  .meal-thumb { width:48px; height:48px; border-radius:8px; background:#f1f5f9; display:flex; align-items:center; justify-content:center; font-size:1.2rem; flex-shrink:0; }
+  .meal-badge { font-size:0.5rem; font-weight:700; padding:2px 6px; border-radius:4px; display:inline-block; margin-bottom:2px; }
+  .meal-badge.breakfast { background:#fef3c7; color:#d97706; }
+  .meal-badge.lunch { background:#dcfce7; color:#16a34a; }
+  .meal-badge.dinner { background:#dbeafe; color:#2563eb; }
+  .meal-badge.snack { background:#f3e8ff; color:#9333ea; }
+
+  /* Login screen */
+  .login-screen { background:linear-gradient(135deg,#fffbeb,#fff); height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; }
+  .login-logo { font-size:2rem; font-weight:800; color:#fbbf24; letter-spacing:-2px; margin-bottom:4px; }
+  .login-tagline { font-size:0.65rem; color:#94a3b8; margin-bottom:24px; }
+  .login-tabs { display:flex; background:#f1f5f9; border-radius:10px; padding:3px; margin-bottom:16px; width:100%; }
+  .login-tab { flex:1; text-align:center; padding:6px; font-size:0.7rem; border-radius:8px; cursor:pointer; color:#64748b; }
+  .login-tab.active { background:#fff; color:#334155; font-weight:700; box-shadow:0 1px 3px rgba(0,0,0,0.1); }
+  .login-form { width:100%; }
+
+  /* Evaluation */
+  .eval-card { background:#fff; border-radius:12px; padding:12px; margin-bottom:8px; border:1px solid #f1f5f9; }
+  .eval-title { font-size:0.75rem; font-weight:700; color:#334155; margin-bottom:4px; }
+  .eval-meta { font-size:0.55rem; color:#94a3b8; margin-bottom:8px; }
+  .score-row { display:flex; align-items:center; gap:6px; margin-bottom:4px; }
+  .score-label { font-size:0.6rem; color:#64748b; width:40px; }
+  .score-bar { flex:1; height:6px; background:#f1f5f9; border-radius:3px; overflow:hidden; }
+  .score-bar .fill { height:100%; border-radius:3px; background:linear-gradient(90deg,#fbbf24,#f59e0b); }
+  .score-value { font-size:0.6rem; color:#334155; font-weight:600; width:20px; text-align:right; }
+
+  /* Video player mock */
+  .video-player { background:#0f172a; border-radius:12px; aspect-ratio:16/9; display:flex; align-items:center; justify-content:center; margin-bottom:10px; position:relative; }
+  .video-player .play-btn { width:40px; height:40px; background:rgba(255,255,255,0.2); border-radius:50%; display:flex; align-items:center; justify-content:center; color:#fff; font-size:1.2rem; }
+  .video-player .controls { position:absolute; bottom:0; left:0; right:0; padding:6px 10px; background:linear-gradient(transparent,rgba(0,0,0,0.6)); display:flex; align-items:center; gap:6px; }
+  .video-player .controls .bar { flex:1; height:3px; background:rgba(255,255,255,0.3); border-radius:2px; overflow:hidden; }
+  .video-player .controls .bar .progress { width:35%; height:100%; background:#fbbf24; border-radius:2px; }
+  .video-player .controls .time { font-size:0.5rem; color:rgba(255,255,255,0.7); }
+
+  /* Profile */
+  .profile-avatar-section { text-align:center; padding:16px 0; }
+  .profile-avatar { width:64px; height:64px; border-radius:50%; background:#fde68a; margin:0 auto 8px; display:flex; align-items:center; justify-content:center; font-size:1.5rem; font-weight:700; color:#92400e; }
+  .profile-name { font-size:0.9rem; font-weight:700; color:#334155; }
+  .profile-role { font-size:0.65rem; color:#94a3b8; }
+
+  /* Upload indicator */
+  .upload-bar { background:#fff; border-radius:12px; padding:10px 12px; margin-bottom:8px; border:1px solid #fde68a; }
+  .upload-bar .label { font-size:0.65rem; color:#334155; font-weight:600; margin-bottom:4px; }
+  .upload-bar .progress-track { height:4px; background:#f1f5f9; border-radius:2px; overflow:hidden; }
+  .upload-bar .progress-fill { height:100%; background:#fbbf24; border-radius:2px; transition:width 0.3s; }
+  .upload-bar .pct { font-size:0.6rem; color:#f59e0b; text-align:right; margin-top:2px; }
+
+  /* Notice */
+  .notice-card { background:#fff; border-radius:12px; padding:10px 12px; margin-bottom:6px; border:1px solid #f1f5f9; }
+  .notice-card .title { font-size:0.75rem; font-weight:600; color:#334155; }
+  .notice-card .preview { font-size:0.65rem; color:#94a3b8; margin-top:2px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .notice-card .date { font-size:0.55rem; color:#cbd5e1; margin-top:4px; }
+
+  /* Empty state */
+  .empty-state { text-align:center; padding:24px; color:#94a3b8; }
+  .empty-state .icon { font-size:2rem; margin-bottom:8px; }
+  .empty-state .text { font-size:0.75rem; }
+
+  /* Responsive */
+  @media (max-width:700px) {
+    .screen-row { flex-direction:column !important; align-items:center; }
+    .screen-info { min-width:auto; }
+    .phone { margin-bottom:16px; }
+  }
+
+  /* Role indicator */
+  .role-section { margin:32px 0 16px; padding:12px 20px; border-radius:12px; font-size:0.85rem; font-weight:600; }
+  .role-section.student { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+  .role-section.teacher { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+  .role-section.director { background:#fefce8; color:#a16207; border:1px solid #fef08a; }
+
+  /* TOC */
+  .toc { background:#fff; border-radius:16px; padding:24px; margin-bottom:40px; border:1px solid #e2e8f0; }
+  .toc h3 { font-size:1rem; margin-bottom:12px; color:#334155; }
+  .toc ol { padding-left:20px; }
+  .toc li { margin-bottom:6px; }
+  .toc a { color:#f59e0b; text-decoration:none; font-size:0.9rem; }
+  .toc a:hover { text-decoration:underline; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>SOL-ACT 사용 가이드</h1>
+<p class="subtitle">연기 입시의 새로운 기준 — 학생·선생님·원장님을 위한 앱 사용 안내서</p>
+
+<div class="toc">
+  <h3>목차</h3>
+  <ol>
+    <li><a href="#login">로그인 / 회원가입</a></li>
+    <li><a href="#dashboard">대시보드 (홈)</a></li>
+    <li><a href="#lessons">수업 관리</a></li>
+    <li><a href="#assignments">과제</a></li>
+    <li><a href="#growth">성장 기록 (포트폴리오)</a></li>
+    <li><a href="#diet">식단 관리</a></li>
+    <li><a href="#community">소통 (채팅 / 공지)</a></li>
+    <li><a href="#profile">프로필 설정</a></li>
+  </ol>
+</div>
+
+<!-- ============================================ -->
+<!-- 1. LOGIN -->
+<!-- ============================================ -->
+<h2 id="login">1. 로그인 / 회원가입</h2>
+<p class="section-desc">학원에서 발급받은 초대 코드로 회원가입 후 로그인합니다.</p>
+
+<div class="screen-row">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="login-screen">
+        <div class="login-logo">SOL-ACT</div>
+        <div class="login-tagline">연기 입시의 새로운 기준</div>
+        <div class="login-tabs">
+          <div class="login-tab active">로그인</div>
+          <div class="login-tab">회원가입</div>
+        </div>
+        <div class="login-form">
+          <div class="form-group">
+            <div class="form-label">이메일</div>
+            <input class="form-input" placeholder="이메일을 입력하세요" disabled>
+          </div>
+          <div class="form-group">
+            <div class="form-label">비밀번호</div>
+            <input class="form-input" type="password" placeholder="비밀번호를 입력하세요" disabled>
+          </div>
+          <button class="btn btn-brand" style="margin-top:8px">로그인</button>
+          <div style="text-align:center; margin-top:12px; font-size:0.6rem; color:#94a3b8;">
+            <span style="cursor:pointer">아이디 찾기</span> · <span style="cursor:pointer">비밀번호 찾기</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>로그인</h3>
+    <p>가입한 이메일과 비밀번호로 로그인합니다.</p>
+    <ul>
+      <li>이메일과 비밀번호를 입력하고 <strong>로그인</strong> 버튼을 누릅니다.</li>
+      <li>비밀번호를 잊었다면 <strong>비밀번호 찾기</strong>를 눌러 임시 비밀번호를 받으세요.</li>
+    </ul>
+
+    <h3 style="margin-top:20px">회원가입</h3>
+    <p>처음 사용하는 경우 <strong>회원가입</strong> 탭으로 전환합니다.</p>
+    <ul>
+      <li>학원에서 받은 <strong>초대 코드</strong>를 입력합니다.</li>
+      <li>코드 확인 후 역할(수강생/선생님)이 자동으로 표시됩니다.</li>
+      <li>이름, 이메일, 비밀번호(8자 이상, 영문+숫자+특수문자)를 입력합니다.</li>
+      <li>비밀번호 규칙이 실시간으로 ✓ 표시됩니다.</li>
+    </ul>
+    <div class="tip">초대 코드는 1회용입니다. 한 번 사용하면 다시 사용할 수 없습니다.</div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- 2. DASHBOARD -->
+<!-- ============================================ -->
+<h2 id="dashboard">2. 대시보드 (홈) <span class="badge">모든 사용자</span></h2>
+<p class="section-desc">로그인 후 처음 보이는 화면입니다. 오늘의 수업, 과제, 식단 현황을 한눈에 확인합니다.</p>
+
+<div class="screen-row">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="app-header">
+        <span class="logo">SOL-ACT</span>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <div class="user-info">
+            <div class="name">김하은</div>
+            <div class="role">수강생</div>
+          </div>
+          <div class="avatar">하</div>
+        </div>
+      </div>
+      <div class="content">
+        <div class="greeting">반가워요, 김하은님!</div>
+        <div class="greeting-sub">오늘도 멋진 연기를 보여주세요.</div>
+
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="label">오늘 수업</div>
+            <div class="value">2<span class="unit">개</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="label">진행 중인 과제</div>
+            <div class="value">1<span class="unit">개</span></div>
+          </div>
+          <div class="stat-card">
+            <div class="label">오늘의 식단</div>
+            <div class="value">1,240<span class="unit">kcal</span></div>
+          </div>
+          <div class="stat-card dday">
+            <div class="label">D-DAY</div>
+            <div class="value">D-15</div>
+            <div class="unit">서울예대 오디션</div>
+          </div>
+        </div>
+
+        <div class="quick-grid">
+          <div class="quick-btn">
+            <div class="icon">🎬</div>
+            <div class="title">연습영상 올리기</div>
+            <div class="desc">나의 연습 기록을 남겨보세요</div>
+          </div>
+          <div class="quick-btn">
+            <div class="icon">📝</div>
+            <div class="title">연습일지 쓰기</div>
+            <div class="desc">오늘 연습을 기록해보세요</div>
+          </div>
+        </div>
+
+        <div class="section-title">오늘의 수업 <a href="#">전체 보기</a></div>
+        <div class="lesson-card">
+          <div class="time-badge">14:00</div>
+          <div class="info">
+            <div class="title">입시 A반</div>
+            <div class="sub">연습실 A · 연기</div>
+          </div>
+        </div>
+        <div class="lesson-card">
+          <div class="time-badge">16:00</div>
+          <div class="info">
+            <div class="title">뮤지컬 B반</div>
+            <div class="sub">연습실 B · 뮤지컬</div>
+          </div>
+        </div>
+
+        <div class="section-title" style="margin-top:14px">다가오는 대회·행사 <a href="#">더보기</a></div>
+        <div class="event-card">
+          <div class="dday-badge">D-15</div>
+          <div class="info">
+            <div class="title" style="font-size:0.75rem; font-weight:600;">서울예대 실기고사</div>
+            <div class="sub" style="font-size:0.6rem; color:#94a3b8;">4/12 · 서울예대 공연장</div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active"><span class="icon">🏠</span>홈</div>
+        <div class="nav-item"><span class="icon">📅</span>수업</div>
+        <div class="nav-item"><span class="icon">📋</span>과제</div>
+        <div class="nav-item"><span class="icon">💬</span>소통</div>
+        <div class="nav-item"><span class="icon">📈</span>성장</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>학생 대시보드</h3>
+    <ul>
+      <li><strong>오늘 수업</strong> — 오늘 예정된 수업 수</li>
+      <li><strong>진행 중인 과제</strong> — 아직 제출하지 않은 과제 수</li>
+      <li><strong>오늘의 식단</strong> — 오늘 기록한 총 칼로리</li>
+      <li><strong>D-DAY</strong> — 가장 가까운 대회/행사까지 남은 일수</li>
+    </ul>
+    <p style="margin-top:12px"><strong>바로가기 버튼</strong>을 누르면 연습영상 업로드나 연습일지 작성으로 바로 이동합니다.</p>
+    <div class="tip">각 카드를 탭하면 해당 기능 화면으로 이동합니다.</div>
+
+    <div class="role-section teacher" style="margin-top:20px">
+      선생님/원장님은 전체 학생 수, 선생님 수, 오늘 전체 수업, 미제출 과제 현황과 최근 활동 피드를 볼 수 있습니다.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- 3. LESSONS -->
+<!-- ============================================ -->
+<h2 id="lessons">3. 수업 관리</h2>
+<p class="section-desc">수업 일정 확인, 수업일지 작성, 출석 관리를 합니다.</p>
+
+<div class="screen-row reverse">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="app-header">
+        <span style="font-size:0.9rem; font-weight:700; color:#334155;">수업</span>
+        <button class="btn btn-sm" style="background:#8b5cf6; color:#fff;">개인 레슨 신청</button>
+      </div>
+      <div class="content">
+        <div class="calendar-mock">
+          <div class="calendar-header">
+            <span class="nav-btn">◀</span>
+            <span class="month">2026년 3월</span>
+            <span class="nav-btn">▶</span>
+          </div>
+          <div class="calendar-days">
+            <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+          </div>
+          <div class="calendar-grid">
+            <span class="day empty">.</span><span class="day empty">.</span><span class="day empty">.</span><span class="day empty">.</span><span class="day empty">.</span><span class="day empty">.</span><span class="day">1</span>
+            <span class="day">2</span><span class="day has-event">3</span><span class="day">4</span><span class="day has-event">5</span><span class="day">6</span><span class="day has-event">7</span><span class="day">8</span>
+            <span class="day">9</span><span class="day has-event">10</span><span class="day">11</span><span class="day has-event">12</span><span class="day">13</span><span class="day has-event">14</span><span class="day">15</span>
+            <span class="day">16</span><span class="day has-event">17</span><span class="day">18</span><span class="day has-event">19</span><span class="day">20</span><span class="day has-event">21</span><span class="day">22</span>
+            <span class="day">23</span><span class="day has-event">24</span><span class="day">25</span><span class="day has-event">26</span><span class="day">27</span><span class="day today">28</span><span class="day">29</span>
+            <span class="day">30</span><span class="day has-event">31</span>
+          </div>
+        </div>
+
+        <div class="section-title">3월 28일 (금)</div>
+        <div class="lesson-card">
+          <div class="time-badge">14:00</div>
+          <div class="info">
+            <div class="title">입시 A반</div>
+            <div class="sub">연습실 A · 연기 · 박선생</div>
+          </div>
+        </div>
+        <div class="lesson-card">
+          <div class="time-badge" style="background:#f0fdf4; color:#16a34a;">16:00</div>
+          <div class="info">
+            <div class="title">뮤지컬 B반 <span style="font-size:0.55rem; background:#dcfce7; color:#16a34a; padding:1px 6px; border-radius:4px;">완료</span></div>
+            <div class="sub">연습실 B · 뮤지컬 · 김선생</div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="icon">🏠</span>홈</div>
+        <div class="nav-item active"><span class="icon">📅</span>수업</div>
+        <div class="nav-item"><span class="icon">📋</span>과제</div>
+        <div class="nav-item"><span class="icon">💬</span>소통</div>
+        <div class="nav-item"><span class="icon">📈</span>성장</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>캘린더 & 수업 목록</h3>
+    <ul>
+      <li>캘린더에서 <strong>파란 점</strong>이 있는 날짜에 수업이 있습니다.</li>
+      <li>날짜를 탭하면 해당 날짜의 수업 목록이 표시됩니다.</li>
+      <li>수업 카드를 탭하면 <strong>상세 화면</strong>으로 이동합니다.</li>
+      <li>상세 화면에서 <strong>수업일지</strong>를 작성하거나, 선생님은 <strong>출석 체크</strong>를 할 수 있습니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">수업일지 작성</h3>
+    <ul>
+      <li>수업 상세 화면에서 <strong>수업일지</strong> 탭을 선택합니다.</li>
+      <li>오늘 배운 점이나 느낀 점을 기록합니다.</li>
+      <li>사진, 영상, 음성 파일을 첨부할 수 있습니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">개인 레슨 신청 (학생)</h3>
+    <ul>
+      <li>보라색 <strong>개인 레슨 신청</strong> 버튼을 누릅니다.</li>
+      <li>선생님, 과목, 희망 일시, 사유를 입력합니다.</li>
+      <li>신청 상태(대기중/승인/거절)를 확인할 수 있습니다.</li>
+    </ul>
+
+    <div class="role-section teacher">
+      선생님은 <strong>수업 등록</strong>, <strong>수업 완료</strong> 처리, <strong>출석 체크</strong>를 할 수 있습니다. 개인 레슨 신청이 오면 승인/거절 패널이 표시됩니다.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- 4. ASSIGNMENTS -->
+<!-- ============================================ -->
+<h2 id="assignments">4. 과제</h2>
+<p class="section-desc">과제 확인, 제출, 채점을 관리합니다.</p>
+
+<div class="screen-row">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="app-header">
+        <span style="font-size:0.9rem; font-weight:700; color:#334155;">과제 관리</span>
+      </div>
+      <div class="content">
+        <div class="lesson-card" style="border-left:3px solid #f59e0b;">
+          <div class="info" style="flex:1;">
+            <div class="title">3막 2장 독백 연습</div>
+            <div class="sub">마감: 3/30 · <span style="color:#f59e0b;">제출 대기</span></div>
+          </div>
+          <span style="color:#f59e0b; font-size:0.8rem;">→</span>
+        </div>
+        <div class="lesson-card" style="border-left:3px solid #22c55e;">
+          <div class="info" style="flex:1;">
+            <div class="title">즉흥연기 영상 촬영</div>
+            <div class="sub">마감: 3/25 · <span style="color:#22c55e;">채점 완료</span></div>
+          </div>
+          <span style="color:#22c55e; font-size:0.8rem;">✓</span>
+        </div>
+        <div class="lesson-card" style="border-left:3px solid #3b82f6;">
+          <div class="info" style="flex:1;">
+            <div class="title">감정 분석 보고서</div>
+            <div class="sub">마감: 3/28 · <span style="color:#3b82f6;">제출 완료</span></div>
+          </div>
+          <span style="color:#3b82f6; font-size:0.7rem;">📎</span>
+        </div>
+
+        <div style="margin-top:16px; background:#fff; border-radius:12px; padding:12px; border:1px solid #f1f5f9;">
+          <div style="font-size:0.75rem; font-weight:700; color:#334155; margin-bottom:8px;">과제 제출</div>
+          <textarea class="form-input" style="height:60px; resize:none;" placeholder="과제 내용을 입력하거나 메모를 남겨주세요..." disabled></textarea>
+          <div style="margin-top:8px; border:2px dashed #e2e8f0; border-radius:10px; padding:12px; text-align:center;">
+            <div style="font-size:1.2rem; color:#cbd5e1;">📎</div>
+            <div style="font-size:0.6rem; color:#94a3b8;">파일 첨부 (영상/문서)</div>
+            <div style="font-size:0.55rem; color:#cbd5e1;">영상은 10분 이내 권장 (최대 1.5GB)</div>
+          </div>
+          <button class="btn btn-brand" style="margin-top:8px;">과제 제출하기</button>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="icon">🏠</span>홈</div>
+        <div class="nav-item"><span class="icon">📅</span>수업</div>
+        <div class="nav-item active"><span class="icon">📋</span>과제</div>
+        <div class="nav-item"><span class="icon">💬</span>소통</div>
+        <div class="nav-item"><span class="icon">📈</span>성장</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>과제 목록</h3>
+    <ul>
+      <li>과제 상태가 색상으로 구분됩니다:
+        <ul>
+          <li style="color:#f59e0b;">노란색: 제출 대기</li>
+          <li style="color:#3b82f6;">파란색: 제출 완료</li>
+          <li style="color:#22c55e;">초록색: 채점 완료</li>
+        </ul>
+      </li>
+      <li>과제를 탭하면 상세 내용과 제출 영역이 표시됩니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">과제 제출 (학생)</h3>
+    <ul>
+      <li>텍스트를 입력하거나 영상/문서 파일을 첨부합니다.</li>
+      <li>영상 파일은 <strong>10분 이내, 최대 1.5GB</strong>까지 가능합니다.</li>
+      <li><strong>과제 제출하기</strong> 버튼을 눌러 제출합니다.</li>
+    </ul>
+
+    <div class="role-section teacher">
+      선생님은 <strong>과제 부여</strong> 버튼으로 과제를 만들고, 제출된 과제에 <strong>등급</strong>과 <strong>피드백</strong>을 작성합니다. AI 분석 요청도 가능합니다.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- 5. GROWTH -->
+<!-- ============================================ -->
+<h2 id="growth">5. 성장 기록 (포트폴리오)</h2>
+<p class="section-desc">연습 영상 포트폴리오, 평가 리포트, 대회·행사를 관리합니다.</p>
+
+<div class="screen-row reverse">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="app-header">
+        <span style="font-size:0.9rem; font-weight:700; color:#334155;">성장 기록</span>
+      </div>
+      <div class="content">
+        <div class="tabs">
+          <div class="tab">평가 리포트</div>
+          <div class="tab active">포트폴리오</div>
+          <div class="tab">대회·행사</div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <div style="display:flex; gap:4px;">
+            <button class="btn btn-sm btn-outline" style="background:#f59e0b; color:#fff; border:none;">그리드</button>
+            <button class="btn btn-sm btn-outline">타임라인</button>
+          </div>
+          <button class="btn btn-sm" style="background:#f59e0b; color:#fff;">+ 등록</button>
+        </div>
+
+        <div class="pf-grid">
+          <div class="pf-card">
+            <div class="pf-thumb has-video">▶</div>
+            <div class="pf-body">
+              <div class="title">햄릿 독백 연습</div>
+              <div class="meta"><span class="pf-badge">독백</span> · 3/25</div>
+            </div>
+          </div>
+          <div class="pf-card">
+            <div class="pf-thumb has-video">▶</div>
+            <div class="pf-body">
+              <div class="title">즉흥 연기 #3</div>
+              <div class="meta"><span class="pf-badge">즉흥연기</span> · 3/22</div>
+            </div>
+          </div>
+          <div class="pf-card">
+            <div class="pf-thumb has-video">▶</div>
+            <div class="pf-body">
+              <div class="title">뮤지컬 넘버</div>
+              <div class="meta"><span class="pf-badge">뮤지컬</span> · 3/20</div>
+            </div>
+          </div>
+          <div class="pf-card">
+            <div class="pf-thumb" style="background:#f8fafc; color:#cbd5e1;">
+              <div style="text-align:center; font-size:0.6rem;">영상없음<br><span style="font-size:0.5rem; background:#f59e0b; color:#fff; padding:2px 8px; border-radius:99px; margin-top:4px; display:inline-block;">업로드</span></div>
+            </div>
+            <div class="pf-body">
+              <div class="title">오디션 준비</div>
+              <div class="meta"><span class="pf-badge">오디션 준비</span> · 3/18</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="icon">🏠</span>홈</div>
+        <div class="nav-item"><span class="icon">📅</span>수업</div>
+        <div class="nav-item"><span class="icon">📋</span>과제</div>
+        <div class="nav-item"><span class="icon">💬</span>소통</div>
+        <div class="nav-item active"><span class="icon">📈</span>성장</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>포트폴리오</h3>
+    <p>연습 영상을 기록하고 성장 과정을 관리합니다.</p>
+    <ul>
+      <li><strong>그리드 보기</strong>: 썸네일로 전체 영상을 한눈에 확인</li>
+      <li><strong>타임라인 보기</strong>: 연습 시리즈별로 시간순 정리</li>
+      <li>영상을 탭하면 <strong>재생 화면</strong>으로 이동합니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">영상 업로드</h3>
+    <ul>
+      <li><strong>+ 등록</strong> 버튼을 누릅니다.</li>
+      <li>제목, 카테고리(독백/장면연기/뮤지컬/즉흥연기/오디션 준비), 태그를 입력합니다.</li>
+      <li>영상 파일을 선택합니다 (<strong>10분 이내 권장, 최대 1.5GB</strong>).</li>
+      <li>업로드 진행률이 표시되며, 완료 후 서버에서 자동으로 영상을 최적화합니다.</li>
+      <li>이미 등록된 포트폴리오에 "영상없음"이 표시된 경우, <strong>업로드</strong> 버튼을 눌러 영상을 추가할 수 있습니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">영상 재생</h3>
+    <ul>
+      <li>영상을 탭하면 재생됩니다.</li>
+      <li>재생 바를 드래그하여 원하는 지점으로 이동할 수 있습니다.</li>
+      <li>선생님은 특정 시간에 <strong>타임스탬프 코멘트</strong>를 남길 수 있습니다.</li>
+    </ul>
+
+    <div class="tip">영상은 업로드 후 서버에서 자동으로 압축됩니다. 원본 화질을 유지할 필요 없이 편하게 올려주세요.</div>
+
+    <div class="role-section teacher" style="margin-top:16px">
+      선생님은 학생별/카테고리별로 필터링하여 포트폴리오를 확인하고, AI 피드백을 요청하거나 직접 코멘트를 남길 수 있습니다.
+    </div>
+  </div>
+</div>
+
+<!-- Evaluation sub-section -->
+<div class="screen-row">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="app-header">
+        <span style="font-size:0.9rem; font-weight:700; color:#334155;">성장 기록</span>
+      </div>
+      <div class="content">
+        <div class="tabs">
+          <div class="tab active">평가 리포트</div>
+          <div class="tab">포트폴리오</div>
+          <div class="tab">대회·행사</div>
+        </div>
+
+        <div style="display:flex; gap:4px; margin-bottom:10px; flex-wrap:wrap;">
+          <button class="btn btn-sm" style="background:#f59e0b; color:#fff;">전체</button>
+          <button class="btn btn-sm btn-outline">연기</button>
+          <button class="btn btn-sm btn-outline">뮤지컬</button>
+          <button class="btn btn-sm btn-outline">무용</button>
+        </div>
+
+        <div class="eval-card">
+          <div class="eval-title">김하은 — 2026년 3월</div>
+          <div class="eval-meta"><span style="background:#f3e8ff; color:#9333ea; padding:1px 6px; border-radius:4px; font-size:0.5rem;">연기</span> · 입시 A반 · 박선생</div>
+          <div class="score-row"><span class="score-label">연기력</span><div class="score-bar"><div class="fill" style="width:80%"></div></div><span class="score-value">4/5</span></div>
+          <div class="score-row"><span class="score-label">표현력</span><div class="score-bar"><div class="fill" style="width:70%"></div></div><span class="score-value">3.5</span></div>
+          <div class="score-row"><span class="score-label">창의성</span><div class="score-bar"><div class="fill" style="width:90%"></div></div><span class="score-value">4.5</span></div>
+          <div class="score-row"><span class="score-label">협동심</span><div class="score-bar"><div class="fill" style="width:80%"></div></div><span class="score-value">4/5</span></div>
+          <div class="score-row"><span class="score-label">성실도</span><div class="score-bar"><div class="fill" style="width:86%"></div></div><span class="score-value">4.3</span></div>
+          <div style="background:#f8fafc; border-radius:8px; padding:8px; margin-top:8px; font-size:0.65rem; color:#475569;">
+            감정 전달이 한층 깊어졌습니다. 대사의 호흡과 감정선을 잘 표현하고 있습니다. 다음에는 신체 표현에도 더 집중해보세요.
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="icon">🏠</span>홈</div>
+        <div class="nav-item"><span class="icon">📅</span>수업</div>
+        <div class="nav-item"><span class="icon">📋</span>과제</div>
+        <div class="nav-item"><span class="icon">💬</span>소통</div>
+        <div class="nav-item active"><span class="icon">📈</span>성장</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>평가 리포트</h3>
+    <p>선생님이 작성한 정기 평가를 확인합니다.</p>
+    <ul>
+      <li>과목별 필터: <strong>전체 / 연기 / 뮤지컬 / 무용</strong></li>
+      <li>5개 항목(연기력, 표현력, 창의성, 협동심, 성실도)의 점수를 시각적으로 확인</li>
+      <li>선생님의 코멘트도 함께 표시됩니다.</li>
+    </ul>
+    <div class="role-section teacher">
+      선생님은 <strong>평가 작성</strong> 버튼으로 학생별 평가를 등록합니다. 학생, 기간, 과목을 선택하고 5개 항목 점수와 코멘트를 입력합니다.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- 6. DIET -->
+<!-- ============================================ -->
+<h2 id="diet">6. 식단 관리</h2>
+<p class="section-desc">매일 식단을 기록하고, AI 분석과 선생님 코멘트를 받습니다.</p>
+
+<div class="screen-row reverse">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="app-header">
+        <span style="font-size:0.9rem; font-weight:700; color:#334155;">식단 캘린더</span>
+        <button class="btn btn-sm" style="background:#22c55e; color:#fff;">식단 기록</button>
+      </div>
+      <div class="content">
+        <div class="calendar-mock">
+          <div class="calendar-header">
+            <span class="nav-btn">◀</span>
+            <span class="month">2026년 3월</span>
+            <span class="nav-btn">▶</span>
+          </div>
+          <div class="calendar-days">
+            <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+          </div>
+          <div class="calendar-grid">
+            <span class="day empty">.</span><span class="day empty">.</span><span class="day empty">.</span><span class="day empty">.</span><span class="day empty">.</span><span class="day empty">.</span><span class="day">1</span>
+            <span class="day">2</span><span class="day has-event">3</span><span class="day has-event">4</span><span class="day has-event">5</span><span class="day">6</span><span class="day has-event">7</span><span class="day">8</span>
+            <span class="day">9</span><span class="day has-event">10</span><span class="day has-event">11</span><span class="day has-event">12</span><span class="day">13</span><span class="day has-event">14</span><span class="day">15</span>
+            <span class="day">16</span><span class="day has-event">17</span><span class="day has-event">18</span><span class="day has-event">19</span><span class="day">20</span><span class="day has-event">21</span><span class="day">22</span>
+            <span class="day">23</span><span class="day has-event">24</span><span class="day has-event">25</span><span class="day has-event">26</span><span class="day">27</span><span class="day today">28</span><span class="day">29</span>
+            <span class="day">30</span><span class="day">31</span>
+          </div>
+        </div>
+
+        <div class="section-title">3월 28일 · 1,240 kcal</div>
+
+        <div class="meal-card">
+          <div class="meal-thumb">🍳</div>
+          <div style="flex:1;">
+            <span class="meal-badge breakfast">아침</span>
+            <div style="font-size:0.7rem; color:#334155;">토스트, 스크램블 에그, 우유</div>
+            <div style="font-size:0.55rem; color:#94a3b8;">8:30 · 약 420 kcal</div>
+          </div>
+        </div>
+        <div class="meal-card">
+          <div class="meal-thumb">🍱</div>
+          <div style="flex:1;">
+            <span class="meal-badge lunch">점심</span>
+            <div style="font-size:0.7rem; color:#334155;">김치찌개, 밥, 계란후라이</div>
+            <div style="font-size:0.55rem; color:#94a3b8;">12:30 · 약 550 kcal</div>
+            <div style="font-size:0.55rem; color:#3b82f6; margin-top:2px;">코멘트: 단백질 섭취가 좋네요!</div>
+          </div>
+        </div>
+        <div class="meal-card">
+          <div class="meal-thumb">🥗</div>
+          <div style="flex:1;">
+            <span class="meal-badge dinner">저녁</span>
+            <div style="font-size:0.7rem; color:#334155;">닭가슴살 샐러드</div>
+            <div style="font-size:0.55rem; color:#94a3b8;">18:00 · 약 270 kcal</div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="icon">🏠</span>홈</div>
+        <div class="nav-item"><span class="icon">📅</span>수업</div>
+        <div class="nav-item"><span class="icon">📋</span>과제</div>
+        <div class="nav-item"><span class="icon">💬</span>소통</div>
+        <div class="nav-item active"><span class="icon">🍽</span>식단</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>식단 캘린더</h3>
+    <ul>
+      <li>캘린더에서 식단이 기록된 날짜에 <strong>점</strong>이 표시됩니다.</li>
+      <li>날짜를 탭하면 해당 날짜의 식단 목록과 총 칼로리를 볼 수 있습니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">식단 기록하기</h3>
+    <ul>
+      <li>초록색 <strong>식단 기록</strong> 버튼을 누릅니다.</li>
+      <li>식사 유형(아침/점심/저녁/간식)을 선택합니다.</li>
+      <li>식단 내용을 입력합니다 (예: "김치찌개, 밥, 계란후라이").</li>
+      <li>음식 사진을 첨부할 수 있습니다.</li>
+      <li><strong>분석 요청</strong>을 누르면 AI가 칼로리를 추정하고 영양 조언을 해줍니다.</li>
+    </ul>
+
+    <div class="role-section teacher">
+      선생님은 전체 학생의 식단을 목록으로 보고, 각 식단에 <strong>코멘트</strong>를 남길 수 있습니다.
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- 7. COMMUNITY -->
+<!-- ============================================ -->
+<h2 id="community">7. 소통 (채팅 / 공지)</h2>
+<p class="section-desc">클래스별 채팅, 질의응답, 공지사항을 확인합니다.</p>
+
+<div class="screen-row">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="app-header">
+        <span style="font-size:0.9rem; font-weight:700; color:#334155;">소통</span>
+      </div>
+      <div class="content" style="padding-bottom:100px;">
+        <div class="tabs">
+          <div class="tab active">채팅</div>
+          <div class="tab">질의응답</div>
+          <div class="tab">공지사항</div>
+        </div>
+
+        <div style="font-size:0.65rem; color:#94a3b8; text-align:center; margin-bottom:12px;">입시 A반</div>
+
+        <div class="chat-msg">
+          <div class="avatar" style="width:24px; height:24px; font-size:0.5rem;">박</div>
+          <div>
+            <div class="chat-name">박선생 · 선생님</div>
+            <div class="chat-bubble other">내일 수업에서 3막 2장 대본 준비해오세요!</div>
+            <div class="chat-time">오전 10:30</div>
+          </div>
+        </div>
+        <div class="chat-msg mine">
+          <div>
+            <div class="chat-bubble mine">네, 알겠습니다!</div>
+            <div class="chat-time" style="text-align:right;">오전 10:32</div>
+          </div>
+        </div>
+        <div class="chat-msg">
+          <div class="avatar" style="width:24px; height:24px; font-size:0.5rem;">이</div>
+          <div>
+            <div class="chat-name">이서연 · 수강생</div>
+            <div class="chat-bubble other">저도 준비하겠습니다 🙋</div>
+            <div class="chat-time">오전 10:35</div>
+          </div>
+        </div>
+      </div>
+      <div class="chat-input-bar">
+        <input placeholder="메시지를 입력하세요..." disabled>
+        <button class="send-btn">↑</button>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="icon">🏠</span>홈</div>
+        <div class="nav-item"><span class="icon">📅</span>수업</div>
+        <div class="nav-item"><span class="icon">📋</span>과제</div>
+        <div class="nav-item active"><span class="icon">💬</span>소통</div>
+        <div class="nav-item"><span class="icon">📈</span>성장</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>클래스 채팅</h3>
+    <ul>
+      <li>소속된 클래스별로 채팅방이 분리되어 있습니다.</li>
+      <li>메시지를 입력하고 전송 버튼을 누르면 실시간으로 전달됩니다.</li>
+      <li>선생님과 같은 반 학생들과 대화할 수 있습니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">질의응답</h3>
+    <ul>
+      <li>연기/입시 관련 질문을 올리면 선생님이 답변합니다.</li>
+      <li>AI 튜터가 자동으로 답변을 생성해줄 수도 있습니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">공지사항</h3>
+    <ul>
+      <li>학원 공지사항을 확인합니다.</li>
+      <li>원장님과 선생님만 공지를 작성할 수 있습니다.</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============================================ -->
+<!-- 8. PROFILE -->
+<!-- ============================================ -->
+<h2 id="profile">8. 프로필 설정</h2>
+<p class="section-desc">프로필 사진, 이름, 비밀번호, 알림 설정을 관리합니다.</p>
+
+<div class="screen-row reverse">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+      <div class="app-header">
+        <span style="font-size:0.9rem; font-weight:700; color:#334155;">프로필 설정</span>
+      </div>
+      <div class="content">
+        <div class="profile-avatar-section">
+          <div class="profile-avatar">하</div>
+          <div class="profile-name">김하은</div>
+          <div class="profile-role">수강생</div>
+          <button class="btn btn-sm" style="background:#f59e0b; color:#fff; margin-top:8px;">사진 변경</button>
+        </div>
+
+        <div style="background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; border:1px solid #f1f5f9;">
+          <div style="font-size:0.75rem; font-weight:700; color:#334155; margin-bottom:8px;">기본 정보</div>
+          <div class="form-group">
+            <div class="form-label">이름</div>
+            <input class="form-input" value="김하은" disabled>
+          </div>
+          <div class="form-group">
+            <div class="form-label">이메일</div>
+            <input class="form-input" value="haeun@example.com" disabled>
+          </div>
+          <button class="btn btn-brand" style="margin-top:4px;">프로필 저장</button>
+        </div>
+
+        <div style="background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; border:1px solid #f1f5f9;">
+          <div style="font-size:0.75rem; font-weight:700; color:#334155; margin-bottom:8px;">비밀번호 변경</div>
+          <div class="form-group">
+            <div class="form-label">현재 비밀번호</div>
+            <input class="form-input" type="password" disabled>
+          </div>
+          <div class="form-group">
+            <div class="form-label">새 비밀번호</div>
+            <input class="form-input" type="password" placeholder="8자 이상, 영문+숫자+특수문자" disabled>
+          </div>
+        </div>
+
+        <div style="background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; border:1px solid #f1f5f9;">
+          <div style="font-size:0.75rem; font-weight:700; color:#334155; margin-bottom:4px;">푸시 알림</div>
+          <div style="font-size:0.6rem; color:#94a3b8; margin-bottom:8px;">앱을 사용하지 않을 때에도 새 알림을 받을 수 있습니다.</div>
+          <button class="btn btn-sm" style="background:#f59e0b; color:#fff;">푸시 알림 켜기</button>
+        </div>
+
+        <div style="background:#fff; border-radius:12px; padding:12px; border:1px solid #f1f5f9;">
+          <div style="font-size:0.75rem; font-weight:700; color:#334155; margin-bottom:4px;">앱 설치</div>
+          <div style="font-size:0.6rem; color:#94a3b8; margin-bottom:8px;">홈 화면에 앱을 추가하면 더 빠르게 실행할 수 있습니다.</div>
+          <button class="btn btn-sm" style="background:#f59e0b; color:#fff;">홈 화면에 추가</button>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item"><span class="icon">🏠</span>홈</div>
+        <div class="nav-item"><span class="icon">📅</span>수업</div>
+        <div class="nav-item"><span class="icon">📋</span>과제</div>
+        <div class="nav-item"><span class="icon">💬</span>소통</div>
+        <div class="nav-item"><span class="icon">📈</span>성장</div>
+      </div>
+    </div>
+  </div>
+  <div class="screen-info">
+    <h3>프로필 사진</h3>
+    <ul>
+      <li><strong>사진 변경</strong>을 눌러 프로필 사진을 업로드합니다.</li>
+      <li>프로필 사진은 채팅, 수업일지, 코멘트에 표시됩니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">기본 정보</h3>
+    <ul>
+      <li>이름과 이메일을 수정할 수 있습니다.</li>
+      <li>역할(수강생/선생님)은 변경할 수 없습니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">비밀번호 변경</h3>
+    <ul>
+      <li>현재 비밀번호를 입력한 후 새 비밀번호를 설정합니다.</li>
+      <li>비밀번호 규칙: 8자 이상, 영문+숫자+특수문자 포함</li>
+    </ul>
+
+    <h3 style="margin-top:16px">푸시 알림</h3>
+    <ul>
+      <li><strong>푸시 알림 켜기</strong>를 누르면 앱을 닫아도 새 메시지/과제 알림을 받을 수 있습니다.</li>
+      <li>iOS에서는 홈 화면에 앱을 추가한 후 사용 가능합니다.</li>
+    </ul>
+
+    <h3 style="margin-top:16px">앱 설치 (PWA)</h3>
+    <ul>
+      <li><strong>홈 화면에 추가</strong>를 누르면 일반 앱처럼 사용할 수 있습니다.</li>
+      <li>iOS: 하단 공유 버튼 → "홈 화면에 추가"</li>
+      <li>Android: 브라우저 메뉴 → "앱 설치" 또는 "홈 화면에 추가"</li>
+    </ul>
+  </div>
+</div>
+
+<div style="text-align:center; padding:40px 0; color:#94a3b8; font-size:0.85rem;">
+  <div style="font-size:1.2rem; font-weight:800; color:#fbbf24; margin-bottom:4px;">SOL-ACT</div>
+  연기 입시의 새로운 기준<br>
+  문의: 학원 관리자에게 연락해주세요.
+</div>
+
+</div>
+</body>
+</html>

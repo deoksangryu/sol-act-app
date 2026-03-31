@@ -1,5 +1,6 @@
 from pathlib import Path
 from fastapi import UploadFile, HTTPException
+import os
 import uuid
 import subprocess
 import shutil
@@ -8,10 +9,30 @@ import threading
 import aiofiles
 import logging
 from typing import Optional, Tuple
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-UPLOAD_DIR = Path("backend/uploads")
+# Local fallback path (always available)
+_LOCAL_UPLOAD_DIR = Path("backend/uploads")
+
+
+def _resolve_upload_dir() -> Path:
+    """Determine upload directory: external SSD if available, otherwise local."""
+    name = settings.EXTERNAL_DRIVE_NAME
+    if name:
+        ext = Path(f"/Volumes/{name}/sol-act-uploads")
+        if ext.parent.exists() and os.access(ext.parent, os.W_OK):
+            ext.mkdir(parents=True, exist_ok=True)
+            return ext
+        logger.warning(f"External drive '{name}' not found at /Volumes/{name}, using local storage")
+    return _LOCAL_UPLOAD_DIR
+
+
+# Resolved once at import time, but can be re-checked per request via get_upload_dir()
+UPLOAD_DIR = _resolve_upload_dir()
+
+
 ALLOWED_VIDEO = {".mp4", ".mov", ".webm"}
 ALLOWED_DOCS = {".pdf", ".jpg", ".jpeg", ".png", ".mp3", ".m4a", ".wav", ".doc", ".docx"}
 ALLOWED_ALL = ALLOWED_VIDEO | ALLOWED_DOCS
