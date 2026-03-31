@@ -1,7 +1,8 @@
-"""Admin-only API endpoints — no auth required, localhost access only."""
-from fastapi import APIRouter, Depends, HTTPException, Request
+"""Admin-only API endpoints — password-protected via query param or header."""
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
+from app.config import settings
 from app.models.user import User, UserRole
 from app.models.assignment import Assignment
 from app.models.lesson import Lesson
@@ -16,16 +17,16 @@ from app.models.invite_code import InviteCode
 router = APIRouter()
 
 
-def require_localhost(request: Request):
-    """Only allow access from localhost."""
-    host = request.client.host if request.client else ""
-    if host not in ("127.0.0.1", "::1", "localhost"):
-        raise HTTPException(status_code=403, detail="Admin access is localhost only")
+def require_admin(request: Request):
+    """Verify admin access via X-Admin-Token header."""
+    token = request.headers.get("x-admin-token", "")
+    if token != settings.ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Invalid admin password")
 
 
 @router.get("/stats")
 def admin_stats(request: Request, db: Session = Depends(get_db)):
-    require_localhost(request)
+    require_admin(request)
     students = db.query(User).filter(User.role == UserRole.STUDENT).count()
     teachers = db.query(User).filter(User.role == UserRole.TEACHER).count()
     directors = db.query(User).filter(User.role == UserRole.DIRECTOR).count()
@@ -42,7 +43,7 @@ def admin_stats(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/students")
 def admin_students(request: Request, db: Session = Depends(get_db)):
-    require_localhost(request)
+    require_admin(request)
     users = db.query(User).filter(User.role == UserRole.STUDENT).all()
     classes = db.query(ClassInfo).all()
     # Build student-to-classes map once instead of O(students * classes)
@@ -98,7 +99,7 @@ def admin_students(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/students/{student_id}")
 def admin_student_detail(student_id: str, request: Request, db: Session = Depends(get_db)):
-    require_localhost(request)
+    require_admin(request)
     user = db.query(User).filter(User.id == student_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Student not found")
@@ -163,7 +164,7 @@ def admin_student_detail(student_id: str, request: Request, db: Session = Depend
 
 @router.get("/activity")
 def admin_activity(request: Request, db: Session = Depends(get_db)):
-    require_localhost(request)
+    require_admin(request)
     activities = []
 
     # Recent assignments
@@ -199,7 +200,7 @@ def admin_activity(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/invite-codes")
 def admin_invite_codes(request: Request, db: Session = Depends(get_db)):
-    require_localhost(request)
+    require_admin(request)
     codes = db.query(InviteCode).order_by(InviteCode.created_at.desc()).all()
     return [
         {

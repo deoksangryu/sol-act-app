@@ -121,6 +121,24 @@
 </head>
 <body class="min-h-screen flex flex-col">
 
+  <!-- Login Screen -->
+  <div id="loginScreen" class="fixed inset-0 z-50 bg-slate-900 flex items-center justify-center">
+    <div class="text-center">
+      <h1 class="text-2xl font-bold text-slate-100 mb-1 tracking-tight">SOL-ACT 관리자</h1>
+      <p class="text-xs text-slate-500 mb-6">비밀번호를 입력하세요</p>
+      <form onsubmit="handleAdminLogin(event)" class="flex flex-col gap-3 w-64">
+        <input id="adminPwInput" type="password" placeholder="비밀번호"
+          class="px-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-sm text-slate-200 outline-none focus:border-sky-500 text-center tracking-widest"
+          autofocus>
+        <button type="submit"
+          class="px-4 py-3 bg-sky-600 hover:bg-sky-500 rounded-lg text-sm font-bold text-white transition-colors">
+          접속
+        </button>
+        <p id="loginError" class="text-xs text-red-400 hidden">비밀번호가 올바르지 않습니다.</p>
+      </form>
+    </div>
+  </div>
+
   <!-- Top Bar -->
   <header class="sticky top-0 z-40 bg-slate-900/95 border-b border-slate-700 backdrop-blur flex-shrink-0">
     <div class="px-4 py-3 flex items-center justify-between">
@@ -345,6 +363,44 @@
     const BASE_URL = '';
     const REFRESH_INTERVAL = 30000;
     let refreshTimer = null;
+    let adminToken = sessionStorage.getItem('adminToken') || '';
+
+    // Admin login
+    async function handleAdminLogin(e) {
+      e.preventDefault();
+      const pw = document.getElementById('adminPwInput').value;
+      // Verify by calling a lightweight admin endpoint
+      try {
+        const res = await fetch(`${BASE_URL}/api/admin/stats`, {
+          headers: { 'x-admin-token': pw }
+        });
+        if (res.ok) {
+          adminToken = pw;
+          sessionStorage.setItem('adminToken', pw);
+          document.getElementById('loginScreen').style.display = 'none';
+          document.getElementById('loginError').classList.add('hidden');
+          refreshAll();
+        } else {
+          document.getElementById('loginError').classList.remove('hidden');
+        }
+      } catch {
+        document.getElementById('loginError').classList.remove('hidden');
+      }
+    }
+
+    // Auto-login if token exists
+    if (adminToken) {
+      fetch(`${BASE_URL}/api/admin/stats`, { headers: { 'x-admin-token': adminToken } })
+        .then(res => {
+          if (res.ok) {
+            document.getElementById('loginScreen').style.display = 'none';
+            refreshAll();
+          } else {
+            sessionStorage.removeItem('adminToken');
+            adminToken = '';
+          }
+        }).catch(() => {});
+    }
 
     // ========================================================================
     // State
@@ -390,7 +446,16 @@
     // ========================================================================
     async function apiFetch(path) {
       try {
-        const res = await fetch(`${BASE_URL}${path}`);
+        const res = await fetch(`${BASE_URL}${path}`, {
+          headers: { 'x-admin-token': adminToken }
+        });
+        if (res.status === 403) {
+          // Token expired or invalid — show login
+          sessionStorage.removeItem('adminToken');
+          adminToken = '';
+          document.getElementById('loginScreen').style.display = 'flex';
+          return null;
+        }
         if (!res.ok) throw new Error(`API error ${res.status}`);
         return await res.json();
       } catch (err) {

@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # External SSD name (leave empty to use local storage)
     EXTERNAL_DRIVE_NAME: str = ""
 
+    # Admin dashboard password
+    ADMIN_PASSWORD: str = "solact2026!"
+
     # Redis (Optional)
     REDIS_URL: str = "redis://localhost:6379"
 
