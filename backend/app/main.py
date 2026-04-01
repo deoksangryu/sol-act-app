@@ -152,33 +152,39 @@ class SecureStaticFiles(StaticFiles):
         await super().__call__(scope, receive, send_with_headers)
 
 
-class FallbackStaticFiles:
-    """Try external SSD first, fall back to local uploads directory."""
-
-    def __init__(self):
-        self._local = SecureStaticFiles(directory="backend/uploads")
-
-    def _get_external(self):
-        name = settings.EXTERNAL_DRIVE_NAME
-        if name:
-            ext_dir = f"/Volumes/{name}/sol-act-uploads"
-            if os.path.isdir(ext_dir):
-                return SecureStaticFiles(directory=ext_dir)
-        return None
-
-    async def __call__(self, scope, receive, send):
-        path = scope.get("path", "")
-        # Try external first
-        ext = self._get_external()
-        if ext:
-            file_path = os.path.join(f"/Volumes/{settings.EXTERNAL_DRIVE_NAME}/sol-act-uploads", path.lstrip("/"))
-            if os.path.isfile(file_path):
-                return await ext(scope, receive, send)
-        # Fall back to local
-        return await self._local(scope, receive, send)
+from starlette.responses import Response as StarletteFileResponse
 
 
-app.mount("/uploads", FallbackStaticFiles(), name="uploads")
+@app.middleware("http")
+async def serve_uploads(request: Request, call_next):
+    """Serve /uploads/ files from external SSD first, then local."""
+    path = request.url.path
+    if not path.startswith("/uploads/"):
+        return await call_next(request)
+
+    rel = path[len("/uploads/"):]  # strip prefix
+
+    # Try external SSD first
+    name = settings.EXTERNAL_DRIVE_NAME
+    if name:
+        ext_file = os.path.join(f"/Volumes/{name}/sol-act-uploads", rel)
+        if os.path.isfile(ext_file):
+            from starlette.responses import FileResponse as SFileResponse
+            resp = SFileResponse(ext_file)
+            resp.headers["x-content-type-options"] = "nosniff"
+            resp.headers["content-security-policy"] = "default-src 'none'"
+            return resp
+
+    # Fall back to local
+    local_file = os.path.join("backend/uploads", rel)
+    if os.path.isfile(local_file):
+        from starlette.responses import FileResponse as SFileResponse
+        resp = SFileResponse(local_file)
+        resp.headers["x-content-type-options"] = "nosniff"
+        resp.headers["content-security-policy"] = "default-src 'none'"
+        return resp
+
+    return JSONResponse(status_code=404, content={"detail": "Not found"})
 
 
 # Admin dashboard (local access only)
