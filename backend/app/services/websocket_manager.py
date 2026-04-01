@@ -33,6 +33,9 @@ class ConnectionManager:
         for ws in dead:
             self.connections[user_id].remove(ws)
 
+    def get_connected_user_ids(self) -> List[str]:
+        return list(self.connections.keys())
+
     async def broadcast_to_users(self, user_ids: List[str], message: dict):
         for user_id in user_ids:
             await self.send_to_user(user_id, message)

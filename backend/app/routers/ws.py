@@ -8,6 +8,7 @@ from app.models.user import User, UserRole
 from app.models.chat import ChatMessage
 from app.models.class_info import ClassInfo
 from app.services.websocket_manager import manager
+from app.services.notification_service import _send_web_push
 import uuid
 
 router = APIRouter()
@@ -109,6 +110,14 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)):
                     db.close()
 
                 await manager.broadcast_to_users(member_ids, response)
+
+                # Send Web Push to offline members (not the sender)
+                online_ids = set(manager.get_connected_user_ids())
+                offline_members = [mid for mid in member_ids if mid != user_id and mid not in online_ids]
+                sender_name = sender.name
+                push_msg = f"{sender_name}: {content[:100]}"
+                for mid in offline_members:
+                    _send_web_push(mid, push_msg)
 
             elif msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
