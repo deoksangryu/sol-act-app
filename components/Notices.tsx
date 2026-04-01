@@ -63,9 +63,8 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
       await noticeApi.create({
         title: newTitle,
         content: newContent,
-        isImportant: newImportant,
-        authorId: user.id,
-        authorName: user.name,
+        important: newImportant,
+        author: user.name,
         classId: newClassId || undefined,
       });
       toast.success('공지사항이 작성되었습니다.');
