@@ -96,6 +96,19 @@ footer .logo{font-size:1.1rem;font-weight:800;color:#fbbf24;margin-bottom:2px}
   <div class="badge">🎓 선생님용</div>
 </div>
 
+<!-- 0. 회원가입 -->
+<div class="sec">
+  <div class="sec-title"><span class="num">0</span> 회원가입 & 로그인</div>
+  <div class="ip">
+    <ul>
+      <li>학원에서 받은 <strong>선생님용 초대 코드</strong>를 입력하면 "선생님"으로 자동 설정됩니다</li>
+      <li>이름, 이메일, 비밀번호(8자 이상 + 영문 + 숫자 + 특수문자)를 입력합니다</li>
+      <li>가입 완료 후 이메일과 비밀번호로 로그인합니다</li>
+      <li>비밀번호를 잊었다면 로그인 화면의 <strong>비밀번호 찾기</strong>를 눌러 임시 비밀번호를 발급받으세요</li>
+    </ul>
+  </div>
+</div>
+
 <!-- 1. 홈 -->
 <div class="sec">
   <div class="sec-title"><span class="num">1</span> 홈 화면</div>
@@ -180,12 +193,24 @@ footer .logo{font-size:1.1rem;font-weight:800;color:#fbbf24;margin-bottom:2px}
         <li><strong>수업 등록</strong>: 클래스, 날짜, 시간, 과목, 장소를 선택하여 수업을 만듭니다</li>
         <li>수업 카드를 탭하면 상세 화면으로 이동합니다</li>
         <li>상세 화면에서 <strong>수업 완료</strong> / <strong>수정</strong> / <strong>삭제</strong> 처리</li>
+        <li>수업 상태는 자동 변경되지 않습니다:
+          <ul>
+            <li><strong>예정</strong> → 수업 생성 시 기본 상태</li>
+            <li><strong>완료</strong> → 선생님이 직접 "수업 완료" 버튼을 눌러야 변경됩니다</li>
+            <li><strong>취소</strong> → 선생님이 직접 취소 처리해야 합니다</li>
+          </ul>
+        </li>
       </ul>
       <h3 style="margin-top:12px">수업일지 & 출석</h3>
       <ul>
         <li>수업 상세의 <strong>수업일지</strong> 탭에서 수업 내용, 목표, 다음 계획을 기록합니다</li>
         <li>사진/영상/음성 파일을 첨부할 수 있습니다</li>
-        <li><strong>출석</strong> 탭에서 학생별 출결(출석/지각/결석/사유결석)을 체크합니다</li>
+        <li><strong>출석</strong> 탭에서 학생별 출결을 체크합니다:
+          <ul>
+            <li><span style="color:#16a34a">출석</span> / <span style="color:#f59e0b">지각</span> / <span style="color:#ef4444">결석</span> / <span style="color:#3b82f6">사유결석</span></li>
+            <li>사유가 있으면 메모를 남길 수 있습니다</li>
+          </ul>
+        </li>
       </ul>
     </div>
   </div>
@@ -220,7 +245,6 @@ footer .logo{font-size:1.1rem;font-weight:800;color:#fbbf24;margin-bottom:2px}
             <textarea class="fi" style="height:36px;resize:none" placeholder="피드백을 입력하세요..." disabled></textarea>
             <div style="display:flex;gap:4px;margin-top:4px">
               <button class="btn btn-s" style="background:#f59e0b;color:#fff;flex:1">피드백 저장</button>
-              <button class="btn btn-s" style="background:#fff;border:1px solid #e2e8f0;color:#64748b">AI 분석</button>
             </div>
           </div>
         </div>
@@ -238,7 +262,6 @@ footer .logo{font-size:1.1rem;font-weight:800;color:#fbbf24;margin-bottom:2px}
       <ul>
         <li>제출된 과제를 탭하면 학생의 텍스트/영상을 확인합니다</li>
         <li>등급(S/A/B/C/D)을 선택하고 피드백을 작성합니다</li>
-        <li><strong>AI 분석</strong>: 학생의 독백 텍스트를 AI가 분석합니다</li>
         <li>학생별 필터로 특정 학생의 과제만 볼 수 있습니다</li>
       </ul>
     </div>
@@ -292,7 +315,6 @@ footer .logo{font-size:1.1rem;font-weight:800;color:#fbbf24;margin-bottom:2px}
       <ul>
         <li>학생별 필터로 포트폴리오 영상을 확인합니다</li>
         <li>영상에 <strong>타임스탬프 코멘트</strong>를 남길 수 있습니다 (특정 시간 지점에 피드백)</li>
-        <li><strong>AI 피드백</strong> 요청으로 자동 분석 피드백을 생성합니다</li>
       </ul>
       <h3 style="margin-top:12px">대회·행사 관리</h3>
       <ul>
@@ -329,9 +351,9 @@ footer .logo{font-size:1.1rem;font-weight:800;color:#fbbf24;margin-bottom:2px}
               <span style="font-size:1.2rem;cursor:pointer;padding:2px;border:2px solid transparent;border-radius:8px">❤️</span>
               <span style="font-size:1.2rem;cursor:pointer;padding:2px;border:2px solid transparent;border-radius:8px">🔥</span>
               <span style="font-size:1.2rem;cursor:pointer;padding:2px;border:2px solid transparent;border-radius:8px">👏</span>
-              <span style="font-size:1.2rem;cursor:pointer;padding:2px;border:2px solid transparent;border-radius:8px">✨</span>
+              <span style="font-size:1.2rem;cursor:pointer;padding:2px;border:2px solid transparent;border-radius:8px">🌟</span>
               <span style="font-size:1.2rem;cursor:pointer;padding:2px;border:2px solid transparent;border-radius:8px">🎯</span>
-              <span style="font-size:1.2rem;cursor:pointer;padding:2px;border:2px solid transparent;border-radius:8px">🌱</span>
+              <span style="font-size:1.2rem;cursor:pointer;padding:2px;border:2px solid transparent;border-radius:8px">📈</span>
             </div>
             <textarea class="fi" style="height:30px;resize:none" placeholder="응원 메시지를 입력하세요" disabled></textarea>
             <button class="btn btn-y" style="margin-top:4px;font-size:0.5rem">스티커 보내기</button>
@@ -355,11 +377,16 @@ footer .logo{font-size:1.1rem;font-weight:800;color:#fbbf24;margin-bottom:2px}
       <h3 style="margin-top:12px">칭찬 스티커</h3>
       <ul>
         <li><strong>학원 관리 → 칭찬</strong> 탭에서 학생에게 스티커를 보냅니다</li>
-        <li>12가지 이모지(⭐🏆💪🎭🎵💃❤️🔥👏✨🎯🌱) 중 선택</li>
+        <li>12가지 이모지(⭐🏆💪🎭🎵💃❤️🔥👏🌟🎯📈) 중 선택</li>
         <li>응원 메시지를 함께 보낼 수 있습니다</li>
         <li>학생은 프로필에서 받은 스티커를 확인합니다</li>
       </ul>
-      <div class="tip">원장님은 추가로 클래스 생성/수정, 사용자 관리 기능을 사용할 수 있습니다.</div>
+      <h3 style="margin-top:12px">학원 관리 (원장 전용)</h3>
+      <ul>
+        <li><strong>클래스</strong> 탭: 클래스 생성/수정, 담당 선생님 배정, 학생 배정</li>
+        <li><strong>사용자</strong> 탭: 전체 사용자 목록 확인, 정보 수정</li>
+      </ul>
+      <div class="tip">학원 관리 메뉴는 하단 네비게이션의 마지막 탭(관리)에서 접근합니다.</div>
     </div>
   </div>
 </div>
