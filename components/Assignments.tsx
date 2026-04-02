@@ -82,6 +82,12 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
   const [assignTarget, setAssignTarget] = useState<'student' | 'class'>('student');
   const [newClassId, setNewClassId] = useState('');
 
+  // Attachment State (teacher file for assignment)
+  const [attachmentFile, setAttachmentFile] = useState<File | null>(null);
+  const [attachmentUrl, setAttachmentUrl] = useState<string>('');
+  const [isAttachmentUploading, setIsAttachmentUploading] = useState(false);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
+
   // Delete Assignment State
   const [deleteAssignmentId, setDeleteAssignmentId] = useState<string | null>(null);
 
@@ -303,10 +309,26 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
     if (assignTarget === 'student' && !newStudentId) return;
     if (assignTarget === 'class' && !newClassId) return;
     try {
+      // Upload attachment first if selected
+      let uploadedAttachmentUrl = attachmentUrl;
+      if (attachmentFile && !attachmentUrl) {
+        setIsAttachmentUploading(true);
+        try {
+          const result = await uploadApi.upload(attachmentFile, undefined, 'assignments');
+          uploadedAttachmentUrl = result.url;
+        } catch {
+          toast.error('첨부파일 업로드에 실패했습니다.');
+          setIsAttachmentUploading(false);
+          return;
+        }
+        setIsAttachmentUploading(false);
+      }
+
       const payload: any = {
         title: newTitle,
         description: newDesc || '추가 설명 없음',
         dueDate: newDate || toLocalDateStr(new Date()),
+        attachmentUrl: uploadedAttachmentUrl || undefined,
       };
       if (assignTarget === 'class') {
         payload.classId = newClassId;
@@ -317,6 +339,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
       setAssignments([...newAsgns, ...assignments]);
       setIsCreateModalOpen(false);
       setNewTitle(''); setNewDesc(''); setNewDate(''); setNewStudentId(''); setNewClassId('');
+      setAttachmentFile(null); setAttachmentUrl('');
       toast.success(`과제가 ${newAsgns.length}명에게 등록되었습니다.`);
     } catch { toast.error('과제 등록에 실패했습니다.'); }
   };
@@ -324,6 +347,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
   const handleOpenCreateModal = () => {
     setEditingAssignment(null);
     setNewTitle(''); setNewDesc(''); setNewDate(''); setNewStudentId(''); setNewClassId('');
+    setAttachmentFile(null); setAttachmentUrl('');
     setAssignTarget('student');
     setIsCreateModalOpen(true);
   };
@@ -589,6 +613,41 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                         <span className="block text-sm font-bold text-brand-500">{selectedAssignment.dueDate}</span>
                      </div>
                   </div>
+
+                  {/* 선생님 첨부자료 미리보기 */}
+                  {selectedAssignment.attachmentUrl && (() => {
+                    const url = selectedAssignment.attachmentUrl.startsWith('/') ? `${API_URL}${selectedAssignment.attachmentUrl}` : selectedAssignment.attachmentUrl;
+                    const ext = url.split('.').pop()?.toLowerCase() || '';
+                    const isPdf = ext === 'pdf';
+                    const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                    return (
+                      <div className="mt-3 border border-slate-200 rounded-xl overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
+                        <div className="flex items-center gap-2 px-3 py-2 bg-slate-50 border-b border-slate-200">
+                          <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                          <span className="text-xs font-medium text-slate-500">첨부 자료</span>
+                        </div>
+                        {isPdf ? (
+                          <iframe
+                            src={`${url}#toolbar=0&navpanes=0&scrollbar=0`}
+                            className="w-full h-96 pointer-events-auto"
+                            style={{ userSelect: 'none' }}
+                          />
+                        ) : isImage ? (
+                          <img
+                            src={url}
+                            alt="첨부 자료"
+                            className="w-full max-h-96 object-contain"
+                            draggable={false}
+                            style={{ userSelect: 'none', WebkitUserDrag: 'none' } as any}
+                          />
+                        ) : (
+                          <div className="p-4 text-center text-sm text-slate-400">
+                            첨부파일이 있습니다 (미리보기 미지원 형식)
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {isStaff && selectedAssignment.status === 'pending' && (
                     <div className="flex items-center gap-2 mt-2">
                       <button
@@ -972,12 +1031,46 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                    />
                 </div>
 
+                {/* 첨부파일 (선생님이 과제에 자료 첨부) */}
+                {!editingAssignment && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 mb-1">자료 첨부 (선택)</label>
+                  <input
+                    ref={attachmentInputRef}
+                    type="file"
+                    className="hidden"
+                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png,.mp3,.m4a,.wav"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) { setAttachmentFile(f); setAttachmentUrl(''); }
+                      e.target.value = '';
+                    }}
+                  />
+                  {attachmentFile ? (
+                    <div className="flex items-center gap-2 p-3 bg-brand-50 border border-brand-200 rounded-xl">
+                      <svg className="w-4 h-4 text-brand-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                      <span className="text-sm text-brand-700 truncate flex-1">{attachmentFile.name}</span>
+                      <button onClick={() => { setAttachmentFile(null); setAttachmentUrl(''); }} className="text-xs text-red-400 hover:text-red-600 shrink-0">삭제</button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => attachmentInputRef.current?.click()}
+                      className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-brand-300 transition-colors"
+                    >
+                      <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                      <span className="text-xs text-slate-500">대본, 문서 등 자료 첨부</span>
+                    </button>
+                  )}
+                  <p className="text-xs text-slate-400 mt-1">학생은 열람만 가능하며 다운로드할 수 없습니다</p>
+                </div>
+                )}
+
                 <button
                   onClick={editingAssignment ? handleUpdateAssignment : handleCreateAssignment}
-                  disabled={(!editingAssignment && assignTarget === 'student' && !newStudentId) || (!editingAssignment && assignTarget === 'class' && !newClassId) || !newTitle.trim()}
+                  disabled={(!editingAssignment && assignTarget === 'student' && !newStudentId) || (!editingAssignment && assignTarget === 'class' && !newClassId) || !newTitle.trim() || isAttachmentUploading}
                   className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200 mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {editingAssignment ? '수정하기' : '등록하기'}
+                  {isAttachmentUploading ? '파일 업로드 중...' : editingAssignment ? '수정하기' : '등록하기'}
                 </button>
              </div>
           </div>

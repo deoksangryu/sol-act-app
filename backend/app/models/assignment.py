@@ -20,6 +20,7 @@ class Assignment(Base):
     due_date = Column(DateTime, nullable=False)
     student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     status = Column(SQLEnum(AssignmentStatus), default=AssignmentStatus.PENDING, nullable=False)
+    attachment_url = Column(String, nullable=True)  # Teacher-attached file (view-only for students)
     submission_text = Column(Text, nullable=True)
     submission_file_url = Column(String, nullable=True)
     feedback = Column(Text, nullable=True)

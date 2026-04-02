@@ -14,6 +14,7 @@ class AssignmentCreate(AssignmentBase):
     student_id: Optional[str] = None       # single student
     student_ids: Optional[List[str]] = None  # bulk: multiple students or class
     class_id: Optional[str] = None          # bulk: assign to entire class
+    attachment_url: Optional[str] = None    # teacher-attached file URL
 
 
 class AssignmentUpdate(BaseModel):
@@ -30,6 +31,7 @@ class AssignmentResponse(AssignmentBase):
     student_id: str
     student_name: str
     status: AssignmentStatus
+    attachment_url: Optional[str] = None
     submission_text: Optional[str] = None
     submission_file_url: Optional[str] = None
     feedback: Optional[str] = None

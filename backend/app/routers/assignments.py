@@ -25,6 +25,7 @@ def assignment_to_response(a: Assignment) -> dict:
         "student_id": a.student_id,
         "student_name": a.student.name if a.student else "",
         "status": a.status,
+        "attachment_url": a.attachment_url,
         "submission_text": a.submission_text,
         "submission_file_url": a.submission_file_url,
         "feedback": a.feedback,
@@ -121,6 +122,7 @@ async def create_assignment(
             student_id=sid,
             assigned_by=current_user.id,
             status=AssignmentStatus.PENDING,
+            attachment_url=data.attachment_url,
         )
         db.add(assignment)
         assignments.append(assignment)

@@ -45,6 +45,7 @@ export interface Assignment {
   studentId: string;
   studentName: string;
   status: 'pending' | 'submitted' | 'graded';
+  attachmentUrl?: string;
   submissionText?: string;
   submissionFileUrl?: string; // Mock URL
   feedback?: string;
