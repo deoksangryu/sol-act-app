@@ -91,8 +91,8 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
   // Delete Assignment State
   const [deleteAssignmentId, setDeleteAssignmentId] = useState<string | null>(null);
 
-  // Attachment fullscreen preview
-  const [fullscreenAttachment, setFullscreenAttachment] = useState<{url: string; type: 'image' | 'pdf'} | null>(null);
+  // Attachment fullscreen preview (image only; PDF opens in new tab)
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
 
   const selectedAssignment = assignments.find(a => a.id === selectedId);
 
@@ -630,7 +630,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                           <span className="text-xs font-medium text-slate-500">첨부 자료</span>
                         </div>
                         {isPdf ? (
-                          <div className="relative cursor-pointer" onClick={() => setFullscreenAttachment({ url, type: 'pdf' })}>
+                          <div className="relative cursor-pointer" onClick={() => window.open(url, '_blank', 'noopener')}>
                             <iframe
                               src={`${url}#toolbar=0&navpanes=0&scrollbar=0`}
                               className="w-full h-96 pointer-events-none"
@@ -640,7 +640,7 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
                             <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded">터치하여 크게 보기</div>
                           </div>
                         ) : isImage ? (
-                          <div className="cursor-pointer" onClick={() => setFullscreenAttachment({ url, type: 'image' })}>
+                          <div className="cursor-pointer" onClick={() => setFullscreenImage(url)}>
                             <img
                               src={url}
                               alt="첨부 자료"
@@ -1087,36 +1087,27 @@ export const Assignments: React.FC<AssignmentsProps> = ({ user }) => {
         </div>
       )}
 
-      {/* Fullscreen attachment preview modal */}
-      {fullscreenAttachment && (
+      {/* Fullscreen image preview modal */}
+      {fullscreenImage && (
         <div
           className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center"
-          onClick={() => setFullscreenAttachment(null)}
+          onClick={() => setFullscreenImage(null)}
           onContextMenu={(e) => e.preventDefault()}
         >
           <button
-            onClick={() => setFullscreenAttachment(null)}
+            onClick={() => setFullscreenImage(null)}
             className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
-          {fullscreenAttachment.type === 'image' ? (
-            <img
-              src={fullscreenAttachment.url}
-              alt="첨부 자료"
-              className="max-w-full max-h-full object-contain p-4"
-              draggable={false}
-              onClick={(e) => e.stopPropagation()}
-              style={{ userSelect: 'none', WebkitUserDrag: 'none' } as any}
-            />
-          ) : (
-            <iframe
-              src={`${fullscreenAttachment.url}#toolbar=0&navpanes=0&scrollbar=0`}
-              className="w-full h-full p-4 pointer-events-auto"
-              style={{ userSelect: 'none' }}
-              onClick={(e) => e.stopPropagation()}
-            />
-          )}
+          <img
+            src={fullscreenImage}
+            alt="첨부 자료"
+            className="max-w-full max-h-full object-contain p-4"
+            draggable={false}
+            onClick={(e) => e.stopPropagation()}
+            style={{ userSelect: 'none', WebkitUserDrag: 'none' } as any}
+          />
         </div>
       )}
 

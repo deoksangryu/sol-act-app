@@ -667,6 +667,25 @@ export const portfolioApi = {
   delete(id: string): Promise<void> {
     return apiRequest(`/api/portfolios/${id}`, { method: 'DELETE' });
   },
+  async addJournal(portfolioId: string, content: string, nextPlan?: string): Promise<Record<string, unknown>> {
+    const body: Record<string, unknown> = { content };
+    if (nextPlan) body.next_plan = nextPlan;
+    return apiRequest(`/api/portfolios/${portfolioId}/journals`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async updateJournal(portfolioId: string, journalId: string, content: string, nextPlan?: string): Promise<Record<string, unknown>> {
+    const body: Record<string, unknown> = { content };
+    if (nextPlan !== undefined) body.next_plan = nextPlan;
+    return apiRequest(`/api/portfolios/${portfolioId}/journals/${journalId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    });
+  },
+  deleteJournal(portfolioId: string, journalId: string): Promise<void> {
+    return apiRequest(`/api/portfolios/${portfolioId}/journals/${journalId}`, { method: 'DELETE' });
+  },
 };
 
 // --- Audition API ---

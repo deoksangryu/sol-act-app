@@ -39,6 +39,25 @@ class PortfolioCommentResponse(BaseModel):
         from_attributes = True
 
 
+class PracticeJournalCreate(BaseModel):
+    content: str
+    next_plan: Optional[str] = None
+
+
+class PracticeJournalResponse(BaseModel):
+    id: str
+    portfolio_id: str
+    author_id: str
+    author_name: str
+    content: str
+    next_plan: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PortfolioResponse(BaseModel):
     id: str
     student_id: str
@@ -52,6 +71,7 @@ class PortfolioResponse(BaseModel):
     practice_group: Optional[str] = None
     video_duration: Optional[int] = None
     comments: List[PortfolioCommentResponse] = []
+    practice_journals: List[PracticeJournalResponse] = []
     created_at: datetime
 
     class Config:
