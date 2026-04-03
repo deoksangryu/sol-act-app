@@ -326,15 +326,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const handlePfVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
-    setNewPfVideoFiles(Array.from(files));
-    // Auto-expand titles if needed
-    if (files.length > 1) {
-      setNewPfTitles(prev => {
-        if (prev.length === 1) return prev; // keep single title for batch
-        return prev;
-      });
-    }
+    // Copy files before clearing input (iOS may invalidate FileList)
+    const fileArray = Array.from(files);
+    setNewPfVideoFiles(fileArray);
+    // Reset input after state is set (allow re-selecting same files)
+    requestAnimationFrame(() => {
+      if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
+    });
   };
 
   const startPfVideoUpload = (file: File, portfolioId: string) => {
