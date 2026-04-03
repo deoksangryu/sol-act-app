@@ -686,6 +686,10 @@ export const portfolioApi = {
   deleteJournal(portfolioId: string, journalId: string): Promise<void> {
     return apiRequest(`/api/portfolios/${portfolioId}/journals/${journalId}`, { method: 'DELETE' });
   },
+  async listAllJournals(studentId?: string): Promise<Record<string, unknown>[]> {
+    const q = studentId ? `?student_id=${studentId}` : '';
+    return apiRequest(`/api/portfolios/all-journals${q}`);
+  },
 };
 
 // --- Audition API ---

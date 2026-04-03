@@ -58,6 +58,49 @@ def portfolio_to_response(p: Portfolio) -> dict:
     }
 
 
+@router.get("/all-journals")
+def list_all_journals(
+    student_id: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """List all practice journals (for teacher feed view)."""
+    from sqlalchemy.orm import joinedload as jl
+    query = db.query(PracticeJournal).options(
+        jl(PracticeJournal.author),
+        jl(PracticeJournal.portfolio).joinedload(Portfolio.student),
+    )
+    # Teacher: only journals for students in their classes
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        query = query.join(Portfolio).filter(Portfolio.student_id.in_(my_student_ids))
+    elif current_user.role == UserRole.STUDENT:
+        query = query.join(Portfolio).filter(Portfolio.student_id == current_user.id)
+    else:
+        query = query.join(Portfolio)
+
+    if student_id:
+        query = query.filter(Portfolio.student_id == student_id)
+
+    journals = query.order_by(PracticeJournal.created_at.desc()).limit(100).all()
+    return [
+        {
+            "id": j.id,
+            "portfolio_id": j.portfolio_id,
+            "portfolio_title": j.portfolio.title if j.portfolio else "",
+            "student_id": j.portfolio.student_id if j.portfolio else "",
+            "student_name": j.portfolio.student.name if j.portfolio and j.portfolio.student else "",
+            "author_id": j.author_id,
+            "author_name": j.author.name if j.author else "",
+            "content": j.content,
+            "next_plan": j.next_plan,
+            "created_at": j.created_at,
+            "updated_at": j.updated_at,
+        }
+        for j in journals
+    ]
+
+
 @router.get("/practice-groups")
 def list_practice_groups(
     student_id: Optional[str] = Query(None),
@@ -370,13 +413,21 @@ async def create_practice_journal(
     db.commit()
     db.refresh(journal)
 
-    # 선생님이 작성하면 학생에게 알림
+    # 선생님이 작성하면 학생에게 알림, 학생이 작성하면 선생님에게 알림
     if current_user.id != p.student_id:
         await notify_user(
             db, p.student_id,
             f"{current_user.name}님이 '{p.title}'에 연습일지를 작성했습니다.",
             entity="portfolios",
         )
+    else:
+        teacher_ids = get_teacher_ids_for_student(db, current_user.id)
+        if teacher_ids:
+            await notify_users(
+                db, teacher_ids,
+                f"{current_user.name}님이 '{p.title}'에 연습일지를 작성했습니다.",
+                entity="portfolios",
+            )
 
     return {
         "id": journal.id,

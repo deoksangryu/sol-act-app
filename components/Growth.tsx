@@ -12,7 +12,7 @@ interface GrowthProps {
   user: User;
 }
 
-type GrowthTab = 'evaluation' | 'portfolio' | 'competition';
+type GrowthTab = 'evaluation' | 'portfolio' | 'journal' | 'competition';
 type PortfolioView = 'grid' | 'timeline';
 
 const PORTFOLIO_CATEGORY_LABELS: Record<string, string> = {
@@ -81,6 +81,11 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [commentTimestamp, setCommentTimestamp] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  // Practice journal feed (tab-level)
+  const [journalFeed, setJournalFeed] = useState<Record<string, unknown>[]>([]);
+  const [journalFeedLoading, setJournalFeedLoading] = useState(false);
+  const [journalFeedStudentFilter, setJournalFeedStudentFilter] = useState<string>('all');
+
   // Portfolio detail tab & practice journal
   const [pfDetailTab, setPfDetailTab] = useState<'comments' | 'journal'>('comments');
   const [journalContent, setJournalContent] = useState('');
@@ -146,6 +151,22 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   }, [user.id]);
 
   useDataRefresh(['evaluations', 'portfolios', 'auditions'], loadData);
+
+  // Load journal feed when tab is active
+  const loadJournalFeed = useCallback(async () => {
+    setJournalFeedLoading(true);
+    try {
+      const data = await portfolioApi.listAllJournals(
+        journalFeedStudentFilter !== 'all' ? journalFeedStudentFilter : undefined
+      );
+      setJournalFeed(data);
+    } catch { /* silent */ }
+    finally { setJournalFeedLoading(false); }
+  }, [journalFeedStudentFilter]);
+
+  useEffect(() => {
+    if (activeTab === 'journal') loadJournalFeed();
+  }, [activeTab, journalFeedStudentFilter]);
 
   // ESC key handler for all modals
   useEffect(() => {
@@ -600,6 +621,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const tabs: { id: GrowthTab; label: string }[] = [
     { id: 'evaluation', label: '평가 리포트' },
     { id: 'portfolio', label: '포트폴리오' },
+    { id: 'journal', label: '연습일지' },
     { id: 'competition', label: '대회·행사' },
   ];
 
@@ -1096,6 +1118,82 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                 </div>
               )}
             </>
+          )}
+        </div>
+      )}
+
+      {/* === JOURNAL FEED TAB === */}
+      {activeTab === 'journal' && (
+        <div className="space-y-4">
+          {/* Student filter (staff only) */}
+          {isStaff && (
+            <div className="flex items-center gap-2">
+              <select
+                value={journalFeedStudentFilter}
+                onChange={e => setJournalFeedStudentFilter(e.target.value)}
+                className="text-sm border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-brand-500 bg-white"
+              >
+                <option value="all">전체 학생</option>
+                {allUsers.filter(u => u.role === UserRole.STUDENT).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {journalFeedLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-6 h-6 border-2 border-slate-300 border-t-brand-500 rounded-full animate-spin" />
+            </div>
+          ) : journalFeed.length === 0 ? (
+            <div className="text-center py-16 text-slate-400">
+              <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+              <p className="text-sm">아직 작성된 연습일지가 없습니다.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {journalFeed.map((j: Record<string, unknown>) => {
+                const id = j.id as string;
+                const studentName = (j.studentName || j.student_name) as string;
+                const authorName = (j.authorName || j.author_name) as string;
+                const portfolioTitle = (j.portfolioTitle || j.portfolio_title) as string;
+                const portfolioId = (j.portfolioId || j.portfolio_id) as string;
+                const content = j.content as string;
+                const nextPlan = (j.nextPlan || j.next_plan) as string | undefined;
+                const createdAt = (j.createdAt || j.created_at) as string;
+                const authorId = (j.authorId || j.author_id) as string;
+                const isTeacherEntry = authorId !== (j.studentId || j.student_id);
+
+                return (
+                  <div
+                    key={id}
+                    className={`rounded-xl p-4 border cursor-pointer transition-colors ${isTeacherEntry ? 'bg-blue-50 border-blue-100 hover:border-blue-300' : 'bg-violet-50 border-violet-100 hover:border-violet-300'}`}
+                    onClick={() => { setSelectedPortfolioId(portfolioId); setPfDetailTab('journal'); }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isTeacherEntry ? 'bg-blue-100 text-blue-600' : 'bg-violet-100 text-violet-600'}`}>
+                          {isTeacherEntry ? '선생님' : '학생'}
+                        </span>
+                        <span className="text-sm font-bold text-slate-700">{authorName}</span>
+                        {isTeacherEntry && <span className="text-xs text-slate-400">→ {studentName}</span>}
+                      </div>
+                      <span className="text-xs text-slate-400">{new Date(createdAt).toLocaleDateString('ko-KR')}</span>
+                    </div>
+                    <p className="text-xs text-slate-500 mb-1">
+                      <span className="font-medium">{studentName}</span>의 <span className="font-medium">{portfolioTitle}</span>
+                    </p>
+                    <p className="text-sm text-slate-700 line-clamp-3 whitespace-pre-wrap">{content}</p>
+                    {nextPlan && (
+                      <div className="mt-2 pt-2 border-t border-violet-200/50">
+                        <span className="text-xs font-bold text-violet-500">다음 연습 계획</span>
+                        <p className="text-xs text-slate-500 line-clamp-2 whitespace-pre-wrap">{nextPlan}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
       )}
