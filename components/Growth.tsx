@@ -53,12 +53,11 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [portfolios, setPortfolios] = useState<PortfolioItem[]>([]);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
-  const [newPfTitle, setNewPfTitle] = useState('');
+  const [newPfTitles, setNewPfTitles] = useState<string[]>(['']);
   const [newPfDesc, setNewPfDesc] = useState('');
   const [newPfCategory, setNewPfCategory] = useState('other');
   const [newPfTags, setNewPfTags] = useState('');
-  const [newPfVideoUrl, setNewPfVideoUrl] = useState('');
-  const [newPfVideoFile, setNewPfVideoFile] = useState<File | null>(null);
+  const [newPfVideoFiles, setNewPfVideoFiles] = useState<File[]>([]);
   // Per-portfolio upload tracking
   const [activeUploads, setActiveUploads] = useState<Record<string, { progress: number | null; error: string | null; file: File }>>({});
   const uploadAbortRefs = useRef<Record<string, () => void>>({});
@@ -325,10 +324,17 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   };
 
   const handlePfVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
-    setNewPfVideoFile(file);
+    setNewPfVideoFiles(Array.from(files));
+    // Auto-expand titles if needed
+    if (files.length > 1) {
+      setNewPfTitles(prev => {
+        if (prev.length === 1) return prev; // keep single title for batch
+        return prev;
+      });
+    }
   };
 
   const startPfVideoUpload = (file: File, portfolioId: string) => {
@@ -391,37 +397,59 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   };
 
   const handleCreatePortfolio = async () => {
-    if (!newPfTitle.trim()) {
+    const titles = newPfTitles.map(t => t.trim()).filter(Boolean);
+    const files = newPfVideoFiles;
+    const fileCount = files.length || 1; // at least 1 portfolio even without video
+
+    if (titles.length === 0) {
       toast.error('제목을 입력해주세요.');
       return;
     }
+    // Validate: titles must be 1 or equal to file count
+    if (files.length > 0 && titles.length > 1 && titles.length !== files.length) {
+      toast.error(`제목은 1개 또는 영상 수(${files.length}개)와 같아야 합니다.`);
+      return;
+    }
+
     try {
       const practiceGroup =
         newPfPracticeGroup === '__new__'
           ? newPfPracticeGroupCustom.trim() || undefined
           : newPfPracticeGroup || undefined;
 
-      const newPf = await portfolioApi.create({
-        title: newPfTitle,
-        description: newPfDesc,
-        videoUrl: undefined,  // always empty on create; file uploads after
-        category: newPfCategory || 'other',
-        tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
-        practiceGroup,
-      });
-      setPortfolios(prev => [...prev, newPf]);
+      const count = files.length > 0 ? files.length : 1;
+      const createdPfs: PortfolioItem[] = [];
+
+      for (let i = 0; i < count; i++) {
+        const title = titles.length === 1
+          ? (count > 1 ? `${titles[0]} (${i + 1})` : titles[0])
+          : titles[i];
+
+        const newPf = await portfolioApi.create({
+          title,
+          description: newPfDesc,
+          videoUrl: undefined,
+          category: newPfCategory || 'other',
+          tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
+          practiceGroup,
+        });
+        createdPfs.push(newPf);
+      }
+
+      setPortfolios(prev => [...prev, ...createdPfs]);
 
       // Close modal and reset form
-      const fileToUpload = newPfVideoFile;
       setIsPortfolioModalOpen(false);
-      setNewPfTitle(''); setNewPfDesc(''); setNewPfCategory('other'); setNewPfTags('');
-      setNewPfVideoUrl(''); setNewPfVideoFile(null);
+      setNewPfTitles(['']); setNewPfDesc(''); setNewPfCategory('other'); setNewPfTags('');
+      setNewPfVideoFiles([]);
       setNewPfPracticeGroup(''); setNewPfPracticeGroupCustom('');
 
-      // Start upload after portfolio is created (ID now known → server can patch DB directly)
-      if (fileToUpload) {
-        startPfVideoUpload(fileToUpload, newPf.id);
-        toast.success('포트폴리오가 등록되었습니다. 영상 업로드 중...');
+      // Start uploads
+      if (files.length > 0) {
+        files.forEach((file, i) => {
+          startPfVideoUpload(file, createdPfs[i].id);
+        });
+        toast.success(`포트폴리오 ${count}개 등록! 영상 업로드 중...`);
       } else {
         toast.success('포트폴리오가 등록되었습니다.');
       }
@@ -1664,21 +1692,20 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             </button>
             <h3 className="text-xl font-bold text-slate-800 mb-6">포트폴리오 등록</h3>
             <div className="space-y-4">
+              {/* Video files (multiple) */}
               <div>
-                <label htmlFor="input-portfolio-title" className="block text-xs font-bold text-slate-500 mb-1">제목 <span className="text-red-400">*</span></label>
-                <input id="input-portfolio-title" value={newPfTitle} onChange={e => setNewPfTitle(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500" placeholder="예: 햄릿 독백 연기" />
-              </div>
-              <div>
-                <label htmlFor="input-portfolio-video" className="block text-xs font-bold text-slate-500 mb-1">영상 파일 <span className="text-red-400">*</span></label>
-                <input id="input-portfolio-video" ref={pfVideoInputRef} type="file" className="hidden" accept="video/*" onChange={handlePfVideoUpload} />
-                {newPfVideoFile ? (
-                  <div className="relative rounded-xl overflow-hidden border border-brand-200 bg-brand-50 p-3">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-5 h-5 text-brand-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                      <span className="text-sm font-medium text-brand-700 truncate">{newPfVideoFile.name}</span>
-                      <button onClick={() => { setNewPfVideoFile(null); }} className="ml-auto text-xs text-red-400 hover:text-red-600 shrink-0">변경</button>
-                    </div>
-                    <p className="text-xs text-brand-400 mt-1">등록 후 업로드가 시작됩니다.</p>
+                <label className="block text-xs font-bold text-slate-500 mb-1">영상 파일 <span className="text-red-400">*</span></label>
+                <input ref={pfVideoInputRef} type="file" className="hidden" accept="video/*" multiple onChange={handlePfVideoUpload} />
+                {newPfVideoFiles.length > 0 ? (
+                  <div className="space-y-2">
+                    {newPfVideoFiles.map((f, i) => (
+                      <div key={i} className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 p-2.5">
+                        <svg className="w-4 h-4 text-brand-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                        <span className="text-xs font-medium text-brand-700 truncate flex-1">{f.name}</span>
+                        <span className="text-[10px] text-brand-400">{(f.size / 1024 / 1024).toFixed(0)}MB</span>
+                      </div>
+                    ))}
+                    <button onClick={() => setNewPfVideoFiles([])} className="text-xs text-red-400 hover:text-red-600">전체 삭제</button>
                   </div>
                 ) : (
                   <button
@@ -1686,10 +1713,54 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                     className="w-full flex items-center justify-center gap-2 p-4 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-brand-300 transition-colors"
                   >
                     <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
-                    <span className="text-xs font-bold text-slate-500">클릭하여 영상을 선택하세요</span>
+                    <span className="text-xs font-bold text-slate-500">클릭하여 영상을 선택하세요 (여러 개 가능)</span>
                   </button>
                 )}
-                <p className="text-xs text-slate-400 mt-1">10분 이내 영상을 권장합니다 (최대 1.5GB)</p>
+                <p className="text-xs text-slate-400 mt-1">10분 이내 영상 권장 (최대 1.5GB) · 여러 영상 동시 선택 가능</p>
+              </div>
+
+              {/* Titles */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-500">제목 <span className="text-red-400">*</span></label>
+                  {newPfVideoFiles.length > 1 && newPfTitles.length === 1 && (
+                    <button
+                      onClick={() => setNewPfTitles(newPfVideoFiles.map((_, i) => newPfTitles[0] ? `${newPfTitles[0]} (${i + 1})` : ''))}
+                      className="text-[10px] text-brand-500 hover:text-brand-600 font-bold"
+                    >영상별 제목 설정</button>
+                  )}
+                  {newPfTitles.length > 1 && (
+                    <button
+                      onClick={() => setNewPfTitles([newPfTitles[0] || ''])}
+                      className="text-[10px] text-slate-400 hover:text-slate-600 font-bold"
+                    >하나로 합치기</button>
+                  )}
+                </div>
+                {newPfTitles.length === 1 ? (
+                  <input
+                    value={newPfTitles[0]}
+                    onChange={e => setNewPfTitles([e.target.value])}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500"
+                    placeholder={newPfVideoFiles.length > 1 ? '공통 제목 (자동 번호 부여)' : '예: 햄릿 독백 연기'}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {newPfTitles.map((t, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="text-xs text-slate-400 w-5 text-center shrink-0">{i + 1}</span>
+                        <input
+                          value={t}
+                          onChange={e => setNewPfTitles(prev => prev.map((p, j) => j === i ? e.target.value : p))}
+                          className="flex-1 p-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 text-sm"
+                          placeholder={newPfVideoFiles[i]?.name || `제목 ${i + 1}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {newPfVideoFiles.length > 1 && newPfTitles.length === 1 && (
+                  <p className="text-xs text-slate-400 mt-1">영상 {newPfVideoFiles.length}개에 같은 제목이 자동 번호와 함께 적용됩니다.</p>
+                )}
               </div>
               {/* Collapsible detail settings */}
               <details className="group">

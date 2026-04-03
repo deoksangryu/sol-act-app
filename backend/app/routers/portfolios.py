@@ -217,7 +217,6 @@ def get_portfolio(portfolio_id: str, db: Session = Depends(get_db), current_user
         .options(
             joinedload(Portfolio.student),
             joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
-            joinedload(Portfolio.practice_journals)
         )
         .filter(Portfolio.id == portfolio_id)
         .first()
@@ -260,7 +259,6 @@ async def create_portfolio(
         .options(
             joinedload(Portfolio.student),
             joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
-            joinedload(Portfolio.practice_journals)
         )
         .filter(Portfolio.id == portfolio.id)
         .first()
@@ -289,7 +287,6 @@ async def update_portfolio(
         .options(
             joinedload(Portfolio.student),
             joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
-            joinedload(Portfolio.practice_journals)
         )
         .filter(Portfolio.id == portfolio_id)
         .first()

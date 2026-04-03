@@ -35,6 +35,11 @@ def _cleanup_expired_uploads():
         if meta:
             partial = Path(meta["path"])
             partial.unlink(missing_ok=True)
+            # Clean up chunks directory
+            chunks_dir = meta.get("chunks_dir")
+            if chunks_dir:
+                import shutil
+                shutil.rmtree(chunks_dir, ignore_errors=True)
             logger.info(f"Cleaned up expired upload session: {uid}")
 
 
@@ -120,8 +125,13 @@ async def chunked_init(
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / unique_name
 
+    # Create chunks directory for parallel uploads
+    chunks_dir = target_dir / f".chunks_{upload_id}"
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+
     _chunked_uploads[upload_id] = {
         "path": str(target_path),
+        "chunks_dir": str(chunks_dir),
         "filename": data.filename,
         "total_size": data.total_size,
         "received": 0,
@@ -142,21 +152,32 @@ async def chunked_upload(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload a single chunk. Append to the file on disk."""
+    """Upload a single chunk. Saves as individual file for parallel support."""
     meta = _chunked_uploads.get(upload_id)
     if not meta:
         raise HTTPException(status_code=404, detail="Upload session not found or expired")
     if meta["user_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="Not your upload session")
 
-    target_path = Path(meta["path"])
     chunk_data = await file.read()
     chunk_size = len(chunk_data)
 
     if meta["received"] + chunk_size > meta["total_size"] + 1024:
         raise HTTPException(status_code=400, detail="Received more data than declared total_size")
 
-    async with aiofiles.open(target_path, "ab") as f:
+    # Extract chunk index from filename (chunk_0, chunk_1, ...)
+    chunk_name = file.filename or "chunk_0"
+    chunk_idx = chunk_name.replace("chunk_", "").split(".")[0]
+    try:
+        chunk_idx = int(chunk_idx)
+    except ValueError:
+        chunk_idx = meta.get("_next_idx", 0)
+        meta["_next_idx"] = chunk_idx + 1
+
+    # Save as individual numbered file
+    chunks_dir = Path(meta["chunks_dir"])
+    chunk_path = chunks_dir / f"{chunk_idx:06d}"
+    async with aiofiles.open(chunk_path, "wb") as f:
         await f.write(chunk_data)
 
     meta["received"] += chunk_size
@@ -179,9 +200,23 @@ async def chunked_complete(
         _chunked_uploads[upload_id] = meta  # put back
         raise HTTPException(status_code=403, detail="Not your upload session")
 
+    # Assemble chunks in order
     target_path = Path(meta["path"])
-    if not target_path.exists():
-        raise HTTPException(status_code=400, detail="Upload file not found on server")
+    chunks_dir = Path(meta["chunks_dir"])
+    chunk_files = sorted(chunks_dir.iterdir(), key=lambda p: int(p.name))
+
+    if not chunk_files:
+        chunks_dir.rmdir()
+        raise HTTPException(status_code=400, detail="No chunks found")
+
+    async with aiofiles.open(target_path, "wb") as out:
+        for cf in chunk_files:
+            async with aiofiles.open(cf, "rb") as inp:
+                await out.write(await inp.read())
+
+    # Clean up chunk files
+    import shutil
+    shutil.rmtree(str(chunks_dir), ignore_errors=True)
 
     actual_size = target_path.stat().st_size
     if actual_size == 0:

@@ -1068,7 +1068,7 @@ function _chunkedUpload(
       }
     };
 
-    // Send in parallel batches
+    // Send chunks in parallel batches (backend assembles in order by chunk index)
     for (let i = startChunk; i < totalChunks; i += PARALLEL_CHUNKS) {
       if (aborted) throw new Error('업로드가 취소되었습니다.');
       const batch = [];
