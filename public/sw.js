@@ -51,11 +51,14 @@ self.addEventListener('push', (event) => {
   } catch (_) {
     // use defaults
   }
+  const tag = data.tag || 'general';
   event.waitUntil(
     self.registration.showNotification(data.title || 'SOL-ACT', {
       body: data.body,
       icon: data.icon || '/icon-192.png',
       badge: data.badge || '/icon-192.png',
+      tag: tag,
+      renotify: true,
       data: { url: '/' },
     })
   );

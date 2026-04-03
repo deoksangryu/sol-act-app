@@ -13,7 +13,7 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
-def _send_web_push_sync(user_id: str, message: str) -> None:
+def _send_web_push_sync(user_id: str, message: str, tag: str = "general") -> None:
     """Send Web Push in a background thread with its own DB session.
 
     Uses a separate DB session so the caller's session is not blocked.
@@ -22,6 +22,7 @@ def _send_web_push_sync(user_id: str, message: str) -> None:
     try:
         from app.config import settings
         if not settings.VAPID_PRIVATE_KEY or not settings.VAPID_PUBLIC_KEY:
+            logger.warning("Web push skipped: VAPID keys not configured")
             return
 
         from app.models.push_subscription import PushSubscription
@@ -39,7 +40,11 @@ def _send_web_push_sync(user_id: str, message: str) -> None:
                 "body": message,
                 "icon": "/icon-192.png",
                 "badge": "/icon-192.png",
+                "tag": tag,
             })
+
+            if not subs:
+                logger.warning(f"Web push: no subscriptions for user {user_id}")
 
             for sub in subs:
                 try:
@@ -55,6 +60,7 @@ def _send_web_push_sync(user_id: str, message: str) -> None:
                         vapid_private_key=settings.VAPID_PRIVATE_KEY,
                         vapid_claims={"sub": settings.VAPID_CLAIMS_EMAIL},
                     )
+                    logger.warning(f"Web push sent to {user_id} via {sub.endpoint[:50]}")
                 except WebPushException as e:
                     if e.response and e.response.status_code in (404, 410):
                         db.delete(sub)
@@ -65,17 +71,18 @@ def _send_web_push_sync(user_id: str, message: str) -> None:
                     logger.warning(f"Web push error: {e}")
         finally:
             db.close()
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.warning(f"Web push import error: {e}")
     except Exception as e:
         logger.error(f"Web push setup error: {e}")
 
 
-def _send_web_push(user_id: str, message: str) -> None:
+def _send_web_push(user_id: str, message: str, tag: str = "general") -> None:
     """Fire-and-forget Web Push in a background thread."""
+    logger.warning(f"Web push triggered for user {user_id}: {message[:50]} [tag={tag}]")
     threading.Thread(
         target=_send_web_push_sync,
-        args=(user_id, message),
+        args=(user_id, message, tag),
         daemon=True,
     ).start()
 
@@ -86,6 +93,7 @@ async def notify_user(
     message: str,
     notif_type: NotificationType = NotificationType.INFO,
     entity: Optional[str] = None,
+    push_tag: Optional[str] = None,
 ) -> None:
     """Create a notification in DB and push via WebSocket.
 
@@ -125,7 +133,7 @@ async def notify_user(
     except Exception as e:
         logger.warning(f"Failed to send WS notification to {user_id}: {e}")
     # Web Push for background/offline users (fire-and-forget in background thread)
-    _send_web_push(user_id, message)
+    _send_web_push(user_id, message, tag=push_tag or entity or "general")
 
 
 async def notify_users(
@@ -134,6 +142,7 @@ async def notify_users(
     message: str,
     notif_type: NotificationType = NotificationType.INFO,
     entity: Optional[str] = None,
+    push_tag: Optional[str] = None,
 ) -> None:
     """Create notifications for multiple users with batch DB insert."""
     if not user_ids:
@@ -181,8 +190,9 @@ async def notify_users(
             logger.warning(f"Failed to send WS to {notif.user_id}: {e}")
 
     # 3) Fire-and-forget Web Push in background threads
+    tag = push_tag or entity or "general"
     for uid in user_ids:
-        _send_web_push(uid, message)
+        _send_web_push(uid, message, tag=tag)
 
 
 async def emit_data_changed(user_ids: List[str], entity: str) -> None:

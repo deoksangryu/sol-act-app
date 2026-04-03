@@ -53,60 +53,82 @@ export async function compressVideo(
   const ext = file.name.toLowerCase().split('.').pop();
   if (!ext || !['mp4', 'mov', 'webm'].includes(ext)) return file;
 
-  // Skip small videos (< 30MB) — not worth compressing
-  if (file.size < 30 * 1024 * 1024) return file;
+  // Skip very small videos (< 5MB) — not worth compressing
+  if (file.size < 5 * 1024 * 1024) return file;
+
+  // Timeout: 60s for files <100MB, 120s for larger
+  const timeoutMs = file.size < 100 * 1024 * 1024 ? 60_000 : 120_000;
 
   try {
-    const ffmpeg = await getFFmpeg(onProgress);
-    const { fetchFile } = await import('@ffmpeg/util');
-
-    const inputName = `input.${ext}`;
-    const outputName = 'output.mp4';
-
-    onProgress?.('compressing', 0);
-    await ffmpeg.writeFile(inputName, await fetchFile(file));
-
-    // Compress: 720p, CRF 28, fast preset, AAC audio
-    // -map 0:v:0 -map 0:a:0? handles iPhone videos with multiple streams
-    await ffmpeg.exec([
-      '-i', inputName,
-      '-map', '0:v:0', '-map', '0:a:0?',
-      '-c:v', 'libx264', '-preset', 'fast', '-crf', '28',
-      '-vf', "scale='if(gte(iw,ih),min(720,iw),-2)':'if(gte(iw,ih),-2,min(720,ih))'",
-      '-c:a', 'aac', '-b:a', '96k',
-      '-movflags', '+faststart',
-      '-y', outputName,
+    const result = await Promise.race([
+      _doCompress(file, ext, onProgress),
+      new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('compression_timeout')), timeoutMs)
+      ),
     ]);
-
-    const data = await ffmpeg.readFile(outputName);
-
-    // Clean up memory
-    await ffmpeg.deleteFile(inputName).catch(() => {});
-    await ffmpeg.deleteFile(outputName).catch(() => {});
-
-    const compressed = new File(
-      [data],
-      file.name.replace(/\.[^.]+$/, '.mp4'),
-      { type: 'video/mp4' },
-    );
-
-    // Only use compressed if it's actually smaller
-    if (compressed.size >= file.size * 0.9) {
-      console.log('Compression did not reduce size significantly, using original');
-      return file;
+    if (result) return result;
+    return file;
+  } catch (e: any) {
+    if (e?.message === 'compression_timeout') {
+      console.warn(`Video compression timed out after ${timeoutMs / 1000}s, uploading original`);
+    } else {
+      console.warn('Client-side video compression failed, uploading original:', e);
     }
-
-    const pctSaved = Math.round((1 - compressed.size / file.size) * 100);
-    console.log(
-      `Video compressed: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.size / 1024 / 1024).toFixed(1)}MB (${pctSaved}% smaller)`,
-    );
-
     onProgress?.('compressing', 100);
-    return compressed;
-  } catch (e) {
-    console.warn('Client-side video compression failed, using original file:', e);
     return file;
   }
+}
+
+async function _doCompress(
+  file: File,
+  ext: string,
+  onProgress?: ProgressCallback,
+): Promise<File> {
+  const ffmpeg = await getFFmpeg(onProgress);
+  const { fetchFile } = await import('@ffmpeg/util');
+
+  const inputName = `input.${ext}`;
+  const outputName = 'output.mp4';
+
+  onProgress?.('compressing', 0);
+  await ffmpeg.writeFile(inputName, await fetchFile(file));
+
+  // Compress: 720p, CRF 28, ultrafast preset for speed on mobile
+  await ffmpeg.exec([
+    '-i', inputName,
+    '-map', '0:v:0', '-map', '0:a:0?',
+    '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+    '-vf', "scale='if(gte(iw,ih),min(720,iw),-2)':'if(gte(iw,ih),-2,min(720,ih))'",
+    '-c:a', 'aac', '-b:a', '96k',
+    '-movflags', '+faststart',
+    '-y', outputName,
+  ]);
+
+  const data = await ffmpeg.readFile(outputName);
+
+  // Clean up memory
+  await ffmpeg.deleteFile(inputName).catch(() => {});
+  await ffmpeg.deleteFile(outputName).catch(() => {});
+
+  const compressed = new File(
+    [data],
+    file.name.replace(/\.[^.]+$/, '.mp4'),
+    { type: 'video/mp4' },
+  );
+
+  // Only use compressed if it's actually smaller
+  if (compressed.size >= file.size * 0.9) {
+    console.log('Compression did not reduce size significantly, using original');
+    return file;
+  }
+
+  const pctSaved = Math.round((1 - compressed.size / file.size) * 100);
+  console.log(
+    `Video compressed: ${(file.size / 1024 / 1024).toFixed(1)}MB → ${(compressed.size / 1024 / 1024).toFixed(1)}MB (${pctSaved}% smaller)`,
+  );
+
+  onProgress?.('compressing', 100);
+  return compressed;
 }
 
 /**

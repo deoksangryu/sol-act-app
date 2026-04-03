@@ -59,13 +59,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [newPfTags, setNewPfTags] = useState('');
   const [newPfVideoUrl, setNewPfVideoUrl] = useState('');
   const [newPfVideoFile, setNewPfVideoFile] = useState<File | null>(null);
-  const [isPfVideoUploading, setIsPfVideoUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [failedUpload, setFailedUpload] = useState<{ file: File; portfolioId: string } | null>(null);
+  // Per-portfolio upload tracking
+  const [activeUploads, setActiveUploads] = useState<Record<string, { progress: number | null; error: string | null; file: File }>>({});
+  const uploadAbortRefs = useRef<Record<string, () => void>>({});
   const pfVideoInputRef = useRef<HTMLInputElement>(null);
+  // Compat aliases
+  const isPfVideoUploading = Object.keys(activeUploads).length > 0;
   const pendingVideoPortfolioIdRef = useRef<string | null>(null);
-  const uploadAbortRef = useRef<(() => void) | null>(null);
   const [commentText, setCommentText] = useState('');
 
   // Portfolio filters (staff)
@@ -332,18 +332,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   };
 
   const startPfVideoUpload = (file: File, portfolioId: string) => {
-    setIsPfVideoUploading(true);
-    setUploadProgress(0);
-    setUploadError(null);
-    setFailedUpload(null);
-    pendingVideoPortfolioIdRef.current = portfolioId;
+    setActiveUploads(prev => ({ ...prev, [portfolioId]: { progress: 0, error: null, file } }));
     globalStartUpload(portfolioId, `영상: ${file.name}`);
 
-    // Use uploadApi which handles compression + chunked upload + resume
     const uploadPromise = uploadApi.upload(
       file,
       (pct) => {
-        setUploadProgress(pct);
+        setActiveUploads(prev => prev[portfolioId] ? { ...prev, [portfolioId]: { ...prev[portfolioId], progress: pct } } : prev);
         globalUpdateProgress(portfolioId, pct);
       },
       'portfolios',
@@ -352,51 +347,47 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       (phase, pct) => {
         globalUpdatePhase(portfolioId, phase, pct);
         if (phase === 'compressing') {
-          setUploadProgress(null); // hide percentage during compression
+          setActiveUploads(prev => prev[portfolioId] ? { ...prev, [portfolioId]: { ...prev[portfolioId], progress: null } } : prev);
         }
       },
     );
-    uploadAbortRef.current = () => uploadPromise.abort();
+    uploadAbortRefs.current[portfolioId] = () => uploadPromise.abort();
 
     uploadPromise.then(async (result) => {
-      const pendingId = pendingVideoPortfolioIdRef.current;
-      if (pendingId) {
-        pendingVideoPortfolioIdRef.current = null;
-        try {
-          const updated = await portfolioApi.update(pendingId, { videoUrl: result.url });
-          setPortfolios(prev => prev.map(p => p.id === pendingId ? updated : p));
-          toast.success('영상이 포트폴리오에 저장되었습니다.');
-        } catch (updateErr: any) {
-          console.error('Failed to link video to portfolio:', updateErr);
-          toast.error('영상은 업로드되었지만 포트폴리오 연결에 실패했습니다. 새로고침 후 다시 시도해주세요.');
-        }
+      try {
+        const updated = await portfolioApi.update(portfolioId, { videoUrl: result.url });
+        setPortfolios(prev => prev.map(p => p.id === portfolioId ? updated : p));
+        toast.success('영상이 포트폴리오에 저장되었습니다.');
+      } catch {
+        toast.error('영상은 업로드되었지만 포트폴리오 연결에 실패했습니다.');
       }
-      setUploadError(null);
-      setFailedUpload(null);
-      setIsPfVideoUploading(false);
-      setUploadProgress(null);
-      uploadAbortRef.current = null;
+      setActiveUploads(prev => { const n = { ...prev }; delete n[portfolioId]; return n; });
+      delete uploadAbortRefs.current[portfolioId];
       globalFinishUpload(portfolioId);
     }).catch((err: any) => {
       const errorMsg = err.message || '영상 업로드에 실패했습니다.';
-      setIsPfVideoUploading(false);
-      setUploadProgress(null);
-      setUploadError(errorMsg);
-      setFailedUpload({ file, portfolioId });
-      uploadAbortRef.current = null;
+      setActiveUploads(prev => prev[portfolioId] ? { ...prev, [portfolioId]: { ...prev[portfolioId], error: errorMsg } } : prev);
+      delete uploadAbortRefs.current[portfolioId];
       globalFinishUpload(portfolioId);
       toast.error(errorMsg);
     });
   };
 
-  const handleRetryUpload = () => {
-    if (failedUpload) {
-      startPfVideoUpload(failedUpload.file, failedUpload.portfolioId);
+  const handleRetryUpload = (portfolioId: string) => {
+    const entry = activeUploads[portfolioId];
+    if (entry?.error && entry.file) {
+      startPfVideoUpload(entry.file, portfolioId);
     }
   };
 
-  const handleCancelUpload = () => {
-    uploadAbortRef.current?.();
+  const handleCancelUpload = (portfolioId?: string) => {
+    if (portfolioId) {
+      uploadAbortRefs.current[portfolioId]?.();
+      setActiveUploads(prev => { const n = { ...prev }; delete n[portfolioId]; return n; });
+    } else {
+      // Cancel all
+      Object.values(uploadAbortRefs.current).forEach(abort => abort?.());
+    }
   };
 
   const handleCreatePortfolio = async () => {
@@ -948,35 +939,35 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                             </div>
                           </>
                         );
-                      })() : failedUpload?.portfolioId === pf.id ? (
+                      })() : activeUploads[pf.id]?.error ? (
                         <div className="flex flex-col items-center gap-2 text-red-400 w-full px-6" onClick={(e) => e.stopPropagation()}>
                           <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
                           <span className="text-xs font-medium text-red-500">업로드 실패</span>
                           <button
-                            onClick={(e) => { e.stopPropagation(); handleRetryUpload(); }}
+                            onClick={(e) => { e.stopPropagation(); handleRetryUpload(pf.id); }}
                             className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-4 py-2 rounded-full"
                           >
                             다시 시도
                           </button>
                         </div>
-                      ) : pendingVideoPortfolioIdRef.current === pf.id && isPfVideoUploading ? (
+                      ) : activeUploads[pf.id] ? (
                         <div className="flex flex-col items-center gap-2 text-slate-400 w-full px-6">
                           <svg className="w-6 h-6 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
-                          {uploadProgress !== null ? (
+                          {activeUploads[pf.id].progress !== null ? (
                             <div className="w-full flex flex-col items-center gap-1">
-                              <span className="text-xs font-bold text-brand-600">{uploadProgress}%</span>
+                              <span className="text-xs font-bold text-brand-600">{activeUploads[pf.id].progress}%</span>
                               <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
-                                <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                                <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${activeUploads[pf.id].progress}%` }} />
                               </div>
                               <button
-                                onClick={(e) => { e.stopPropagation(); handleCancelUpload(); }}
+                                onClick={(e) => { e.stopPropagation(); handleCancelUpload(pf.id); }}
                                 className="text-xs font-medium text-red-400 hover:text-red-600 mt-1"
                               >
                                 취소
                               </button>
                             </div>
                           ) : (
-                            <span className="text-xs font-medium">영상 업로드 중</span>
+                            <span className="text-xs font-medium">영상 압축/업로드 중</span>
                           )}
                         </div>
                       ) : (
@@ -1555,23 +1546,23 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                 >
                   <source src={selectedPortfolio.videoUrl.startsWith('/') ? `${API_URL}${selectedPortfolio.videoUrl}` : selectedPortfolio.videoUrl} />
                 </video>
-              ) : isPfVideoUploading && pendingVideoPortfolioIdRef.current === selectedPortfolio.id ? (
+              ) : activeUploads[selectedPortfolio.id] && !activeUploads[selectedPortfolio.id].error ? (
                 <div className="w-full h-full flex flex-col items-center justify-center text-white/60 gap-3">
                   <svg className="w-8 h-8 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
-                  <span className="text-sm">영상 업로드 중... {uploadProgress !== null ? `${uploadProgress}%` : ''}</span>
+                  <span className="text-sm">영상 압축/업로드 중... {activeUploads[selectedPortfolio.id].progress !== null ? `${activeUploads[selectedPortfolio.id].progress}%` : ''}</span>
                   <span className="text-xs text-white/40">완료될 때까지 앱을 유지해주세요</span>
-                  {uploadProgress !== null && (
+                  {activeUploads[selectedPortfolio.id].progress !== null && (
                     <div className="w-48 h-1.5 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-brand-400 rounded-full transition-all duration-300" style={{ width: `${uploadProgress}%` }} />
+                      <div className="h-full bg-brand-400 rounded-full transition-all duration-300" style={{ width: `${activeUploads[selectedPortfolio.id].progress}%` }} />
                     </div>
                   )}
-                  <button onClick={handleCancelUpload} className="text-xs text-red-300 hover:text-red-400 mt-1">취소</button>
+                  <button onClick={() => handleCancelUpload(selectedPortfolio.id)} className="text-xs text-red-300 hover:text-red-400 mt-1">취소</button>
                 </div>
-              ) : failedUpload?.portfolioId === selectedPortfolio.id ? (
+              ) : activeUploads[selectedPortfolio.id]?.error ? (
                 <div className="w-full h-full flex flex-col items-center justify-center text-red-300 gap-3">
                   <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
-                  <span className="text-sm">{uploadError || '업로드 실패'}</span>
-                  <button onClick={handleRetryUpload} className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-4 py-1.5 rounded-full">다시 시도</button>
+                  <span className="text-sm">{activeUploads[selectedPortfolio.id].error}</span>
+                  <button onClick={() => handleRetryUpload(selectedPortfolio.id)} className="text-xs font-bold text-white bg-brand-500 hover:bg-brand-600 px-4 py-1.5 rounded-full">다시 시도</button>
                 </div>
               ) : (
                 <div className="w-full h-full flex flex-col items-center justify-center text-white/60 gap-3">

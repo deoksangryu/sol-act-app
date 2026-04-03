@@ -792,8 +792,10 @@ export const privateLessonApi = {
 
 // Threshold for switching to chunked upload (10MB)
 const CHUNKED_THRESHOLD = 10 * 1024 * 1024;
-// Chunk size: 2MB for mobile reliability (completes in ~3s on LTE)
-const UPLOAD_CHUNK_SIZE = 2 * 1024 * 1024;
+// Chunk size: 5MB for faster upload (balance between speed and retry cost)
+const UPLOAD_CHUNK_SIZE = 5 * 1024 * 1024;
+// Parallel chunk uploads
+const PARALLEL_CHUNKS = 3;
 // localStorage key for resumable uploads
 const UPLOAD_STATE_KEY = 'sol_act_pending_upload';
 
@@ -853,24 +855,7 @@ export const uploadApi = {
     const promise = (async () => {
       let fileToUpload = file;
 
-      // Auto-compress videos 30MB~200MB in browser before upload
-      // Skip compression for files >200MB — FFmpeg.wasm can't handle them in mobile browsers (OOM)
-      const COMPRESS_MAX = 200 * 1024 * 1024;
-      if (isVideo && file.size > 30 * 1024 * 1024 && file.size <= COMPRESS_MAX) {
-        try {
-          const { compressVideo, isCompressionSupported } = await import('./videoCompress');
-          if (isCompressionSupported()) {
-            onPhase?.('compressing', 0);
-            fileToUpload = await compressVideo(file, (phase, pct) => {
-              if (phase === 'compressing') {
-                onPhase?.('compressing', pct);
-              }
-            });
-          }
-        } catch (e) {
-          console.warn('Video compression not available, uploading original:', e);
-        }
-      }
+      // Skip client-side compression — upload original, backend compresses after
 
       if (aborted) throw new Error('업로드가 취소되었습니다.');
 
@@ -1021,19 +1006,18 @@ function _chunkedUpload(
       uploadId = initRes.uploadId;
     }
 
-    // 2. Send chunks
+    // 2. Send chunks (parallel)
     const totalChunks = Math.ceil(file.size / UPLOAD_CHUNK_SIZE);
-    let chunkIndex = startChunk;
-    let offset = startChunk * UPLOAD_CHUNK_SIZE;
+    let completedChunks = startChunk;
 
-    while (offset < file.size) {
+    const sendChunk = async (idx: number): Promise<void> => {
       if (aborted) throw new Error('업로드가 취소되었습니다.');
-
-      const end = Math.min(offset + UPLOAD_CHUNK_SIZE, file.size);
-      const chunk = file.slice(offset, end);
+      const chunkOffset = idx * UPLOAD_CHUNK_SIZE;
+      const end = Math.min(chunkOffset + UPLOAD_CHUNK_SIZE, file.size);
+      const chunk = file.slice(chunkOffset, end);
 
       const formData = new FormData();
-      formData.append('file', chunk, `chunk_${chunkIndex}`);
+      formData.append('file', chunk, `chunk_${idx}`);
 
       const token = getToken();
       const headers: Record<string, string> = { 'ngrok-skip-browser-warning': 'true' };
@@ -1053,7 +1037,6 @@ function _chunkedUpload(
             throw new Error('세션이 만료되었습니다.');
           }
           if (res.status === 404) {
-            // Session expired on server — clear saved state and restart
             _clearUploadState();
             throw new Error('업로드 세션이 만료되었습니다. 다시 시도해주세요.');
           }
@@ -1061,33 +1044,38 @@ function _chunkedUpload(
             const err = await res.json().catch(() => ({ detail: '업로드에 실패했습니다.' }));
             throw new Error(err.detail || '업로드에 실패했습니다.');
           }
-          break; // success
+          break;
         } catch (e: any) {
           retries++;
           if (retries >= MAX_RETRIES || aborted || e.message?.includes('세션') || e.message?.includes('만료')) throw e;
-          // Exponential backoff: 1s, 2s, 4s, 8s
           await new Promise(r => setTimeout(r, Math.min(retries * 1000 * retries, 8000)));
         }
       }
 
-      offset = end;
-      chunkIndex++;
-
-      // Save progress to localStorage after each chunk
+      completedChunks++;
       _saveUploadState({
         uploadId,
         filename: file.name,
         fileSize: file.size,
-        chunkIndex,
+        chunkIndex: completedChunks,
         subfolder: subfolder || 'assignments',
         targetType,
         targetId,
         timestamp: Date.now(),
       });
-
       if (onProgress) {
-        onProgress(Math.round((chunkIndex / totalChunks) * 95)); // Reserve 5% for finalize
+        onProgress(Math.round((completedChunks / totalChunks) * 95));
       }
+    };
+
+    // Send in parallel batches
+    for (let i = startChunk; i < totalChunks; i += PARALLEL_CHUNKS) {
+      if (aborted) throw new Error('업로드가 취소되었습니다.');
+      const batch = [];
+      for (let j = 0; j < PARALLEL_CHUNKS && i + j < totalChunks; j++) {
+        batch.push(sendChunk(i + j));
+      }
+      await Promise.all(batch);
     }
 
     // 3. Complete
