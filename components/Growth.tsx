@@ -89,6 +89,9 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [journalContent, setJournalContent] = useState('');
   const [editingJournalId, setEditingJournalId] = useState<string | null>(null);
   const [isJournalSaving, setIsJournalSaving] = useState(false);
+  const [journalAttachmentFile, setJournalAttachmentFile] = useState<File | null>(null);
+  const [journalAttachmentUrl, setJournalAttachmentUrl] = useState<string>('');
+  const [isJournalAttachmentUploading, setIsJournalAttachmentUploading] = useState(false);
 
   // Portfolio create modal — practice group
   const [newPfPracticeGroup, setNewPfPracticeGroup] = useState('');
@@ -486,13 +489,31 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     if (!journalTitle.trim() || !journalContent.trim()) return;
     setIsJournalSaving(true);
     try {
+      // Upload attachment if selected
+      let attachUrl = journalAttachmentUrl || undefined;
+      if (journalAttachmentFile && !attachUrl) {
+        setIsJournalAttachmentUploading(true);
+        try {
+          const result = await uploadApi.upload(journalAttachmentFile, undefined, 'journals');
+          attachUrl = result.url;
+        } catch {
+          toast.error('파일 업로드에 실패했습니다.');
+          setIsJournalSaving(false);
+          setIsJournalAttachmentUploading(false);
+          return;
+        }
+        setIsJournalAttachmentUploading(false);
+      }
+
       if (editingJournalId) {
-        await portfolioApi.updateJournal(editingJournalId, { title: journalTitle, content: journalContent });
+        await portfolioApi.updateJournal(editingJournalId, { title: journalTitle, content: journalContent, attachment_url: attachUrl });
       } else {
-        await portfolioApi.createJournal(journalTitle, journalContent);
+        await portfolioApi.createJournal(journalTitle, journalContent, attachUrl);
       }
       setJournalTitle('');
       setJournalContent('');
+      setJournalAttachmentFile(null);
+      setJournalAttachmentUrl('');
       setEditingJournalId(null);
       setIsJournalModalOpen(false);
       toast.success(editingJournalId ? '연습일지가 수정되었습니다.' : '연습일지가 등록되었습니다.');
@@ -1164,6 +1185,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                 const title = j.title as string;
                 const content = j.content as string;
                 const createdAt = (j.createdAt || j.created_at) as string;
+                const attachmentUrl = (j.attachmentUrl || j.attachment_url) as string | undefined;
                 const canEdit = studentId === user.id || user.role !== UserRole.STUDENT;
 
                 return (
@@ -1176,7 +1198,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                       {canEdit && (
                         <div className="flex gap-2">
                           <button
-                            onClick={() => { setEditingJournalId(id); setJournalTitle(title); setJournalContent(content); setIsJournalModalOpen(true); }}
+                            onClick={() => { setEditingJournalId(id); setJournalTitle(title); setJournalContent(content); setJournalAttachmentUrl(attachmentUrl || ''); setJournalAttachmentFile(null); setIsJournalModalOpen(true); }}
                             className="text-xs text-slate-400 hover:text-slate-600"
                           >수정</button>
                           <button
@@ -1188,6 +1210,23 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                     </div>
                     <h4 className="text-sm font-bold text-slate-800 mb-1">{title}</h4>
                     <p className="text-sm text-slate-600 whitespace-pre-wrap">{content}</p>
+                    {attachmentUrl && (() => {
+                      const fullUrl = attachmentUrl.startsWith('/') ? `${API_URL}${attachmentUrl}` : attachmentUrl;
+                      const ext = attachmentUrl.split('.').pop()?.toLowerCase() || '';
+                      const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                      return (
+                        <div className="mt-2">
+                          {isImage ? (
+                            <img src={fullUrl} alt="첨부" className="rounded-lg max-h-48 object-cover" />
+                          ) : (
+                            <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-violet-500 hover:text-violet-600 flex items-center gap-1">
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                              첨부파일 보기
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -1224,12 +1263,28 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                   placeholder="오늘 연습한 내용, 느낀 점, 어려웠던 부분 등을 자유롭게 적어보세요."
                 />
               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">사진/파일 첨부 (선택)</label>
+                {journalAttachmentFile || journalAttachmentUrl ? (
+                  <div className="flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50 p-2.5">
+                    <svg className="w-4 h-4 text-violet-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                    <span className="text-xs font-medium text-violet-700 truncate flex-1">{journalAttachmentFile?.name || '첨부파일'}</span>
+                    <button onClick={() => { setJournalAttachmentFile(null); setJournalAttachmentUrl(''); }} className="text-xs text-red-400 hover:text-red-600 shrink-0">삭제</button>
+                  </div>
+                ) : (
+                  <label className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:bg-slate-50 hover:border-violet-300 transition-colors">
+                    <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                    <span className="text-xs font-bold text-slate-500">사진 또는 파일 선택</span>
+                    <input type="file" className="hidden" accept="image/*,.pdf,.doc,.docx" onChange={e => { const f = e.target.files?.[0]; if (f) setJournalAttachmentFile(f); }} />
+                  </label>
+                )}
+              </div>
               <button
                 onClick={handleSaveJournal}
-                disabled={!journalTitle.trim() || !journalContent.trim() || isJournalSaving}
+                disabled={!journalTitle.trim() || !journalContent.trim() || isJournalSaving || isJournalAttachmentUploading}
                 className="w-full bg-violet-500 text-white py-3 rounded-xl font-bold hover:bg-violet-600 transition-colors shadow-lg shadow-violet-200 disabled:opacity-50"
               >
-                {isJournalSaving ? '저장 중...' : editingJournalId ? '수정하기' : '등록하기'}
+                {isJournalAttachmentUploading ? '파일 업로드 중...' : isJournalSaving ? '저장 중...' : editingJournalId ? '수정하기' : '등록하기'}
               </button>
             </div>
           </div>

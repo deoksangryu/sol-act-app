@@ -42,11 +42,13 @@ class PortfolioCommentResponse(BaseModel):
 class PracticeJournalCreate(BaseModel):
     title: str
     content: str
+    attachment_url: Optional[str] = None
 
 
 class PracticeJournalUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
+    attachment_url: Optional[str] = None
 
 
 class PracticeJournalResponse(BaseModel):
@@ -55,6 +57,7 @@ class PracticeJournalResponse(BaseModel):
     student_name: str
     title: str
     content: str
+    attachment_url: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

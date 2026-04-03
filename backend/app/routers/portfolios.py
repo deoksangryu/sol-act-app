@@ -52,6 +52,7 @@ def _journal_to_response(j: PracticeJournal) -> dict:
         "student_name": j.student.name if j.student else "",
         "title": j.title,
         "content": j.content,
+        "attachment_url": j.attachment_url,
         "created_at": j.created_at,
         "updated_at": j.updated_at,
     }
@@ -92,6 +93,7 @@ async def create_practice_journal(
         student_id=current_user.id,
         title=data.title,
         content=data.content,
+        attachment_url=data.attachment_url,
     )
     db.add(journal)
     db.commit()

@@ -56,6 +56,7 @@ class PracticeJournal(Base):
     student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
+    attachment_url = Column(String, nullable=True)  # 사진/파일 첨부
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

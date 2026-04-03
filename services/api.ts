@@ -671,13 +671,15 @@ export const portfolioApi = {
     const q = studentId ? `?student_id=${studentId}` : '';
     return apiRequest(`/api/portfolios/journals${q}`);
   },
-  async createJournal(title: string, content: string): Promise<Record<string, unknown>> {
+  async createJournal(title: string, content: string, attachmentUrl?: string): Promise<Record<string, unknown>> {
+    const body: Record<string, unknown> = { title, content };
+    if (attachmentUrl) body.attachment_url = attachmentUrl;
     return apiRequest('/api/portfolios/journals', {
       method: 'POST',
-      body: JSON.stringify({ title, content }),
+      body: JSON.stringify(body),
     });
   },
-  async updateJournal(journalId: string, data: { title?: string; content?: string }): Promise<Record<string, unknown>> {
+  async updateJournal(journalId: string, data: { title?: string; content?: string; attachment_url?: string }): Promise<Record<string, unknown>> {
     return apiRequest(`/api/portfolios/journals/${journalId}`, {
       method: 'PUT',
       body: JSON.stringify(data),
