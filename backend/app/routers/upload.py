@@ -203,7 +203,10 @@ async def chunked_complete(
     # Assemble chunks in order
     target_path = Path(meta["path"])
     chunks_dir = Path(meta["chunks_dir"])
-    chunk_files = sorted(chunks_dir.iterdir(), key=lambda p: int(p.name))
+    chunk_files = sorted(
+        [f for f in chunks_dir.iterdir() if not f.name.startswith('.')],
+        key=lambda p: int(p.name)
+    )
 
     if not chunk_files:
         chunks_dir.rmdir()
