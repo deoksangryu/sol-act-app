@@ -111,13 +111,12 @@ async def ws_stream(websocket: WebSocket, token: str = Query(...)):
 
                 await manager.broadcast_to_users(member_ids, response)
 
-                # Send Web Push to offline members (not the sender)
-                online_ids = set(manager.get_connected_user_ids())
-                offline_members = [mid for mid in member_ids if mid != user_id and mid not in online_ids]
+                # Send Web Push to all members except sender
                 sender_name = sender.name
                 push_msg = f"{sender_name}: {content[:100]}"
-                for mid in offline_members:
-                    _send_web_push(mid, push_msg)
+                for mid in member_ids:
+                    if mid != user_id:
+                        _send_web_push(mid, push_msg)
 
             elif msg_type == "ping":
                 await websocket.send_json({"type": "pong"})
