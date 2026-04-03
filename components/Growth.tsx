@@ -81,15 +81,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [commentTimestamp, setCommentTimestamp] = useState<number | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Practice journal feed (tab-level)
+  // Practice journal (independent tab)
   const [journalFeed, setJournalFeed] = useState<Record<string, unknown>[]>([]);
   const [journalFeedLoading, setJournalFeedLoading] = useState(false);
-  const [journalFeedStudentFilter, setJournalFeedStudentFilter] = useState<string>('all');
-
-  // Portfolio detail tab & practice journal
-  const [pfDetailTab, setPfDetailTab] = useState<'comments' | 'journal'>('comments');
+  const [journalStudentFilter, setJournalStudentFilter] = useState<string>('all');
+  const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
+  const [journalTitle, setJournalTitle] = useState('');
   const [journalContent, setJournalContent] = useState('');
-  const [journalNextPlan, setJournalNextPlan] = useState('');
   const [editingJournalId, setEditingJournalId] = useState<string | null>(null);
   const [isJournalSaving, setIsJournalSaving] = useState(false);
 
@@ -156,17 +154,17 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const loadJournalFeed = useCallback(async () => {
     setJournalFeedLoading(true);
     try {
-      const data = await portfolioApi.listAllJournals(
-        journalFeedStudentFilter !== 'all' ? journalFeedStudentFilter : undefined
+      const data = await portfolioApi.listJournals(
+        journalStudentFilter !== 'all' ? journalStudentFilter : undefined
       );
       setJournalFeed(data);
     } catch { /* silent */ }
     finally { setJournalFeedLoading(false); }
-  }, [journalFeedStudentFilter]);
+  }, [journalStudentFilter]);
 
   useEffect(() => {
     if (activeTab === 'journal') loadJournalFeed();
-  }, [activeTab, journalFeedStudentFilter]);
+  }, [activeTab, journalStudentFilter]);
 
   // ESC key handler for all modals
   useEffect(() => {
@@ -468,48 +466,28 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   };
 
   const handleSaveJournal = async () => {
-    if (!journalContent.trim() || !selectedPortfolioId) return;
+    if (!journalTitle.trim() || !journalContent.trim()) return;
     setIsJournalSaving(true);
     try {
-      let result: Record<string, unknown>;
       if (editingJournalId) {
-        result = await portfolioApi.updateJournal(selectedPortfolioId, editingJournalId, journalContent, journalNextPlan || undefined);
+        await portfolioApi.updateJournal(editingJournalId, { title: journalTitle, content: journalContent });
       } else {
-        result = await portfolioApi.addJournal(selectedPortfolioId, journalContent, journalNextPlan || undefined);
+        await portfolioApi.createJournal(journalTitle, journalContent);
       }
-      const journal = {
-        id: result.id as string,
-        portfolioId: (result.portfolioId || result.portfolio_id) as string,
-        authorId: (result.authorId || result.author_id) as string,
-        authorName: (result.authorName || result.author_name) as string,
-        content: result.content as string,
-        nextPlan: (result.nextPlan || result.next_plan) as string | undefined,
-        createdAt: (result.createdAt || result.created_at) as string,
-        updatedAt: (result.updatedAt || result.updated_at) as string,
-      };
-      setPortfolios(prev => prev.map(p => {
-        if (p.id !== selectedPortfolioId) return p;
-        const journals = p.practiceJournals || [];
-        if (editingJournalId) {
-          return { ...p, practiceJournals: journals.map(j => j.id === editingJournalId ? journal : j) };
-        }
-        return { ...p, practiceJournals: [...journals, journal] };
-      }));
+      setJournalTitle('');
       setJournalContent('');
-      setJournalNextPlan('');
       setEditingJournalId(null);
+      setIsJournalModalOpen(false);
       toast.success(editingJournalId ? '연습일지가 수정되었습니다.' : '연습일지가 등록되었습니다.');
+      loadJournalFeed();
     } catch { toast.error('연습일지 저장에 실패했습니다.'); }
     finally { setIsJournalSaving(false); }
   };
 
   const handleDeleteJournal = async (journalId: string) => {
-    if (!selectedPortfolioId) return;
     try {
-      await portfolioApi.deleteJournal(selectedPortfolioId, journalId);
-      setPortfolios(prev => prev.map(p =>
-        p.id === selectedPortfolioId ? { ...p, practiceJournals: (p.practiceJournals || []).filter(j => j.id !== journalId) } : p
-      ));
+      await portfolioApi.deleteJournal(journalId);
+      setJournalFeed(prev => prev.filter(j => (j.id as string) !== journalId));
       toast.success('연습일지가 삭제되었습니다.');
     } catch { toast.error('연습일지 삭제에 실패했습니다.'); }
   };
@@ -1122,15 +1100,15 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         </div>
       )}
 
-      {/* === JOURNAL FEED TAB === */}
+      {/* === JOURNAL TAB === */}
       {activeTab === 'journal' && (
         <div className="space-y-4">
-          {/* Student filter (staff only) */}
-          {isStaff && (
-            <div className="flex items-center gap-2">
+          {/* Header: filter + write button */}
+          <div className="flex items-center justify-between">
+            {isStaff ? (
               <select
-                value={journalFeedStudentFilter}
-                onChange={e => setJournalFeedStudentFilter(e.target.value)}
+                value={journalStudentFilter}
+                onChange={e => setJournalStudentFilter(e.target.value)}
                 className="text-sm border border-slate-200 rounded-xl px-3 py-2 outline-none focus:border-brand-500 bg-white"
               >
                 <option value="all">전체 학생</option>
@@ -1138,63 +1116,106 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
-            </div>
-          )}
+            ) : <div />}
+            {isStudent && (
+              <button
+                onClick={() => { setEditingJournalId(null); setJournalTitle(''); setJournalContent(''); setIsJournalModalOpen(true); }}
+                className="flex items-center gap-1.5 bg-violet-500 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-violet-600 transition-colors shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                일지 쓰기
+              </button>
+            )}
+          </div>
 
           {journalFeedLoading ? (
             <div className="flex justify-center py-12">
-              <div className="w-6 h-6 border-2 border-slate-300 border-t-brand-500 rounded-full animate-spin" />
+              <div className="w-6 h-6 border-2 border-slate-300 border-t-violet-500 rounded-full animate-spin" />
             </div>
           ) : journalFeed.length === 0 ? (
             <div className="text-center py-16 text-slate-400">
               <svg className="w-12 h-12 mx-auto mb-3 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
               <p className="text-sm">아직 작성된 연습일지가 없습니다.</p>
+              {isStudent && <p className="text-xs mt-1">오늘의 연습을 기록해보세요!</p>}
             </div>
           ) : (
             <div className="space-y-3">
               {journalFeed.map((j: Record<string, unknown>) => {
                 const id = j.id as string;
                 const studentName = (j.studentName || j.student_name) as string;
-                const authorName = (j.authorName || j.author_name) as string;
-                const portfolioTitle = (j.portfolioTitle || j.portfolio_title) as string;
-                const portfolioId = (j.portfolioId || j.portfolio_id) as string;
+                const studentId = (j.studentId || j.student_id) as string;
+                const title = j.title as string;
                 const content = j.content as string;
-                const nextPlan = (j.nextPlan || j.next_plan) as string | undefined;
                 const createdAt = (j.createdAt || j.created_at) as string;
-                const authorId = (j.authorId || j.author_id) as string;
-                const isTeacherEntry = authorId !== (j.studentId || j.student_id);
+                const canEdit = studentId === user.id || user.role !== UserRole.STUDENT;
 
                 return (
-                  <div
-                    key={id}
-                    className={`rounded-xl p-4 border cursor-pointer transition-colors ${isTeacherEntry ? 'bg-blue-50 border-blue-100 hover:border-blue-300' : 'bg-violet-50 border-violet-100 hover:border-violet-300'}`}
-                    onClick={() => { setSelectedPortfolioId(portfolioId); setPfDetailTab('journal'); }}
-                  >
+                  <div key={id} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isTeacherEntry ? 'bg-blue-100 text-blue-600' : 'bg-violet-100 text-violet-600'}`}>
-                          {isTeacherEntry ? '선생님' : '학생'}
-                        </span>
-                        <span className="text-sm font-bold text-slate-700">{authorName}</span>
-                        {isTeacherEntry && <span className="text-xs text-slate-400">→ {studentName}</span>}
+                        {isStaff && <span className="text-xs font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">{studentName}</span>}
+                        <span className="text-xs text-slate-400">{new Date(createdAt).toLocaleDateString('ko-KR')}</span>
                       </div>
-                      <span className="text-xs text-slate-400">{new Date(createdAt).toLocaleDateString('ko-KR')}</span>
+                      {canEdit && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => { setEditingJournalId(id); setJournalTitle(title); setJournalContent(content); setIsJournalModalOpen(true); }}
+                            className="text-xs text-slate-400 hover:text-slate-600"
+                          >수정</button>
+                          <button
+                            onClick={() => handleDeleteJournal(id)}
+                            className="text-xs text-red-400 hover:text-red-600"
+                          >삭제</button>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-xs text-slate-500 mb-1">
-                      <span className="font-medium">{studentName}</span>의 <span className="font-medium">{portfolioTitle}</span>
-                    </p>
-                    <p className="text-sm text-slate-700 line-clamp-3 whitespace-pre-wrap">{content}</p>
-                    {nextPlan && (
-                      <div className="mt-2 pt-2 border-t border-violet-200/50">
-                        <span className="text-xs font-bold text-violet-500">다음 연습 계획</span>
-                        <p className="text-xs text-slate-500 line-clamp-2 whitespace-pre-wrap">{nextPlan}</p>
-                      </div>
-                    )}
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">{title}</h4>
+                    <p className="text-sm text-slate-600 whitespace-pre-wrap">{content}</p>
                   </div>
                 );
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Journal Write/Edit Modal */}
+      {isJournalModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsJournalModalOpen(false)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-md p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setIsJournalModalOpen(false)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <h3 className="text-xl font-bold text-slate-800 mb-6">{editingJournalId ? '연습일지 수정' : '연습일지 쓰기'}</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">제목</label>
+                <input
+                  value={journalTitle}
+                  onChange={e => setJournalTitle(e.target.value)}
+                  className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-500"
+                  placeholder="예: 셰익스피어 독백 연습"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">내용</label>
+                <textarea
+                  value={journalContent}
+                  onChange={e => setJournalContent(e.target.value)}
+                  className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-500 resize-none"
+                  rows={6}
+                  placeholder="오늘 연습한 내용, 느낀 점, 어려웠던 부분 등을 자유롭게 적어보세요."
+                />
+              </div>
+              <button
+                onClick={handleSaveJournal}
+                disabled={!journalTitle.trim() || !journalContent.trim() || isJournalSaving}
+                className="w-full bg-violet-500 text-white py-3 rounded-xl font-bold hover:bg-violet-600 transition-colors shadow-lg shadow-violet-200 disabled:opacity-50"
+              >
+                {isJournalSaving ? '저장 중...' : editingJournalId ? '수정하기' : '등록하기'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1585,146 +1606,59 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
 
             <p className="text-sm text-slate-600 mb-6 leading-relaxed">{selectedPortfolio.description}</p>
 
-            {/* Tabs: 댓글 / 연습일지 */}
-            <div className="border-t border-slate-100 pt-3">
-              <div className="flex border-b border-slate-200 mb-3">
-                <button
-                  onClick={() => setPfDetailTab('comments')}
-                  className={`flex-1 py-2 text-sm font-bold border-b-2 transition-colors ${pfDetailTab === 'comments' ? 'border-brand-500 text-brand-600' : 'border-transparent text-slate-400'}`}
-                >
-                  댓글 ({selectedPortfolio.comments.length})
-                </button>
-                <button
-                  onClick={() => setPfDetailTab('journal')}
-                  className={`flex-1 py-2 text-sm font-bold border-b-2 transition-colors ${pfDetailTab === 'journal' ? 'border-violet-500 text-violet-600' : 'border-transparent text-slate-400'}`}
-                >
-                  연습일지 ({(selectedPortfolio.practiceJournals || []).length})
-                </button>
+            {/* Comments */}
+            <div className="border-t border-slate-100 pt-4">
+              <h4 className="text-sm font-bold text-slate-700 mb-3">댓글 ({selectedPortfolio.comments.length})</h4>
+              <div className="space-y-3 mb-4">
+                {selectedPortfolio.comments.map(c => (
+                  <div key={c.id} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold text-slate-700">{c.authorName}</span>
+                      <span className="text-xs text-slate-400">{c.date}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      {c.timestampSec != null && (
+                        <button
+                          onClick={() => handleSeekVideo(c.timestampSec!)}
+                          className="shrink-0 mt-0.5 bg-brand-100 text-brand-600 text-xs font-bold px-2 py-0.5 rounded-md hover:bg-brand-200 transition-colors cursor-pointer"
+                          title={`${formatTimestamp(c.timestampSec)}(으)로 이동`}
+                        >
+                          {formatTimestamp(c.timestampSec)}
+                        </button>
+                      )}
+                      <p className="text-sm text-slate-600">{c.content}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="space-y-2">
+                {commentTimestamp != null && (
+                  <div className="flex items-center gap-2">
+                    <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-0.5 rounded-md">
+                      {formatTimestamp(commentTimestamp)}
+                    </span>
+                    <button onClick={() => setCommentTimestamp(null)} className="text-xs text-slate-400 hover:text-slate-600">삭제</button>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    value={commentText}
+                    onChange={e => setCommentText(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAddComment()}
+                    className="flex-1 p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500"
+                    placeholder="댓글 작성..."
+                  />
+                  <button
+                    onClick={handleCaptureTimestamp}
+                    className="bg-slate-100 text-slate-600 px-3 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors whitespace-nowrap"
+                    title="현재 영상 위치를 댓글에 첨부합니다"
+                  >
+                    현재 위치
+                  </button>
+                  <button onClick={handleAddComment} className="bg-brand-500 text-white px-4 rounded-xl font-bold text-sm hover:bg-brand-600">등록</button>
+                </div>
               </div>
 
-              {pfDetailTab === 'comments' && (
-                <>
-                  <div className="space-y-3 mb-4">
-                    {selectedPortfolio.comments.map(c => (
-                      <div key={c.id} className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs font-bold text-slate-700">{c.authorName}</span>
-                          <span className="text-xs text-slate-400">{c.date}</span>
-                        </div>
-                        <div className="flex items-start gap-2">
-                          {c.timestampSec != null && (
-                            <button
-                              onClick={() => handleSeekVideo(c.timestampSec!)}
-                              className="shrink-0 mt-0.5 bg-brand-100 text-brand-600 text-xs font-bold px-2 py-0.5 rounded-md hover:bg-brand-200 transition-colors cursor-pointer"
-                              title={`${formatTimestamp(c.timestampSec)}(으)로 이동`}
-                            >
-                              {formatTimestamp(c.timestampSec)}
-                            </button>
-                          )}
-                          <p className="text-sm text-slate-600">{c.content}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="space-y-2">
-                    {commentTimestamp != null && (
-                      <div className="flex items-center gap-2">
-                        <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-0.5 rounded-md">
-                          {formatTimestamp(commentTimestamp)}
-                        </span>
-                        <button onClick={() => setCommentTimestamp(null)} className="text-xs text-slate-400 hover:text-slate-600">삭제</button>
-                      </div>
-                    )}
-                    <div className="flex gap-2">
-                      <input
-                        value={commentText}
-                        onChange={e => setCommentText(e.target.value)}
-                        onKeyDown={e => e.key === 'Enter' && handleAddComment()}
-                        className="flex-1 p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500"
-                        placeholder="댓글 작성..."
-                      />
-                      <button
-                        onClick={handleCaptureTimestamp}
-                        className="bg-slate-100 text-slate-600 px-3 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors whitespace-nowrap"
-                        title="현재 영상 위치를 댓글에 첨부합니다"
-                      >
-                        현재 위치
-                      </button>
-                      <button onClick={handleAddComment} className="bg-brand-500 text-white px-4 rounded-xl font-bold text-sm hover:bg-brand-600">등록</button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {pfDetailTab === 'journal' && (
-                <div className="space-y-3">
-                  {/* Existing journals */}
-                  {(selectedPortfolio.practiceJournals || []).map(j => (
-                    <div key={j.id} className="bg-violet-50 rounded-xl p-3 border border-violet-100">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-violet-700">{j.authorName}</span>
-                          <span className="text-xs text-violet-400">{new Date(j.createdAt).toLocaleDateString('ko-KR')}</span>
-                        </div>
-                        {(j.authorId === user.id || user.role !== UserRole.STUDENT) && (
-                          <div className="flex gap-1">
-                            <button
-                              onClick={() => { setEditingJournalId(j.id); setJournalContent(j.content); setJournalNextPlan(j.nextPlan || ''); }}
-                              className="text-xs text-violet-400 hover:text-violet-600"
-                            >수정</button>
-                            <button
-                              onClick={() => handleDeleteJournal(j.id)}
-                              className="text-xs text-red-400 hover:text-red-600"
-                            >삭제</button>
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-sm text-slate-700 whitespace-pre-wrap">{j.content}</p>
-                      {j.nextPlan && (
-                        <div className="mt-2 pt-2 border-t border-violet-200">
-                          <span className="text-xs font-bold text-violet-500">다음 연습 계획</span>
-                          <p className="text-sm text-slate-600 mt-0.5 whitespace-pre-wrap">{j.nextPlan}</p>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-
-                  {/* Journal input */}
-                  <div className="space-y-2 pt-2">
-                    <textarea
-                      value={journalContent}
-                      onChange={e => setJournalContent(e.target.value)}
-                      className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-500 resize-none"
-                      rows={3}
-                      placeholder={user.role === UserRole.STUDENT ? '연습 소감을 적어보세요...' : '피드백을 작성하세요...'}
-                    />
-                    {user.role !== UserRole.STUDENT && (
-                      <textarea
-                        value={journalNextPlan}
-                        onChange={e => setJournalNextPlan(e.target.value)}
-                        className="w-full p-3 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-500 resize-none"
-                        rows={2}
-                        placeholder="다음 연습 계획 (선택)"
-                      />
-                    )}
-                    <div className="flex gap-2 justify-end">
-                      {editingJournalId && (
-                        <button
-                          onClick={() => { setEditingJournalId(null); setJournalContent(''); setJournalNextPlan(''); }}
-                          className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700"
-                        >취소</button>
-                      )}
-                      <button
-                        onClick={handleSaveJournal}
-                        disabled={!journalContent.trim() || isJournalSaving}
-                        className="bg-violet-500 text-white px-4 py-2 rounded-xl font-bold text-sm hover:bg-violet-600 disabled:opacity-50"
-                      >
-                        {isJournalSaving ? '저장 중...' : editingJournalId ? '수정' : '등록'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>

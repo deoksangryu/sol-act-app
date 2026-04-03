@@ -203,7 +203,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onChangeView }) => {
             </div>
           </button>
           <button
-            onClick={() => onChangeView('lessons')}
+            onClick={() => onChangeView('growth')}
             className="bg-white p-5 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all group text-left flex items-center gap-4"
           >
             <div className="w-12 h-12 rounded-xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">

@@ -219,17 +219,6 @@ export interface PortfolioComment {
   date: string;
 }
 
-export interface PracticeJournal {
-  id: string;
-  portfolioId: string;
-  authorId: string;
-  authorName: string;
-  content: string;
-  nextPlan?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
 export interface PortfolioItem {
   id: string;
   studentId: string;
@@ -242,7 +231,6 @@ export interface PortfolioItem {
   practiceGroup?: string;
   videoDuration?: number;
   comments: PortfolioComment[];
-  practiceJournals?: PracticeJournal[];
   date: string;
 }
 

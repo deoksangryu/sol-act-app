@@ -7,7 +7,7 @@ from app.models.user import User, UserRole
 from app.schemas.portfolio import (
     PortfolioCreate, PortfolioUpdate, PortfolioResponse,
     PortfolioCommentCreate, PortfolioCommentResponse,
-    PracticeJournalCreate, PracticeJournalResponse
+    PracticeJournalCreate, PracticeJournalUpdate, PracticeJournalResponse
 )
 from app.utils.auth import get_current_user
 from app.services.ai import analyze_portfolio
@@ -41,64 +41,110 @@ def portfolio_to_response(p: Portfolio) -> dict:
             }
             for c in p.comments
         ],
-        "practice_journals": [
-            {
-                "id": j.id,
-                "portfolio_id": j.portfolio_id,
-                "author_id": j.author_id,
-                "author_name": j.author.name if j.author else "",
-                "content": j.content,
-                "next_plan": j.next_plan,
-                "created_at": j.created_at,
-                "updated_at": j.updated_at,
-            }
-            for j in (p.practice_journals if p.practice_journals else [])
-        ],
         "created_at": p.created_at,
     }
 
 
-@router.get("/all-journals")
-def list_all_journals(
+def _journal_to_response(j: PracticeJournal) -> dict:
+    return {
+        "id": j.id,
+        "student_id": j.student_id,
+        "student_name": j.student.name if j.student else "",
+        "title": j.title,
+        "content": j.content,
+        "created_at": j.created_at,
+        "updated_at": j.updated_at,
+    }
+
+
+@router.get("/journals")
+def list_practice_journals(
     student_id: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """List all practice journals (for teacher feed view)."""
-    from sqlalchemy.orm import joinedload as jl
+    """List practice journals (independent of portfolios)."""
     query = db.query(PracticeJournal).options(
-        jl(PracticeJournal.author),
-        jl(PracticeJournal.portfolio).joinedload(Portfolio.student),
+        joinedload(PracticeJournal.student)
     )
-    # Teacher: only journals for students in their classes
     if current_user.role == UserRole.TEACHER:
         my_student_ids = get_teacher_student_ids(db, current_user.id)
-        query = query.join(Portfolio).filter(Portfolio.student_id.in_(my_student_ids))
+        query = query.filter(PracticeJournal.student_id.in_(my_student_ids))
     elif current_user.role == UserRole.STUDENT:
-        query = query.join(Portfolio).filter(Portfolio.student_id == current_user.id)
-    else:
-        query = query.join(Portfolio)
+        query = query.filter(PracticeJournal.student_id == current_user.id)
 
     if student_id:
-        query = query.filter(Portfolio.student_id == student_id)
+        query = query.filter(PracticeJournal.student_id == student_id)
 
     journals = query.order_by(PracticeJournal.created_at.desc()).limit(100).all()
-    return [
-        {
-            "id": j.id,
-            "portfolio_id": j.portfolio_id,
-            "portfolio_title": j.portfolio.title if j.portfolio else "",
-            "student_id": j.portfolio.student_id if j.portfolio else "",
-            "student_name": j.portfolio.student.name if j.portfolio and j.portfolio.student else "",
-            "author_id": j.author_id,
-            "author_name": j.author.name if j.author else "",
-            "content": j.content,
-            "next_plan": j.next_plan,
-            "created_at": j.created_at,
-            "updated_at": j.updated_at,
-        }
-        for j in journals
-    ]
+    return [_journal_to_response(j) for j in journals]
+
+
+@router.post("/journals", response_model=PracticeJournalResponse, status_code=status.HTTP_201_CREATED)
+async def create_practice_journal(
+    data: PracticeJournalCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Create a practice journal entry (student only)."""
+    journal = PracticeJournal(
+        id=f"pj{uuid.uuid4().hex[:8]}",
+        student_id=current_user.id,
+        title=data.title,
+        content=data.content,
+    )
+    db.add(journal)
+    db.commit()
+    db.refresh(journal)
+
+    # 학생이 작성 → 선생님에게 알림
+    teacher_ids = get_teacher_ids_for_student(db, current_user.id)
+    if teacher_ids:
+        await notify_users(
+            db, teacher_ids,
+            f"{current_user.name}님이 연습일지를 작성했습니다: {data.title}",
+            entity="practice_journals",
+        )
+
+    j = db.query(PracticeJournal).options(joinedload(PracticeJournal.student)).filter(PracticeJournal.id == journal.id).first()
+    return _journal_to_response(j)
+
+
+@router.put("/journals/{journal_id}", response_model=PracticeJournalResponse)
+async def update_practice_journal(
+    journal_id: str,
+    data: PracticeJournalUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    journal = db.query(PracticeJournal).options(joinedload(PracticeJournal.student)).filter(PracticeJournal.id == journal_id).first()
+    if not journal:
+        raise HTTPException(status_code=404, detail="Practice journal not found")
+    if journal.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(journal, field, value)
+    db.commit()
+    db.refresh(journal)
+    return _journal_to_response(journal)
+
+
+@router.delete("/journals/{journal_id}")
+async def delete_practice_journal(
+    journal_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    journal = db.query(PracticeJournal).filter(PracticeJournal.id == journal_id).first()
+    if not journal:
+        raise HTTPException(status_code=404, detail="Practice journal not found")
+    if journal.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    db.delete(journal)
+    db.commit()
+    return {"message": "Practice journal deleted"}
 
 
 @router.get("/practice-groups")
@@ -111,7 +157,6 @@ def list_practice_groups(
     query = db.query(Portfolio).options(
         joinedload(Portfolio.student),
         joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
-        joinedload(Portfolio.practice_journals)
     ).filter(Portfolio.practice_group.isnot(None))
     # Teacher: only see portfolios for students in their classes
     if current_user.role == UserRole.TEACHER:
@@ -145,7 +190,6 @@ def list_portfolios(
     query = db.query(Portfolio).options(
         joinedload(Portfolio.student),
         joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
-        joinedload(Portfolio.practice_journals)
     )
     # Teacher: only see portfolios for students in their classes
     if current_user.role == UserRole.TEACHER:
@@ -387,117 +431,3 @@ async def delete_portfolio(
     await emit_data_changed([student_id], "portfolios")
 
     return {"message": "Portfolio deleted"}
-
-
-# ── Practice Journal CRUD ──
-
-@router.post("/{portfolio_id}/journals", response_model=PracticeJournalResponse, status_code=status.HTTP_201_CREATED)
-async def create_practice_journal(
-    portfolio_id: str,
-    data: PracticeJournalCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
-    if not p:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-
-    journal = PracticeJournal(
-        id=f"pj{uuid.uuid4().hex[:8]}",
-        portfolio_id=portfolio_id,
-        author_id=current_user.id,
-        content=data.content,
-        next_plan=data.next_plan,
-    )
-    db.add(journal)
-    db.commit()
-    db.refresh(journal)
-
-    # 선생님이 작성하면 학생에게 알림, 학생이 작성하면 선생님에게 알림
-    if current_user.id != p.student_id:
-        await notify_user(
-            db, p.student_id,
-            f"{current_user.name}님이 '{p.title}'에 연습일지를 작성했습니다.",
-            entity="portfolios",
-        )
-    else:
-        teacher_ids = get_teacher_ids_for_student(db, current_user.id)
-        if teacher_ids:
-            await notify_users(
-                db, teacher_ids,
-                f"{current_user.name}님이 '{p.title}'에 연습일지를 작성했습니다.",
-                entity="portfolios",
-            )
-
-    return {
-        "id": journal.id,
-        "portfolio_id": journal.portfolio_id,
-        "author_id": journal.author_id,
-        "author_name": current_user.name,
-        "content": journal.content,
-        "next_plan": journal.next_plan,
-        "created_at": journal.created_at,
-        "updated_at": journal.updated_at,
-    }
-
-
-@router.put("/{portfolio_id}/journals/{journal_id}", response_model=PracticeJournalResponse)
-async def update_practice_journal(
-    portfolio_id: str,
-    journal_id: str,
-    data: PracticeJournalCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    journal = db.query(PracticeJournal).filter(
-        PracticeJournal.id == journal_id,
-        PracticeJournal.portfolio_id == portfolio_id
-    ).first()
-    if not journal:
-        raise HTTPException(status_code=404, detail="Practice journal not found")
-    if journal.author_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    journal.content = data.content
-    if data.next_plan is not None:
-        journal.next_plan = data.next_plan
-    db.commit()
-    db.refresh(journal)
-
-    author = db.query(User).filter(User.id == journal.author_id).first()
-    return {
-        "id": journal.id,
-        "portfolio_id": journal.portfolio_id,
-        "author_id": journal.author_id,
-        "author_name": author.name if author else "",
-        "content": journal.content,
-        "next_plan": journal.next_plan,
-        "created_at": journal.created_at,
-        "updated_at": journal.updated_at,
-    }
-
-
-@router.delete("/{portfolio_id}/journals/{journal_id}")
-async def delete_practice_journal(
-    portfolio_id: str,
-    journal_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    journal = db.query(PracticeJournal).filter(
-        PracticeJournal.id == journal_id,
-        PracticeJournal.portfolio_id == portfolio_id
-    ).first()
-    if not journal:
-        raise HTTPException(status_code=404, detail="Practice journal not found")
-    if journal.author_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
-
-    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
-    db.delete(journal)
-    db.commit()
-
-    if p:
-        await emit_data_changed([p.student_id], "portfolios")
-
-    return {"message": "Practice journal deleted"}

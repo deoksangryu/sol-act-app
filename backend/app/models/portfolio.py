@@ -32,7 +32,6 @@ class Portfolio(Base):
     # Relationships
     student = relationship("User", back_populates="portfolios")
     comments = relationship("PortfolioComment", back_populates="portfolio", cascade="all, delete-orphan")
-    practice_journals = relationship("PracticeJournal", back_populates="portfolio", cascade="all, delete-orphan")
 
 
 class PortfolioComment(Base):
@@ -54,13 +53,11 @@ class PracticeJournal(Base):
     __tablename__ = "practice_journals"
 
     id = Column(String, primary_key=True, index=True)
-    portfolio_id = Column(String, ForeignKey("portfolios.id"), nullable=False, index=True)
-    author_id = Column(String, ForeignKey("users.id"), nullable=False)
-    content = Column(Text, nullable=False)  # 연습 소감 (학생) / 피드백 (선생님)
-    next_plan = Column(Text, nullable=True)  # 다음 연습 계획 (선생님용)
+    student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     # Relationships
-    portfolio = relationship("Portfolio", back_populates="practice_journals")
-    author = relationship("User")
+    student = relationship("User", foreign_keys=[student_id])
