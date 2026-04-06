@@ -7,9 +7,9 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDateKo, formatTimeKo, formatDateWeekdayKo } from '../services/dateUtils';
 import { useAppData } from '../services/AppContext';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler } from 'chart.js';
+import { Chart as ChartJS, LineController, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
+ChartJS.register(LineController, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 /** 로컬 날짜를 YYYY-MM-DD 형식으로 반환 */
 function toLocalDateStr(d: Date): string {
