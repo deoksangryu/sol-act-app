@@ -461,7 +461,7 @@ export const dietApi = {
     const qs = q.toString();
     return apiRequest(`/api/diet/weight${qs ? '?' + qs : ''}`);
   },
-  createWeight(data: { weight: number; date: string; memo?: string }): Promise<Record<string, unknown>> {
+  createWeight(data: { weight: number; date: string; memo?: string; body_fat?: number; muscle_mass?: number; visceral_fat?: number }): Promise<Record<string, unknown>> {
     return apiRequest('/api/diet/weight', {
       method: 'POST',
       body: JSON.stringify(data),

@@ -227,6 +227,9 @@ def create_weight_log(
 
     if existing:
         existing.weight = data.weight
+        existing.body_fat = data.body_fat
+        existing.muscle_mass = data.muscle_mass
+        existing.visceral_fat = data.visceral_fat
         existing.memo = data.memo
         db.commit()
         db.refresh(existing)
@@ -236,6 +239,9 @@ def create_weight_log(
         id=f"wl{uuid.uuid4().hex[:8]}",
         student_id=current_user.id,
         weight=data.weight,
+        body_fat=data.body_fat,
+        muscle_mass=data.muscle_mass,
+        visceral_fat=data.visceral_fat,
         date=data.date,
         memo=data.memo,
     )

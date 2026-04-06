@@ -41,6 +41,9 @@ class DietLogResponse(DietLogBase):
 # Weight Log schemas
 class WeightLogCreate(BaseModel):
     weight: float
+    body_fat: Optional[float] = None
+    muscle_mass: Optional[float] = None
+    visceral_fat: Optional[int] = None
     date: date
     memo: Optional[str] = None
 
@@ -49,6 +52,9 @@ class WeightLogResponse(BaseModel):
     id: str
     student_id: str
     weight: float
+    body_fat: Optional[float] = None
+    muscle_mass: Optional[float] = None
+    visceral_fat: Optional[int] = None
     date: date
     memo: Optional[str] = None
     created_at: datetime

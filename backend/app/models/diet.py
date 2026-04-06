@@ -36,6 +36,9 @@ class WeightLog(Base):
     id = Column(String, primary_key=True, index=True)
     student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     weight = Column(Float, nullable=False)  # kg
+    body_fat = Column(Float, nullable=True)  # 체지방률 %
+    muscle_mass = Column(Float, nullable=True)  # 근육량 kg
+    visceral_fat = Column(Integer, nullable=True)  # 내장지방레벨
     date = Column(Date, nullable=False, index=True)
     memo = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

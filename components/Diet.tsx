@@ -7,6 +7,9 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDateKo, formatTimeKo, formatDateWeekdayKo } from '../services/dateUtils';
 import { useAppData } from '../services/AppContext';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler } from 'chart.js';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
 
 /** 로컬 날짜를 YYYY-MM-DD 형식으로 반환 */
 function toLocalDateStr(d: Date): string {
@@ -18,6 +21,87 @@ function toLocalDateStr(d: Date): string {
 function toLocalISOString(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
+}
+
+/** Lightweight Chart.js line chart for weight data */
+function WeightChart({ data }: { data: Record<string, unknown>[] }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const chartRef = useRef<ChartJS | null>(null);
+
+  useEffect(() => {
+    if (!canvasRef.current || data.length < 2) return;
+
+    if (chartRef.current) chartRef.current.destroy();
+
+    const labels = data.map(d => (d.date as string).slice(5)); // MM-DD
+    const weights = data.map(d => d.weight as number);
+
+    chartRef.current = new ChartJS(canvasRef.current, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: weights,
+          borderColor: '#8b5cf6',
+          backgroundColor: 'rgba(139,92,246,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: '#8b5cf6',
+          pointBorderColor: '#fff',
+          pointBorderWidth: 2,
+          borderWidth: 2,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: (ctx) => `${(ctx.parsed.y ?? 0).toFixed(1)}kg`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            grid: { display: false },
+            ticks: { font: { size: 10 }, color: '#94a3b8' },
+          },
+          y: {
+            grid: { color: 'rgba(148,163,184,0.1)' },
+            ticks: {
+              font: { size: 10 },
+              color: '#94a3b8',
+              callback: (v) => `${v}kg`,
+            },
+          },
+        },
+      },
+    });
+
+    return () => { chartRef.current?.destroy(); };
+  }, [data]);
+
+  if (data.length < 2) return null;
+
+  const first = data[0].weight as number;
+  const last = data[data.length - 1].weight as number;
+  const diff = last - first;
+
+  return (
+    <div className="mb-4">
+      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200" style={{ height: 180 }}>
+        <canvas ref={canvasRef} />
+      </div>
+      <p className="text-xs text-center mt-2 text-slate-500">
+        {diff > 0 ? `+${diff.toFixed(1)}kg` : `${diff.toFixed(1)}kg`} 변화
+        <span className={`ml-1 font-bold ${diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-500' : 'text-slate-400'}`}>
+          {diff > 0 ? '↑' : diff < 0 ? '↓' : '→'}
+        </span>
+      </p>
+    </div>
+  );
 }
 
 interface DietProps {
@@ -65,11 +149,14 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
   // Weight tracking
   const [weightLogs, setWeightLogs] = useState<Record<string, unknown>[]>([]);
-  const [isWeightModalOpen, setIsWeightModalOpen] = useState(false);
   const [newWeight, setNewWeight] = useState('');
+  const [newBodyFat, setNewBodyFat] = useState('');
+  const [newMuscleMass, setNewMuscleMass] = useState('');
+  const [newVisceralFat, setNewVisceralFat] = useState('');
   const [newWeightDate, setNewWeightDate] = useState(toLocalDateStr(new Date()));
   const [newWeightMemo, setNewWeightMemo] = useState('');
   const [showWeightChart, setShowWeightChart] = useState(false);
+  const [dietTab, setDietTab] = useState<'diet' | 'weight'>('diet');
 
   // Load diet logs from API
   const loadData = useCallback(() => {
@@ -519,9 +606,127 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
     );
   }
 
-  // ===== Student Calendar Layout =====
+  // ===== Student Layout =====
   return (
-    <div className="grid md:grid-cols-3 gap-4 md:gap-6 h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0">
+      {/* Diet / Weight Tab Toggle */}
+      <div className="shrink-0 mb-4 bg-white rounded-2xl shadow-sm border border-slate-100 p-1 flex text-sm font-bold">
+        <button
+          onClick={() => setDietTab('diet')}
+          className={`flex-1 py-2.5 rounded-xl transition-colors ${dietTab === 'diet' ? 'bg-green-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          식단
+        </button>
+        <button
+          onClick={() => setDietTab('weight')}
+          className={`flex-1 py-2.5 rounded-xl transition-colors ${dietTab === 'weight' ? 'bg-violet-500 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+        >
+          체중·인바디
+        </button>
+      </div>
+
+      {dietTab === 'weight' ? (
+        /* ===== Weight / InBody Tab ===== */
+        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-slate-100 p-4 overflow-y-auto">
+          <h3 className="text-lg font-bold text-slate-800 mb-4">체중·인바디 기록</h3>
+
+          {/* Chart */}
+          <WeightChart data={weightLogs} />
+          {weightLogs.length < 2 && (
+            <div className="text-center py-6 text-slate-400 mb-4">
+              <p className="text-sm">{weightLogs.length === 0 ? '아직 기록이 없습니다. 아래에서 첫 기록을 해보세요!' : '2개 이상 기록하면 그래프가 표시됩니다.'}</p>
+            </div>
+          )}
+
+          {/* Record list */}
+          {weightLogs.length > 0 && (
+            <div className="space-y-2 mb-6">
+              <h4 className="text-xs font-bold text-slate-500">기록 내역</h4>
+              {[...weightLogs].reverse().map((l) => (
+                <div key={l.id as string} className="flex items-center justify-between px-3 py-2.5 bg-slate-50 rounded-xl border border-slate-100">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-slate-700">{(l.weight as number).toFixed(1)}kg</span>
+                      {l.body_fat != null && <span className="text-xs text-orange-500">체지방 {Number(l.body_fat).toFixed(1)}%</span>}
+                      {l.muscle_mass != null && <span className="text-xs text-blue-500">근육 {Number(l.muscle_mass).toFixed(1)}kg</span>}
+                      {l.visceral_fat != null && <span className="text-xs text-red-500">내장지방 Lv.{Number(l.visceral_fat)}</span>}
+                    </div>
+                    <span className="text-[10px] text-slate-400">{l.date as string}{l.memo ? ` · ${String(l.memo)}` : ''}</span>
+                  </div>
+                  <button onClick={async () => {
+                    try { await dietApi.deleteWeight(l.id as string); setWeightLogs(prev => prev.filter(w => w.id !== l.id)); toast.success('삭제'); } catch { toast.error('삭제 실패'); }
+                  }} className="text-xs text-red-400 hover:text-red-600 ml-2">삭제</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Input form */}
+          <div className="border-t border-slate-200 pt-4 space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">체중 (kg) *</label>
+                <input type="number" step="0.1" value={newWeight} onChange={e => setNewWeight(e.target.value)}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-500" placeholder="55.0" />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1">날짜 *</label>
+                <input type="date" value={newWeightDate} onChange={e => setNewWeightDate(e.target.value)}
+                  className="w-full p-2.5 border border-slate-200 rounded-xl text-sm outline-none focus:border-violet-500" />
+              </div>
+            </div>
+            <details className="group">
+              <summary className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-400 hover:text-slate-600 py-1">
+                <svg className="w-4 h-4 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                인바디 (선택)
+              </summary>
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">체지방률 %</label>
+                  <input type="number" step="0.1" value={newBodyFat} onChange={e => setNewBodyFat(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-violet-500" placeholder="18.5" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">근육량 kg</label>
+                  <input type="number" step="0.1" value={newMuscleMass} onChange={e => setNewMuscleMass(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-violet-500" placeholder="25.0" />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-400 mb-1">내장지방 Lv</label>
+                  <input type="number" step="1" value={newVisceralFat} onChange={e => setNewVisceralFat(e.target.value)}
+                    className="w-full p-2 border border-slate-200 rounded-lg text-xs outline-none focus:border-violet-500" placeholder="5" />
+                </div>
+              </div>
+            </details>
+            <button
+              onClick={async () => {
+                const w = parseFloat(newWeight);
+                if (!w || w < 20 || w > 200) { toast.error('체중을 올바르게 입력해주세요 (20~200kg)'); return; }
+                try {
+                  const result = await dietApi.createWeight({
+                    weight: w, date: newWeightDate, memo: newWeightMemo || undefined,
+                    body_fat: newBodyFat ? parseFloat(newBodyFat) : undefined,
+                    muscle_mass: newMuscleMass ? parseFloat(newMuscleMass) : undefined,
+                    visceral_fat: newVisceralFat ? parseInt(newVisceralFat) : undefined,
+                  });
+                  setWeightLogs(prev => {
+                    const filtered = prev.filter(l => l.date !== result.date);
+                    return [...filtered, result].sort((a, b) => (a.date as string).localeCompare(b.date as string));
+                  });
+                  setNewWeight(''); setNewBodyFat(''); setNewMuscleMass(''); setNewVisceralFat(''); setNewWeightMemo('');
+                  toast.success('기록되었습니다!');
+                } catch { toast.error('기록에 실패했습니다.'); }
+              }}
+              disabled={!newWeight}
+              className="w-full bg-violet-500 text-white py-3 rounded-xl font-bold hover:bg-violet-600 disabled:opacity-50 shadow-lg shadow-violet-200"
+            >
+              기록하기
+            </button>
+          </div>
+        </div>
+      ) : (
+      /* ===== Diet Calendar Tab ===== */
+    <div className="grid md:grid-cols-3 gap-4 md:gap-6 flex-1 min-h-0">
 
       {/* LEFT COLUMN: Calendar / List Toggle */}
       <div className={`md:col-span-1 bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden flex flex-col h-full ${selectedDate || viewMode === 'list' ? 'hidden md:flex' : 'flex'}`}>
@@ -770,8 +975,8 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
       {renderDetailModal()}
 
-      {/* Weight Chart Panel */}
-      {showWeightChart && (
+      {/* Weight Chart Modal (staff only — students use tab) */}
+      {showWeightChart && isStaff && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setShowWeightChart(false)}>
           <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-lg p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <button onClick={() => setShowWeightChart(false)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
@@ -790,66 +995,8 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
             )}
 
             {/* Chart */}
-            {weightLogs.length > 1 ? (() => {
-              const weights = weightLogs.map(l => l.weight as number);
-              const minW = Math.floor(Math.min(...weights) - 1);
-              const maxW = Math.ceil(Math.max(...weights) + 1);
-              const range = maxW - minW || 1;
-              const chartH = 150;
-
-              return (
-                <div className="mb-4">
-                  <div className="relative bg-slate-50 rounded-xl p-3 border border-slate-200" style={{ height: chartH + 40 }}>
-                    {/* Y axis labels */}
-                    <div className="absolute left-0 top-3 bottom-6 w-8 flex flex-col justify-between text-[10px] text-slate-400">
-                      <span>{maxW}kg</span>
-                      <span>{minW}kg</span>
-                    </div>
-                    {/* Chart area */}
-                    <svg className="ml-8" width="100%" height={chartH} viewBox={`0 0 ${(weightLogs.length - 1) * 40 + 20} ${chartH}`} preserveAspectRatio="none">
-                      {/* Line */}
-                      <polyline
-                        fill="none"
-                        stroke="#8b5cf6"
-                        strokeWidth="2"
-                        points={weightLogs.map((l, i) => `${i * 40 + 10},${chartH - ((l.weight as number) - minW) / range * (chartH - 10)}`).join(' ')}
-                      />
-                      {/* Dots */}
-                      {weightLogs.map((l, i) => (
-                        <circle
-                          key={i}
-                          cx={i * 40 + 10}
-                          cy={chartH - ((l.weight as number) - minW) / range * (chartH - 10)}
-                          r="4"
-                          fill="#8b5cf6"
-                        />
-                      ))}
-                    </svg>
-                    {/* X axis labels */}
-                    <div className="ml-8 flex justify-between mt-1 overflow-hidden">
-                      {weightLogs.map((l, i) => (
-                        <span key={i} className="text-[9px] text-slate-400 w-10 text-center truncate">
-                          {(l.date as string).slice(5)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  {weightLogs.length >= 2 && (() => {
-                    const first = weightLogs[0].weight as number;
-                    const last = weightLogs[weightLogs.length - 1].weight as number;
-                    const diff = last - first;
-                    return (
-                      <p className="text-xs text-center mt-2 text-slate-500">
-                        {diff > 0 ? `+${diff.toFixed(1)}kg` : `${diff.toFixed(1)}kg`} 변화
-                        <span className={`ml-1 font-bold ${diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-500' : 'text-slate-400'}`}>
-                          {diff > 0 ? '↑' : diff < 0 ? '↓' : '→'}
-                        </span>
-                      </p>
-                    );
-                  })()}
-                </div>
-              );
-            })() : (
+            <WeightChart data={weightLogs} />
+            {weightLogs.length < 2 && (
               <div className="text-center py-8 text-slate-400 mb-4">
                 <p className="text-sm">{weightLogs.length === 0 ? '아직 체중 기록이 없습니다.' : '2개 이상 기록하면 그래프가 표시됩니다.'}</p>
               </div>
@@ -861,9 +1008,13 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
                 {[...weightLogs].reverse().map((l) => (
                   <div key={l.id as string} className="flex items-center justify-between px-3 py-2 bg-slate-50 rounded-lg">
                     <div>
-                      <span className="text-sm font-bold text-slate-700">{(l.weight as number).toFixed(1)}kg</span>
-                      <span className="text-xs text-slate-400 ml-2">{l.date as string}</span>
-                      {l.memo ? <span className="text-xs text-slate-400 ml-2">{String(l.memo)}</span> : null}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-bold text-slate-700">{(l.weight as number).toFixed(1)}kg</span>
+                        {l.body_fat != null && <span className="text-xs text-orange-500">체지방 {Number(l.body_fat).toFixed(1)}%</span>}
+                        {l.muscle_mass != null && <span className="text-xs text-blue-500">근육 {Number(l.muscle_mass).toFixed(1)}kg</span>}
+                        {l.visceral_fat != null && <span className="text-xs text-red-500">내장지방 Lv.{Number(l.visceral_fat)}</span>}
+                      </div>
+                      <span className="text-[10px] text-slate-400">{l.date as string}{l.memo ? ` · ${String(l.memo)}` : ''}</span>
                     </div>
                     <button onClick={async () => {
                       try {
@@ -926,6 +1077,8 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
           </div>
         </div>
       )}
+    </div>
+    )}
     </div>
   );
 };
