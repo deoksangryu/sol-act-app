@@ -531,15 +531,13 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
           <div className="flex justify-between items-center">
             <h2 className="font-bold text-slate-800">식단 캘린더</h2>
             <div className="flex gap-2">
-              {!isStaff && (
-                <button
+              <button
                   onClick={() => setShowWeightChart(!showWeightChart)}
                   className={`text-xs flex items-center gap-1 border px-3 py-2 rounded-lg transition-colors shadow-sm font-bold ${showWeightChart ? 'bg-violet-50 text-violet-600 border-violet-200' : 'bg-white border-slate-200 hover:bg-violet-50 hover:text-violet-500 hover:border-violet-200'}`}
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                   체중
                 </button>
-              )}
               <button
                 onClick={handleOpenModal}
                 className="text-xs flex items-center gap-1 bg-white border border-slate-200 px-3 py-2 rounded-lg hover:bg-green-50 hover:text-green-500 hover:border-green-200 transition-colors shadow-sm"
@@ -779,7 +777,17 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
             <button onClick={() => setShowWeightChart(false)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <h3 className="text-lg font-bold text-slate-800 mb-4">체중 기록</h3>
+            <h3 className="text-lg font-bold text-slate-800 mb-4">
+              체중 기록
+              {isStaff && studentFilter !== 'all' && (
+                <span className="text-sm font-medium text-violet-500 ml-2">
+                  ({students.find(s => s.id === studentFilter)?.name || '학생'})
+                </span>
+              )}
+            </h3>
+            {isStaff && studentFilter === 'all' && (
+              <p className="text-xs text-slate-400 mb-3">학생을 선택하면 해당 학생의 체중 기록을 볼 수 있습니다.</p>
+            )}
 
             {/* Chart */}
             {weightLogs.length > 1 ? (() => {
@@ -869,8 +877,8 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
               </div>
             )}
 
-            {/* Add weight form */}
-            <div className="border-t border-slate-200 pt-4 space-y-3">
+            {/* Add weight form (students only) */}
+            {!isStaff && <div className="border-t border-slate-200 pt-4 space-y-3">
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label className="block text-xs font-bold text-slate-500 mb-1">체중 (kg)</label>
@@ -914,7 +922,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
               >
                 기록하기
               </button>
-            </div>
+            </div>}
           </div>
         </div>
       )}
