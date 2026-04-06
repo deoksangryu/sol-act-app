@@ -3,9 +3,9 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from pydantic import BaseModel
 from app.database import get_db
-from app.models.diet import DietLog
+from app.models.diet import DietLog, WeightLog
 from app.models.user import User, UserRole
-from app.schemas.diet import DietLogCreate, DietLogUpdate, DietLogResponse
+from app.schemas.diet import DietLogCreate, DietLogUpdate, DietLogResponse, WeightLogCreate, WeightLogResponse
 from app.services.ai import analyze_diet as ai_analyze_diet
 from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_teacher_ids_for_student, get_teacher_student_ids
 from app.utils.auth import get_current_user
@@ -181,3 +181,81 @@ async def delete_diet_log(
         await emit_data_changed(teacher_ids, "diet")
 
     return {"message": "Diet log deleted"}
+
+
+# ── Weight Log CRUD ──
+
+@router.get("/weight", response_model=List[WeightLogResponse])
+def list_weight_logs(
+    student_id: Optional[str] = Query(None),
+    days: int = Query(90, ge=7, le=365),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from datetime import date, timedelta
+    query = db.query(WeightLog)
+
+    if current_user.role == UserRole.STUDENT:
+        query = query.filter(WeightLog.student_id == current_user.id)
+    elif current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        if student_id and student_id in my_student_ids:
+            query = query.filter(WeightLog.student_id == student_id)
+        else:
+            query = query.filter(WeightLog.student_id.in_(my_student_ids))
+    else:
+        if student_id:
+            query = query.filter(WeightLog.student_id == student_id)
+
+    cutoff = date.today() - timedelta(days=days)
+    query = query.filter(WeightLog.date >= cutoff)
+    logs = query.order_by(WeightLog.date.asc()).all()
+    return logs
+
+
+@router.post("/weight", response_model=WeightLogResponse, status_code=status.HTTP_201_CREATED)
+def create_weight_log(
+    data: WeightLogCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    # Upsert: if same date exists, update weight
+    existing = db.query(WeightLog).filter(
+        WeightLog.student_id == current_user.id,
+        WeightLog.date == data.date,
+    ).first()
+
+    if existing:
+        existing.weight = data.weight
+        existing.memo = data.memo
+        db.commit()
+        db.refresh(existing)
+        return existing
+
+    log = WeightLog(
+        id=f"wl{uuid.uuid4().hex[:8]}",
+        student_id=current_user.id,
+        weight=data.weight,
+        date=data.date,
+        memo=data.memo,
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(log)
+    return log
+
+
+@router.delete("/weight/{log_id}")
+def delete_weight_log(
+    log_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    log = db.query(WeightLog).filter(WeightLog.id == log_id).first()
+    if not log:
+        raise HTTPException(status_code=404, detail="Weight log not found")
+    if log.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    db.delete(log)
+    db.commit()
+    return {"message": "Weight log deleted"}

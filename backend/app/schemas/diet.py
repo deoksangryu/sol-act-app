@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, date
 from app.models.diet import MealType
 
 
@@ -32,6 +32,25 @@ class DietLogResponse(DietLogBase):
     ai_advice: Optional[str] = None
     teacher_comment: Optional[str] = None
     image_url: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+# Weight Log schemas
+class WeightLogCreate(BaseModel):
+    weight: float
+    date: date
+    memo: Optional[str] = None
+
+
+class WeightLogResponse(BaseModel):
+    id: str
+    student_id: str
+    weight: float
+    date: date
+    memo: Optional[str] = None
     created_at: datetime
 
     class Config:

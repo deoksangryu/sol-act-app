@@ -453,6 +453,23 @@ export const dietApi = {
   delete(id: string): Promise<void> {
     return apiRequest(`/api/diet/${id}`, { method: 'DELETE' });
   },
+  // Weight logs
+  listWeight(params?: { studentId?: string; days?: number }): Promise<Record<string, unknown>[]> {
+    const q = new URLSearchParams();
+    if (params?.studentId) q.set('student_id', params.studentId);
+    if (params?.days) q.set('days', String(params.days));
+    const qs = q.toString();
+    return apiRequest(`/api/diet/weight${qs ? '?' + qs : ''}`);
+  },
+  createWeight(data: { weight: number; date: string; memo?: string }): Promise<Record<string, unknown>> {
+    return apiRequest('/api/diet/weight', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  deleteWeight(id: string): Promise<void> {
+    return apiRequest(`/api/diet/weight/${id}`, { method: 'DELETE' });
+  },
 };
 
 // --- Evaluation API ---

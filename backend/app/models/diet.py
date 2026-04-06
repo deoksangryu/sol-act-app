@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Integer, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, DateTime, Integer, Date, Float, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
@@ -28,3 +28,17 @@ class DietLog(Base):
 
     # Relationships
     student = relationship("User", back_populates="diet_logs")
+
+
+class WeightLog(Base):
+    __tablename__ = "weight_logs"
+
+    id = Column(String, primary_key=True, index=True)
+    student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    weight = Column(Float, nullable=False)  # kg
+    date = Column(Date, nullable=False, index=True)
+    memo = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    student = relationship("User")
