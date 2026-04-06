@@ -869,10 +869,9 @@ export const uploadApi = {
     const dotIdx = file.name.lastIndexOf('.');
     const ext = dotIdx >= 0 ? file.name.toLowerCase().slice(dotIdx) : '';
     const isVideo = VIDEO_EXTS.includes(ext);
-    const maxSize = isVideo ? 1500 * 1024 * 1024 : 50 * 1024 * 1024;
-    if (file.size > maxSize) {
-      const maxMb = maxSize / (1024 * 1024);
-      const err = Promise.reject(new Error(`파일이 너무 큽니다. 최대 ${maxMb}MB까지 업로드 가능합니다.`)) as any;
+    // Video: no size limit (server compresses after upload). Docs: 50MB
+    if (!isVideo && file.size > 50 * 1024 * 1024) {
+      const err = Promise.reject(new Error('파일이 너무 큽니다. 최대 50MB까지 업로드 가능합니다.')) as any;
       err.abort = () => {};
       return err;
     }

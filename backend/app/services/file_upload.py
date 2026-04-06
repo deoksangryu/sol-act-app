@@ -36,7 +36,7 @@ UPLOAD_DIR = _resolve_upload_dir()
 ALLOWED_VIDEO = {".mp4", ".mov", ".webm"}
 ALLOWED_DOCS = {".pdf", ".jpg", ".jpeg", ".png", ".mp3", ".m4a", ".wav", ".doc", ".docx"}
 ALLOWED_ALL = ALLOWED_VIDEO | ALLOWED_DOCS
-MAX_VIDEO_SIZE = 1500 * 1024 * 1024  # 1.5GB
+MAX_VIDEO_SIZE = 10 * 1024 * 1024 * 1024  # 10GB (effectively no limit — server compresses after upload)
 MAX_DOC_SIZE = 50 * 1024 * 1024  # 50MB
 
 
