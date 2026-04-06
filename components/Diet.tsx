@@ -7,9 +7,9 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
 import { formatDateKo, formatTimeKo, formatDateWeekdayKo } from '../services/dateUtils';
 import { useAppData } from '../services/AppContext';
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler } from 'chart.js';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler } from 'chart.js';
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Filler);
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 /** 로컬 날짜를 YYYY-MM-DD 형식으로 반환 */
 function toLocalDateStr(d: Date): string {
@@ -23,62 +23,52 @@ function toLocalISOString(d: Date): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:00`;
 }
 
-/** Lightweight Chart.js line chart for weight data */
+/** Lightweight weight chart — CSS-based with Chart.js enhancement */
 function WeightChart({ data }: { data: Record<string, unknown>[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const chartRef = useRef<ChartJS | null>(null);
+  const [chartError, setChartError] = useState(false);
 
   useEffect(() => {
     if (!canvasRef.current || data.length < 2) return;
+    try {
+      if (chartRef.current) chartRef.current.destroy();
 
-    if (chartRef.current) chartRef.current.destroy();
+      const labels = data.map(d => (d.date as string).slice(5));
+      const weights = data.map(d => d.weight as number);
 
-    const labels = data.map(d => (d.date as string).slice(5)); // MM-DD
-    const weights = data.map(d => d.weight as number);
-
-    chartRef.current = new ChartJS(canvasRef.current, {
-      type: 'line',
-      data: {
-        labels,
-        datasets: [{
-          data: weights,
-          borderColor: '#8b5cf6',
-          backgroundColor: 'rgba(139,92,246,0.1)',
-          fill: true,
-          tension: 0.3,
-          pointRadius: 4,
-          pointBackgroundColor: '#8b5cf6',
-          pointBorderColor: '#fff',
-          pointBorderWidth: 2,
-          borderWidth: 2,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          tooltip: {
-            callbacks: {
-              label: (ctx) => `${(ctx.parsed.y ?? 0).toFixed(1)}kg`,
-            },
+      chartRef.current = new ChartJS(canvasRef.current, {
+        type: 'line' as const,
+        data: {
+          labels,
+          datasets: [{
+            data: weights,
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139,92,246,0.1)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 4,
+            pointBackgroundColor: '#8b5cf6',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            borderWidth: 2,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx: any) => `${(ctx.parsed?.y ?? 0).toFixed(1)}kg` } } },
+          scales: {
+            x: { grid: { display: false }, ticks: { font: { size: 10 }, color: '#94a3b8' } },
+            y: { grid: { color: 'rgba(148,163,184,0.1)' }, ticks: { font: { size: 10 }, color: '#94a3b8', callback: (v: any) => `${v}kg` } },
           },
         },
-        scales: {
-          x: {
-            grid: { display: false },
-            ticks: { font: { size: 10 }, color: '#94a3b8' },
-          },
-          y: {
-            grid: { color: 'rgba(148,163,184,0.1)' },
-            ticks: {
-              font: { size: 10 },
-              color: '#94a3b8',
-              callback: (v) => `${v}kg`,
-            },
-          },
-        },
-      },
-    });
+      });
+    } catch (e) {
+      console.warn('Chart.js render failed:', e);
+      setChartError(true);
+    }
 
     return () => { chartRef.current?.destroy(); };
   }, [data]);
@@ -91,9 +81,17 @@ function WeightChart({ data }: { data: Record<string, unknown>[] }) {
 
   return (
     <div className="mb-4">
-      <div className="bg-slate-50 rounded-xl p-3 border border-slate-200" style={{ height: 180 }}>
-        <canvas ref={canvasRef} />
-      </div>
+      {chartError ? (
+        /* Fallback: simple text summary */
+        <div className="bg-slate-50 rounded-xl p-4 border border-slate-200 text-center">
+          <p className="text-sm text-slate-500">최근 {data.length}회 기록</p>
+          <p className="text-lg font-bold text-violet-600 mt-1">{last.toFixed(1)}kg</p>
+        </div>
+      ) : (
+        <div className="bg-slate-50 rounded-xl p-3 border border-slate-200" style={{ height: 180 }}>
+          <canvas ref={canvasRef} />
+        </div>
+      )}
       <p className="text-xs text-center mt-2 text-slate-500">
         {diff > 0 ? `+${diff.toFixed(1)}kg` : `${diff.toFixed(1)}kg`} 변화
         <span className={`ml-1 font-bold ${diff > 0 ? 'text-red-500' : diff < 0 ? 'text-green-500' : 'text-slate-400'}`}>
