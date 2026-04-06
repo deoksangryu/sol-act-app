@@ -688,6 +688,14 @@ export const portfolioApi = {
   deleteJournal(journalId: string): Promise<void> {
     return apiRequest(`/api/portfolios/journals/${journalId}`, { method: 'DELETE' });
   },
+  async addVideo(portfolioId: string, videoUrl: string): Promise<Record<string, unknown>> {
+    return apiRequest(`/api/portfolios/${portfolioId}/videos?video_url=${encodeURIComponent(videoUrl)}`, {
+      method: 'POST',
+    });
+  },
+  deleteVideo(portfolioId: string, videoId: string): Promise<void> {
+    return apiRequest(`/api/portfolios/${portfolioId}/videos/${videoId}`, { method: 'DELETE' });
+  },
 };
 
 // --- Audition API ---

@@ -219,6 +219,15 @@ export interface PortfolioComment {
   date: string;
 }
 
+export interface PortfolioVideoItem {
+  id: string;
+  portfolioId: string;
+  videoUrl: string;
+  thumbnailUrl?: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
 export interface PortfolioItem {
   id: string;
   studentId: string;
@@ -231,6 +240,7 @@ export interface PortfolioItem {
   practiceGroup?: string;
   videoDuration?: number;
   comments: PortfolioComment[];
+  videos?: PortfolioVideoItem[];
   date: string;
 }
 

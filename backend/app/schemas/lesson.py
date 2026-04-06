@@ -48,7 +48,7 @@ class LessonUpdate(BaseModel):
 
 class LessonResponse(BaseModel):
     id: str
-    class_id: str
+    class_id: Optional[str] = None
     class_name: str
     date: date
     start_time: str

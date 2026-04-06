@@ -22,6 +22,18 @@ class PortfolioUpdate(BaseModel):
     tags: Optional[str] = None
 
 
+class PortfolioVideoResponse(BaseModel):
+    id: str
+    portfolio_id: str
+    video_url: str
+    thumbnail_url: Optional[str] = None
+    sort_order: int = 0
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class PortfolioCommentCreate(BaseModel):
     content: str
     timestamp_sec: Optional[int] = None
@@ -78,6 +90,7 @@ class PortfolioResponse(BaseModel):
     practice_group: Optional[str] = None
     video_duration: Optional[int] = None
     comments: List[PortfolioCommentResponse] = []
+    videos: List[PortfolioVideoResponse] = []
     created_at: datetime
 
     class Config:

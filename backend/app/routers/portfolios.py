@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from app.database import get_db
-from app.models.portfolio import Portfolio, PortfolioComment, PracticeJournal, PortfolioCategory
+from app.models.portfolio import Portfolio, PortfolioComment, PortfolioVideo, PracticeJournal, PortfolioCategory
 from app.models.user import User, UserRole
 from app.schemas.portfolio import (
     PortfolioCreate, PortfolioUpdate, PortfolioResponse,
@@ -40,6 +40,17 @@ def portfolio_to_response(p: Portfolio) -> dict:
                 "created_at": c.created_at,
             }
             for c in p.comments
+        ],
+        "videos": [
+            {
+                "id": v.id,
+                "portfolio_id": v.portfolio_id,
+                "video_url": v.video_url,
+                "thumbnail_url": v.thumbnail_url,
+                "sort_order": v.sort_order,
+                "created_at": v.created_at,
+            }
+            for v in (p.videos if p.videos else [])
         ],
         "created_at": p.created_at,
     }
@@ -159,6 +170,7 @@ def list_practice_groups(
     query = db.query(Portfolio).options(
         joinedload(Portfolio.student),
         joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
+        joinedload(Portfolio.videos),
     ).filter(Portfolio.practice_group.isnot(None))
     # Teacher: only see portfolios for students in their classes
     if current_user.role == UserRole.TEACHER:
@@ -192,6 +204,7 @@ def list_portfolios(
     query = db.query(Portfolio).options(
         joinedload(Portfolio.student),
         joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
+        joinedload(Portfolio.videos),
     )
     # Teacher: only see portfolios for students in their classes
     if current_user.role == UserRole.TEACHER:
@@ -430,3 +443,82 @@ async def delete_portfolio(
     await emit_data_changed([student_id], "portfolios")
 
     return {"message": "Portfolio deleted"}
+
+
+# ── Portfolio Videos (multi-video support) ──
+
+from app.schemas.portfolio import PortfolioVideoResponse
+from app.services.file_upload import extract_thumbnail, UPLOAD_DIR
+
+
+@router.post("/{portfolio_id}/videos", status_code=status.HTTP_201_CREATED)
+async def add_portfolio_video(
+    portfolio_id: str,
+    video_url: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a video to an existing portfolio."""
+    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if p.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    # Determine sort order
+    max_order = db.query(PortfolioVideo).filter(
+        PortfolioVideo.portfolio_id == portfolio_id
+    ).count()
+
+    # Extract thumbnail
+    thumbnail_url = None
+    if video_url.startswith("/uploads/"):
+        file_path = str(UPLOAD_DIR / video_url.removeprefix("/uploads/"))
+        thumbnail_url = extract_thumbnail(file_path)
+
+    video = PortfolioVideo(
+        id=f"pv{uuid.uuid4().hex[:8]}",
+        portfolio_id=portfolio_id,
+        video_url=video_url,
+        thumbnail_url=thumbnail_url,
+        sort_order=max_order,
+    )
+    db.add(video)
+    db.commit()
+    db.refresh(video)
+
+    return {
+        "id": video.id,
+        "portfolio_id": video.portfolio_id,
+        "video_url": video.video_url,
+        "thumbnail_url": video.thumbnail_url,
+        "sort_order": video.sort_order,
+        "created_at": video.created_at,
+    }
+
+
+@router.delete("/{portfolio_id}/videos/{video_id}")
+async def delete_portfolio_video(
+    portfolio_id: str,
+    video_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if p.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    video = db.query(PortfolioVideo).filter(
+        PortfolioVideo.id == video_id,
+        PortfolioVideo.portfolio_id == portfolio_id
+    ).first()
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    db.delete(video)
+    db.commit()
+
+    await emit_data_changed([p.student_id], "portfolios")
+    return {"message": "Video deleted"}

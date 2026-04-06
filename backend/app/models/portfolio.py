@@ -32,6 +32,21 @@ class Portfolio(Base):
     # Relationships
     student = relationship("User", back_populates="portfolios")
     comments = relationship("PortfolioComment", back_populates="portfolio", cascade="all, delete-orphan")
+    videos = relationship("PortfolioVideo", back_populates="portfolio", cascade="all, delete-orphan", order_by="PortfolioVideo.sort_order")
+
+
+class PortfolioVideo(Base):
+    __tablename__ = "portfolio_videos"
+
+    id = Column(String, primary_key=True, index=True)
+    portfolio_id = Column(String, ForeignKey("portfolios.id"), nullable=False, index=True)
+    video_url = Column(String, nullable=False)
+    thumbnail_url = Column(String, nullable=True)
+    sort_order = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    portfolio = relationship("Portfolio", back_populates="videos")
 
 
 class PortfolioComment(Base):
