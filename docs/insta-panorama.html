@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#000;display:flex;justify-content:center;padding:20px;overflow-x:auto}
+
+/* Full panorama canvas */
+.panorama{width:3240px;height:1350px;background:linear-gradient(135deg,#1e293b 0%,#0f172a 40%,#1a1033 60%,#1e293b 80%,#2d1f0e 100%);position:relative;overflow:hidden;display:flex}
+
+/* Background decorations spanning full width */
+.bg-circle{position:absolute;border-radius:50%;pointer-events:none}
+.bg1{width:600px;height:600px;background:radial-gradient(circle,rgba(251,191,36,0.12),transparent 70%);top:-100px;left:-100px}
+.bg2{width:500px;height:500px;background:radial-gradient(circle,rgba(139,92,246,0.1),transparent 70%);top:400px;left:800px}
+.bg3{width:700px;height:700px;background:radial-gradient(circle,rgba(251,191,36,0.08),transparent 70%);top:-200px;right:200px}
+.bg4{width:400px;height:400px;background:radial-gradient(circle,rgba(236,72,153,0.08),transparent 70%);bottom:-50px;left:1400px}
+.bg5{width:500px;height:500px;background:radial-gradient(circle,rgba(34,197,94,0.06),transparent 70%);bottom:100px;right:-100px}
+
+/* Subtle grid line */
+.grid-line{position:absolute;top:0;bottom:0;width:1px;background:rgba(255,255,255,0.03)}
+
+/* Panel = each 1080px section */
+.panel{width:1080px;height:1350px;position:relative;z-index:1;display:flex;flex-direction:column;padding:60px}
+
+/* Common styles */
+.section-badge{display:inline-block;font-size:14px;font-weight:700;letter-spacing:3px;padding:6px 18px;border-radius:20px;margin-bottom:20px}
+.badge-gold{background:rgba(251,191,36,0.2);color:#fbbf24}
+.badge-violet{background:rgba(139,92,246,0.2);color:#a78bfa}
+.badge-green{background:rgba(34,197,94,0.2);color:#4ade80}
+
+h2{color:#fff;font-size:36px;font-weight:900;line-height:1.3;margin-bottom:12px}
+h2 .acc{color:#fbbf24}
+h2 .acc-v{color:#a78bfa}
+h2 .acc-g{color:#4ade80}
+.desc{font-size:16px;color:rgba(255,255,255,0.5);line-height:1.7;margin-bottom:16px;max-width:400px}
+.tags{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:24px}
+.tag{font-size:12px;font-weight:700;padding:5px 14px;border-radius:8px}
+.t-a{background:rgba(251,191,36,0.15);color:#fbbf24}
+.t-v{background:rgba(139,92,246,0.15);color:#a78bfa}
+.t-g{background:rgba(34,197,94,0.15);color:#4ade80}
+.t-b{background:rgba(59,130,246,0.15);color:#60a5fa}
+.t-p{background:rgba(236,72,153,0.15);color:#f472b6}
+
+/* Phone mockup */
+.phone{background:#0a0a0a;border-radius:40px;padding:10px;box-shadow:0 25px 60px rgba(0,0,0,0.5),0 0 0 1px rgba(255,255,255,0.05);flex-shrink:0}
+.phone-in{width:100%;height:100%;background:#fff;border-radius:32px;overflow:hidden;display:flex;flex-direction:column}
+.ph-status{height:28px;display:flex;align-items:center;justify-content:center}
+.ph-notch{width:80px;height:6px;background:#0a0a0a;border-radius:3px}
+.ph-content{flex:1;overflow:hidden;font-size:10px}
+.ph-nav{height:36px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-around;font-size:8px;color:#94a3b8;font-weight:700}
+.ph-nav .on{color:#f59e0b}
+
+/* ===== SCREEN: Dashboard ===== */
+.sd{padding:12px;background:#f8fafc;height:100%}
+.sd .gr{font-size:15px;font-weight:900;color:#1e293b;margin-bottom:10px}
+.sd .gr span{color:#f59e0b}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.sc{background:#fff;border-radius:12px;padding:10px;border:1px solid #e2e8f0}
+.sc .si{width:26px;height:26px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px;margin-bottom:4px}
+.sc .sv{font-size:20px;font-weight:900;color:#1e293b}
+.sc .sl{font-size:9px;color:#94a3b8}
+.dd{background:linear-gradient(135deg,#fbbf24,#ec4899);border-radius:12px;padding:10px;color:#fff}
+.dd .sv,.dd .sl{color:#fff}
+.dd .sl{opacity:0.8}
+.qb{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px}
+.qi{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px;display:flex;align-items:center;gap:7px}
+.qi .ic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px}
+.qi span{font-size:10px;font-weight:700;color:#334155}
+.ts{background:#fff;border-radius:12px;padding:10px;border:1px solid #e2e8f0}
+.ts .tt{font-size:10px;font-weight:700;color:#334155;margin-bottom:6px}
+.li{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f1f5f9}
+.li .lt{font-size:9px;font-weight:700;color:#f59e0b;background:#fef3c7;padding:2px 6px;border-radius:4px}
+.li .ln{font-size:10px;font-weight:700;color:#334155;flex:1}
+.li .lb{font-size:8px;font-weight:700;padding:2px 6px;border-radius:4px;background:#fef3c7;color:#92400e}
+
+/* ===== SCREEN: Portfolio ===== */
+.sp{padding:12px;background:#f8fafc;height:100%}
+.sp .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.sp .hdr h4{font-size:14px;font-weight:900;color:#1e293b}
+.pb{font-size:8px;font-weight:700;background:#f59e0b;color:#fff;padding:4px 10px;border-radius:8px;border:none}
+.pg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pc{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0}
+.pt{height:65px;display:flex;align-items:center;justify-content:center}
+.pt.c1{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.pt.c2{background:linear-gradient(135deg,#ede9fe,#ddd6fe)}
+.pt.c3{background:linear-gradient(135deg,#dbeafe,#bfdbfe)}
+.pt.c4{background:linear-gradient(135deg,#dcfce7,#bbf7d0)}
+.pp{width:20px;height:20px;background:rgba(0,0,0,0.35);border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px}
+.pi{padding:6px}
+.pi .tl{font-size:9px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pi .mt{font-size:7px;color:#94a3b8;margin-top:1px}
+
+/* ===== SCREEN: Chat ===== */
+.sch{display:flex;flex-direction:column;height:100%;background:#f8fafc}
+.sch .ch{padding:10px;background:#fff;border-bottom:1px solid #e2e8f0}
+.sch .ch h4{font-size:12px;font-weight:900;color:#1e293b}
+.sch .ch span{font-size:8px;color:#94a3b8}
+.cb{flex:1;padding:10px;display:flex;flex-direction:column;gap:7px;overflow:hidden}
+.m{max-width:78%;display:flex;flex-direction:column}
+.m.s{align-self:flex-end}
+.m.r{align-self:flex-start}
+.mb{padding:7px 10px;border-radius:12px;font-size:9px;line-height:1.5}
+.m.s .mb{background:#f59e0b;color:#fff;border-bottom-right-radius:3px}
+.m.r .mb{background:#fff;color:#334155;border:1px solid #e2e8f0;border-bottom-left-radius:3px}
+.mm{font-size:7px;color:#94a3b8;margin-top:1px}
+.m.s .mm{text-align:right}
+.cinp{padding:8px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:5px}
+.cinp input{flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:9px;outline:none}
+.cinp button{background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:9px;font-weight:700}
+
+/* ===== SCREEN: Diet/Weight ===== */
+.sdt{padding:12px;background:#f8fafc;height:100%}
+.dtab{display:flex;background:#e2e8f0;border-radius:10px;padding:2px;margin-bottom:10px}
+.dtab div{flex:1;text-align:center;font-size:9px;font-weight:700;padding:6px;border-radius:8px;color:#64748b}
+.dtab .av{background:#8b5cf6;color:#fff}
+.wch{background:#fff;border-radius:12px;padding:10px;border:1px solid #e2e8f0;margin-bottom:8px}
+.wv{text-align:center;font-size:20px;font-weight:900;color:#8b5cf6;margin-bottom:2px}
+.wd{text-align:center;font-size:9px;color:#64748b}
+.wd .dn{color:#22c55e;font-weight:700}
+.ca{height:70px;margin:8px 0}
+.ca svg{width:100%;height:100%}
+.ir{display:flex;gap:5px;margin-top:8px}
+.irc{flex:1;background:#fff;border-radius:8px;padding:6px;border:1px solid #e2e8f0;text-align:center}
+.irc .v{font-size:13px;font-weight:900}
+.irc .l{font-size:7px;color:#94a3b8;margin-top:1px}
+.vo{color:#f97316}.vb{color:#3b82f6}.vr{color:#ef4444}
+
+/* Bottom bar spanning all 3 panels */
+.bottom-bar{position:absolute;bottom:0;left:0;right:0;height:120px;background:linear-gradient(90deg,rgba(251,191,36,0.15),rgba(139,92,246,0.1),rgba(251,191,36,0.15));backdrop-filter:blur(20px);display:flex;align-items:center;justify-content:center;gap:60px;z-index:10;border-top:1px solid rgba(255,255,255,0.05)}
+.bottom-bar h3{font-size:28px;font-weight:900;color:#fff}
+.bottom-bar .tel{font-size:24px;font-weight:900;color:#fbbf24}
+.bottom-bar .note{font-size:14px;color:rgba(255,255,255,0.4)}
+.qr-wrap{background:#fff;border-radius:14px;padding:10px;box-shadow:0 10px 30px rgba(0,0,0,0.3)}
+.qr-wrap img{width:80px;height:80px;display:block}
+.qr-label{text-align:center;font-size:10px;color:#64748b;margin-top:4px;font-weight:700}
+
+/* Layout helpers */
+.flex-center{display:flex;align-items:center;justify-content:center}
+.panel-content{flex:1;display:flex;flex-direction:column;justify-content:center;padding-bottom:120px}
+.row{display:flex;gap:32px;align-items:center}
+.row.rev{flex-direction:row-reverse}
+.text-block{flex:1}
+</style>
+</head>
+<body>
+
+<div class="panorama">
+  <!-- Background decorations -->
+  <div class="bg-circle bg1"></div>
+  <div class="bg-circle bg2"></div>
+  <div class="bg-circle bg3"></div>
+  <div class="bg-circle bg4"></div>
+  <div class="bg-circle bg5"></div>
+  <div class="grid-line" style="left:1080px"></div>
+  <div class="grid-line" style="left:2160px"></div>
+
+  <!-- ===== PANEL 1: Intro + Dashboard ===== -->
+  <div class="panel">
+    <div class="panel-content">
+      <div class="section-badge badge-gold">SMART ACADEMY</div>
+      <h2>쏠연기뮤지컬학원<br><span class="acc">전용 학습 관리 앱</span></h2>
+      <p class="desc">수업 · 연습영상 · 과제 · 식단 · 소통까지<br>스마트폰 하나로 한눈에 관리하세요</p>
+      <div class="tags">
+        <span class="tag t-a">수업 관리</span>
+        <span class="tag t-v">연습 영상</span>
+        <span class="tag t-g">식단 관리</span>
+        <span class="tag t-p">실시간 소통</span>
+      </div>
+      <div style="margin-top:20px">
+        <div class="phone" style="width:320px;height:600px">
+          <div class="phone-in">
+            <div class="ph-status"><div class="ph-notch"></div></div>
+            <div class="ph-content">
+              <div class="sd">
+                <div class="gr">안녕하세요, <span>김서준</span>님!</div>
+                <div class="sg">
+                  <div class="sc"><div class="si" style="background:#ede9fe">📅</div><div class="sv">2</div><div class="sl">오늘 수업</div></div>
+                  <div class="sc"><div class="si" style="background:#dbeafe">📋</div><div class="sv">1</div><div class="sl">진행 중 과제</div></div>
+                  <div class="sc"><div class="si" style="background:#dcfce7">🍽</div><div class="sv">580</div><div class="sl">오늘 칼로리</div></div>
+                  <div class="dd"><div class="sv">D-12</div><div class="sl">서울예고 입시</div></div>
+                </div>
+                <div class="qb">
+                  <div class="qi"><div class="ic" style="background:#fce7f3">🎬</div><span>연습영상 올리기</span></div>
+                  <div class="qi"><div class="ic" style="background:#fef3c7">📝</div><span>연습일지 쓰기</span></div>
+                </div>
+                <div class="ts">
+                  <div class="tt">오늘의 수업</div>
+                  <div class="li"><span class="lt">18:00</span><span class="ln">입시A반 · 연기</span><span class="lb">예정</span></div>
+                  <div class="li"><span class="lt">20:00</span><span class="ln">입시A반 · 뮤지컬</span><span class="lb">예정</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="ph-nav"><span class="on">홈</span><span>수업</span><span>과제</span><span>성장</span><span>소통</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PANEL 2: Portfolio + Chat ===== -->
+  <div class="panel">
+    <div class="panel-content">
+      <div class="row" style="margin-bottom:40px">
+        <div class="phone" style="width:260px;height:490px">
+          <div class="phone-in">
+            <div class="ph-status"><div class="ph-notch"></div></div>
+            <div class="ph-content">
+              <div class="sp">
+                <div class="hdr"><h4>포트폴리오</h4><button class="pb">+ 영상</button></div>
+                <div class="pg">
+                  <div class="pc"><div class="pt c1"><div class="pp">▶</div></div><div class="pi"><div class="tl">햄릿 독백 연습</div><div class="mt">4/5 · 2:34</div></div></div>
+                  <div class="pc"><div class="pt c2"><div class="pp">▶</div></div><div class="pi"><div class="tl">뮤지컬 넘버</div><div class="mt">4/4 · 3:12</div></div></div>
+                  <div class="pc"><div class="pt c3"><div class="pp">▶</div></div><div class="pi"><div class="tl">기본기 호흡</div><div class="mt">4/3 · 1:45</div></div></div>
+                  <div class="pc"><div class="pt c4"><div class="pp">▶</div></div><div class="pi"><div class="tl">즉흥연기</div><div class="mt">4/2 · 4:20</div></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="ph-nav"><span>홈</span><span>수업</span><span>과제</span><span class="on">성장</span><span>소통</span></div>
+          </div>
+        </div>
+        <div class="text-block">
+          <div class="section-badge badge-violet">PORTFOLIO</div>
+          <h2><span class="acc-v">연습 영상</span>을<br>체계적으로</h2>
+          <p class="desc">촬영 후 바로 업로드. 선생님이 타임스탬프로 정확한 피드백을 남깁니다.</p>
+          <div class="tags"><span class="tag t-a">영상 업로드</span><span class="tag t-v">피드백</span><span class="tag t-b">시리즈</span></div>
+        </div>
+      </div>
+
+      <div class="row rev">
+        <div class="phone" style="width:260px;height:490px">
+          <div class="phone-in">
+            <div class="ph-status"><div class="ph-notch"></div></div>
+            <div class="ph-content">
+              <div class="sch">
+                <div class="ch"><h4>고등입시A반</h4><span>6명 참여 중</span></div>
+                <div class="cb">
+                  <div class="m r"><div class="mb"><b>김세희 선생님</b><br>내일 수업 장소 변경!</div><div class="mm">3:24</div></div>
+                  <div class="m s"><div class="mb">네 알겠습니다!</div><div class="mm">3:25</div></div>
+                  <div class="m r"><div class="mb"><b>박민지</b><br>과제 영상 올렸어요~</div><div class="mm">4:10</div></div>
+                  <div class="m s"><div class="mb">저도 올렸습니다 :)</div><div class="mm">4:15</div></div>
+                </div>
+                <div class="cinp"><input placeholder="메시지 입력..." /><button>전송</button></div>
+              </div>
+            </div>
+            <div class="ph-nav"><span>홈</span><span>수업</span><span>과제</span><span>성장</span><span class="on">소통</span></div>
+          </div>
+        </div>
+        <div class="text-block">
+          <div class="section-badge badge-gold">COMMUNICATION</div>
+          <h2>클래스별<br><span class="acc">실시간 소통</span></h2>
+          <p class="desc">채팅으로 바로 소통. 앱을 닫아도 푸시 알림으로 놓치지 않습니다.</p>
+          <div class="tags"><span class="tag t-a">채팅</span><span class="tag t-p">푸시 알림</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== PANEL 3: Diet/Weight + CTA ===== -->
+  <div class="panel">
+    <div class="panel-content">
+      <div class="row" style="margin-bottom:40px">
+        <div class="phone" style="width:260px;height:490px">
+          <div class="phone-in">
+            <div class="ph-status"><div class="ph-notch"></div></div>
+            <div class="ph-content">
+              <div class="sdt">
+                <div class="dtab"><div>식단</div><div class="av">체중·인바디</div></div>
+                <div class="wch">
+                  <div class="wv">54.2 kg</div>
+                  <div class="wd">-1.8kg <span class="dn">↓</span> (30일)</div>
+                  <div class="ca">
+                    <svg viewBox="0 0 200 60" preserveAspectRatio="none">
+                      <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.3"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/></linearGradient></defs>
+                      <path d="M0,40 Q30,45 60,35 T120,28 T200,15 V60 H0Z" fill="url(#g)"/>
+                      <polyline points="0,40 30,43 60,35 90,32 120,28 150,22 180,18 200,15" fill="none" stroke="#8b5cf6" stroke-width="2"/>
+                      <circle cx="0" cy="40" r="2.5" fill="#8b5cf6"/><circle cx="60" cy="35" r="2.5" fill="#8b5cf6"/><circle cx="120" cy="28" r="2.5" fill="#8b5cf6"/><circle cx="200" cy="15" r="2.5" fill="#8b5cf6"/>
+                    </svg>
+                  </div>
+                </div>
+                <div class="ir">
+                  <div class="irc"><div class="v vo">18.5%</div><div class="l">체지방률</div></div>
+                  <div class="irc"><div class="v vb">25.3kg</div><div class="l">근육량</div></div>
+                  <div class="irc"><div class="v vr">Lv.4</div><div class="l">내장지방</div></div>
+                </div>
+              </div>
+            </div>
+            <div class="ph-nav"><span>홈</span><span>수업</span><span>과제</span><span class="on">식단</span><span>소통</span></div>
+          </div>
+        </div>
+        <div class="text-block">
+          <div class="section-badge badge-green">HEALTH</div>
+          <h2><span class="acc-g">식단 · 체중</span><br>인바디 관리</h2>
+          <p class="desc">매일 식단 기록, 체중 그래프, 인바디 수치까지. 입시생의 체력 관리를 완벽하게.</p>
+          <div class="tags"><span class="tag t-g">식단</span><span class="tag t-v">체중 그래프</span><span class="tag t-b">인바디</span></div>
+        </div>
+      </div>
+
+      <!-- CTA area -->
+      <div style="text-align:center;margin-top:auto;padding-bottom:140px">
+        <div style="display:inline-block;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:24px;padding:30px 40px">
+          <div class="qr-wrap" style="margin:0 auto 12px">
+            <img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://sol-manager.com" alt="QR" />
+          </div>
+          <div class="qr-label">sol-manager.com</div>
+          <p style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:8px">QR코드를 스캔하여 접속하세요</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom bar spanning all 3 panels -->
+  <div class="bottom-bar">
+    <div>
+      <h3>쏠연기뮤지컬학원</h3>
+      <div class="note">본원 수강생 전용 서비스</div>
+    </div>
+    <div class="tel">010-7625-3047</div>
+    <div class="note">앱 설치 없이 · 홈 화면에 추가하면 앱처럼 사용</div>
+  </div>
+</div>
+
+</body>
+</html>

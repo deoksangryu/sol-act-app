@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#000;display:flex;gap:40px;flex-wrap:wrap;justify-content:center;padding:20px}
+
+/* Each feature card */
+.card{width:1080px;height:1350px;position:relative;overflow:hidden;flex-shrink:0}
+
+/* Shared styles */
+.card-bg{position:absolute;inset:0;background:#08070b}
+.card-glow{position:absolute;border-radius:50%;pointer-events:none}
+.card-strip{position:absolute;height:2px;width:1200px;transform:rotate(-6deg);z-index:1}
+
+.card-inner{position:relative;z-index:2;height:100%;display:flex;flex-direction:column;padding:80px 70px}
+
+.card-number{font-size:14px;font-weight:700;letter-spacing:4px;margin-bottom:20px}
+.card-title{font-size:48px;font-weight:900;color:#fff;line-height:1.15;margin-bottom:12px}
+.card-title em{font-style:normal}
+.card-desc{font-size:20px;color:rgba(255,255,255,0.4);line-height:1.7;margin-bottom:32px;max-width:500px}
+
+.card-tags{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:40px}
+.ctag{font-size:14px;font-weight:700;padding:8px 20px;border-radius:14px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.6)}
+
+/* Phone */
+.phone{background:#0c0c0c;border-radius:44px;padding:8px;box-shadow:0 40px 100px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.04)}
+.pin{width:100%;height:100%;background:#fff;border-radius:38px;overflow:hidden;display:flex;flex-direction:column}
+.pst{height:28px;display:flex;align-items:center;justify-content:center}
+.pnt{width:74px;height:5px;background:#0c0c0c;border-radius:3px}
+.pct{flex:1;overflow:hidden}
+.pnv{height:36px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-around;font-size:9px;color:#94a3b8;font-weight:700}
+.pnv .on{color:#f59e0b}
+
+.card-footer{margin-top:auto;display:flex;align-items:center;gap:12px}
+.card-footer .logo{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:#fff}
+.card-footer span{font-size:14px;color:rgba(255,255,255,0.25);font-weight:700}
+
+/* Layout variants */
+.layout-right{flex-direction:column}
+.layout-right .card-body{display:flex;gap:40px;align-items:center;flex:1}
+.layout-right .card-text{flex:1}
+.layout-right .card-phone{flex-shrink:0}
+
+.layout-center .card-body{display:flex;flex-direction:column;align-items:center;text-align:center;flex:1}
+.layout-center .card-text{display:flex;flex-direction:column;align-items:center}
+.layout-center .card-desc{max-width:600px}
+
+/* ===== SCREEN STYLES ===== */
+/* Lessons */
+.sl{padding:14px;background:#f8fafc;height:100%;font-size:11px}
+.sl h4{font-size:16px;font-weight:900;color:#1e293b;margin-bottom:10px}
+.cal{background:#fff;border-radius:14px;padding:12px;border:1px solid #e2e8f0;margin-bottom:10px}
+.cal-m{font-size:12px;font-weight:700;text-align:center;margin-bottom:8px;color:#334155}
+.cal-g{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.cal-d{font-size:8px;color:#94a3b8;font-weight:700;padding:3px 0}
+.cal-c{font-size:9px;padding:5px 0;color:#475569;border-radius:5px;position:relative}
+.cal-c.today{background:#f59e0b;color:#fff;font-weight:900;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;margin:0 auto}
+.cal-c.dot::after{content:'';width:3px;height:3px;background:#f59e0b;border-radius:50%;position:absolute;bottom:1px;left:50%;transform:translateX(-50%)}
+.lc{background:#fff;border-radius:12px;padding:10px;border:1px solid #e2e8f0;margin-bottom:6px}
+.lc .t{font-size:10px;font-weight:700;color:#f59e0b;margin-bottom:2px}
+.lc .n{font-size:12px;font-weight:700;color:#1e293b}
+.lc .s{font-size:9px;color:#94a3b8}
+.att{display:flex;gap:6px;margin-top:8px}
+.att-item{flex:1;background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0;text-align:center}
+.att-item .av{font-size:14px;font-weight:900}
+.att-item .al{font-size:8px;color:#94a3b8;margin-top:2px}
+.av-g{color:#22c55e}.av-y{color:#f59e0b}.av-r{color:#ef4444}
+
+/* Portfolio */
+.sp{padding:14px;background:#f8fafc;height:100%;font-size:11px}
+.sp .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.sp .hdr h4{font-size:16px;font-weight:900;color:#1e293b}
+.sp-btn{font-size:9px;font-weight:700;background:#f59e0b;color:#fff;padding:5px 12px;border-radius:8px;border:none}
+.pg{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pc{background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2e8f0}
+.pth{height:80px;display:flex;align-items:center;justify-content:center}
+.pth.c1{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.pth.c2{background:linear-gradient(135deg,#ede9fe,#ddd6fe)}
+.pth.c3{background:linear-gradient(135deg,#dbeafe,#bfdbfe)}
+.pth.c4{background:linear-gradient(135deg,#dcfce7,#bbf7d0)}
+.ppl{width:24px;height:24px;background:rgba(0,0,0,0.3);border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px}
+.pfi{padding:8px}
+.pfi .tl{font-size:10px;font-weight:700;color:#334155}
+.pfi .mt{font-size:8px;color:#94a3b8;margin-top:1px}
+/* Comment with timestamp */
+.cmt{background:#fff;border-radius:12px;padding:10px;border:1px solid #e2e8f0;margin-top:8px}
+.cmt .ch{font-size:10px;font-weight:700;color:#334155;margin-bottom:4px}
+.cmt .cb{display:flex;align-items:start;gap:6px}
+.cmt .ts{font-size:9px;font-weight:700;color:#f59e0b;background:#fef3c7;padding:2px 6px;border-radius:4px;white-space:nowrap}
+.cmt .ct{font-size:10px;color:#64748b}
+
+/* Assignment */
+.sa{padding:14px;background:#f8fafc;height:100%;font-size:11px}
+.sa h4{font-size:16px;font-weight:900;color:#1e293b;margin-bottom:10px}
+.acard{background:#fff;border-radius:12px;padding:12px;border:1px solid #e2e8f0;margin-bottom:8px}
+.acard .at{font-size:12px;font-weight:700;color:#1e293b;margin-bottom:4px}
+.acard .ad{font-size:10px;color:#64748b;margin-bottom:6px;line-height:1.5}
+.acard .af{display:flex;justify-content:space-between;align-items:center}
+.acard .adate{font-size:9px;color:#94a3b8}
+.abadge{font-size:8px;font-weight:700;padding:3px 8px;border-radius:6px}
+.ab-pending{background:#fef3c7;color:#92400e}
+.ab-done{background:#dcfce7;color:#166534}
+.ab-graded{background:#ede9fe;color:#5b21b6}
+.agrade{display:flex;gap:6px;margin-top:8px}
+.ag-item{flex:1;background:#fff;border-radius:10px;padding:10px;border:1px solid #e2e8f0;text-align:center}
+.ag-item .gv{font-size:20px;font-weight:900;color:#8b5cf6}
+.ag-item .gl{font-size:8px;color:#94a3b8;margin-top:2px}
+
+/* Diet */
+.sdi{padding:14px;background:#f8fafc;height:100%;font-size:11px}
+.dtabs{display:flex;background:#e2e8f0;border-radius:12px;padding:2px;margin-bottom:12px}
+.dtab{flex:1;text-align:center;font-size:10px;font-weight:700;padding:8px;border-radius:10px;color:#64748b}
+.dtab.ag{background:#22c55e;color:#fff}
+.dtab.av{background:#8b5cf6;color:#fff}
+.wbox{background:#fff;border-radius:14px;padding:12px;border:1px solid #e2e8f0;margin-bottom:10px}
+.wbox .wv{text-align:center;font-size:24px;font-weight:900;color:#8b5cf6}
+.wbox .wd{text-align:center;font-size:10px;color:#64748b;margin-top:2px}
+.wbox .wd .dn{color:#22c55e;font-weight:700}
+.wsvg{height:80px;margin:8px 0}
+.wsvg svg{width:100%;height:100%}
+.ibr{display:flex;gap:6px;margin-top:8px}
+.ibc{flex:1;background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0;text-align:center}
+.ibc .iv{font-size:16px;font-weight:900}
+.ibc .il{font-size:8px;color:#94a3b8;margin-top:2px}
+.iv-o{color:#f97316}.iv-b{color:#3b82f6}.iv-r{color:#ef4444}
+/* Meal card */
+.meal{background:#fff;border-radius:12px;padding:10px;border:1px solid #e2e8f0;margin-bottom:6px;display:flex;gap:10px}
+.meal-img{width:60px;height:60px;border-radius:10px;background:linear-gradient(135deg,#dcfce7,#bbf7d0);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0}
+.meal-info{flex:1}
+.meal-type{font-size:8px;font-weight:700;color:#22c55e;background:#dcfce7;padding:2px 6px;border-radius:4px;display:inline-block;margin-bottom:3px}
+.meal-desc{font-size:10px;color:#334155;font-weight:700;margin-bottom:2px}
+.meal-cal{font-size:9px;color:#94a3b8}
+
+/* Chat */
+.sch{display:flex;flex-direction:column;height:100%;background:#f8fafc;font-size:11px}
+.sch .chh{padding:12px 14px;background:#fff;border-bottom:1px solid #e2e8f0}
+.sch .chh h4{font-size:14px;font-weight:900;color:#1e293b}
+.sch .chh span{font-size:9px;color:#94a3b8}
+.sch .chb{flex:1;padding:12px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.mg{max-width:78%;display:flex;flex-direction:column}
+.mg.s{align-self:flex-end}.mg.r{align-self:flex-start}
+.mbb{padding:8px 12px;border-radius:14px;font-size:11px;line-height:1.5}
+.mg.s .mbb{background:#f59e0b;color:#fff;border-bottom-right-radius:4px}
+.mg.r .mbb{background:#fff;color:#334155;border:1px solid #e2e8f0;border-bottom-left-radius:4px}
+.mmt{font-size:8px;color:#94a3b8;margin-top:2px}.mg.s .mmt{text-align:right}
+.sch .chi{padding:8px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:6px}
+.sch .chi input{flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;font-size:10px;outline:none}
+.sch .chi button{background:#f59e0b;color:#fff;border:none;border-radius:10px;padding:8px 14px;font-size:10px;font-weight:700}
+/* Push notification mockup */
+.push-notif{background:#fff;border-radius:16px;padding:12px 16px;border:1px solid #e2e8f0;box-shadow:0 4px 20px rgba(0,0,0,0.08);display:flex;align-items:center;gap:10px;margin-top:10px}
+.push-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.push-text{flex:1}
+.push-text .pt{font-size:10px;font-weight:700;color:#334155}
+.push-text .pb{font-size:9px;color:#94a3b8;margin-top:1px}
+.push-time{font-size:8px;color:#c4c4c4}
+
+/* Journal */
+.sj{padding:14px;background:#f8fafc;height:100%;font-size:11px}
+.sj h4{font-size:16px;font-weight:900;color:#1e293b;margin-bottom:10px}
+.sj-btn{font-size:9px;font-weight:700;background:#8b5cf6;color:#fff;padding:5px 12px;border-radius:8px;border:none}
+.jcard{background:#fff;border-radius:12px;padding:12px;border:1px solid #e2e8f0;margin-bottom:8px}
+.jcard .jt{font-size:12px;font-weight:700;color:#1e293b;margin-bottom:4px}
+.jcard .jc{font-size:10px;color:#64748b;line-height:1.6;margin-bottom:6px}
+.jcard .jm{font-size:9px;color:#94a3b8}
+.jcard .jimg{width:100%;height:80px;border-radius:8px;margin-top:6px;object-fit:cover;background:linear-gradient(135deg,#fef3c7,#ede9fe);display:flex;align-items:center;justify-content:center;font-size:24px;color:#94a3b8}
+</style>
+</head>
+<body>
+
+<!-- ===== 1. 수업 관리 ===== -->
+<div class="card">
+  <div class="card-bg"></div>
+  <div class="card-glow" style="width:800px;height:800px;top:-200px;right:-200px;background:radial-gradient(circle,rgba(251,191,36,0.15),transparent 60%)"></div>
+  <div class="card-strip" style="top:500px;left:-50px;background:linear-gradient(90deg,transparent,rgba(251,191,36,0.3),transparent)"></div>
+  <div class="card-inner layout-right">
+    <div class="card-body">
+      <div class="card-text">
+        <div class="card-number" style="color:#fbbf24">01 — LESSONS</div>
+        <div class="card-title"><em style="color:#fbbf24">수업 관리</em></div>
+        <div class="card-desc">캘린더로 수업 일정 확인, 출석 체크, 수업일지 작성까지 한곳에서</div>
+        <div class="card-tags">
+          <span class="ctag">📅 캘린더</span>
+          <span class="ctag">✅ 출석 관리</span>
+          <span class="ctag">📝 수업일지</span>
+        </div>
+      </div>
+      <div class="card-phone">
+        <div class="phone" style="width:380px;height:720px">
+          <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+            <div class="sl">
+              <h4>수업</h4>
+              <div class="cal">
+                <div class="cal-m">2026년 4월</div>
+                <div class="cal-g">
+                  <div class="cal-d">일</div><div class="cal-d">월</div><div class="cal-d">화</div><div class="cal-d">수</div><div class="cal-d">목</div><div class="cal-d">금</div><div class="cal-d">토</div>
+                  <div class="cal-c"></div><div class="cal-c"></div><div class="cal-c">1</div><div class="cal-c dot">2</div><div class="cal-c dot">3</div><div class="cal-c dot">4</div><div class="cal-c dot">5</div>
+                  <div class="cal-c">6</div><div class="cal-c today">7</div><div class="cal-c dot">8</div><div class="cal-c">9</div><div class="cal-c dot">10</div><div class="cal-c dot">11</div><div class="cal-c dot">12</div>
+                </div>
+              </div>
+              <div class="lc"><div class="t">18:00 - 20:00</div><div class="n">고등입시A반 · 연기</div><div class="s">산곡점 · 김세희 선생님</div></div>
+              <div class="lc"><div class="t">20:00 - 22:00</div><div class="n">고등입시A반 · 뮤지컬</div><div class="s">작전점 · 박진혁 선생님</div></div>
+              <div class="att">
+                <div class="att-item"><div class="av av-g">출석</div><div class="al">12회</div></div>
+                <div class="att-item"><div class="av av-y">지각</div><div class="al">1회</div></div>
+                <div class="att-item"><div class="av av-r">결석</div><div class="al">0회</div></div>
+              </div>
+            </div>
+          </div><div class="pnv"><span>홈</span><span class="on">수업</span><span>과제</span><span>성장</span><span>소통</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer"><div class="logo">S</div><span>SOL-ACT · 쏠연기뮤지컬학원</span></div>
+  </div>
+</div>
+
+<!-- ===== 2. 연습 영상 ===== -->
+<div class="card">
+  <div class="card-bg"></div>
+  <div class="card-glow" style="width:700px;height:700px;bottom:-200px;left:-100px;background:radial-gradient(circle,rgba(139,92,246,0.15),transparent 60%)"></div>
+  <div class="card-strip" style="top:600px;left:-50px;background:linear-gradient(90deg,transparent,rgba(139,92,246,0.25),transparent)"></div>
+  <div class="card-inner layout-right">
+    <div class="card-body">
+      <div class="card-phone">
+        <div class="phone" style="width:380px;height:720px">
+          <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+            <div class="sp">
+              <div class="hdr"><h4>포트폴리오</h4><button class="sp-btn">+ 영상 올리기</button></div>
+              <div class="pg">
+                <div class="pc"><div class="pth c1"><div class="ppl">▶</div></div><div class="pfi"><div class="tl">햄릿 독백 연습</div><div class="mt">4/5 · 2:34</div></div></div>
+                <div class="pc"><div class="pth c2"><div class="ppl">▶</div></div><div class="pfi"><div class="tl">뮤지컬 넘버</div><div class="mt">4/4 · 3:12</div></div></div>
+                <div class="pc"><div class="pth c3"><div class="ppl">▶</div></div><div class="pfi"><div class="tl">기본기 호흡 훈련</div><div class="mt">4/3 · 1:45</div></div></div>
+                <div class="pc"><div class="pth c4"><div class="ppl">▶</div></div><div class="pfi"><div class="tl">즉흥연기 연습</div><div class="mt">4/2 · 4:20</div></div></div>
+              </div>
+              <div class="cmt">
+                <div class="ch">김세희 선생님의 피드백</div>
+                <div class="cb"><span class="ts">1:23</span><span class="ct">이 부분에서 감정선이 좋아요! 호흡을 더 깊게 가져가보세요.</span></div>
+              </div>
+            </div>
+          </div><div class="pnv"><span>홈</span><span>수업</span><span>과제</span><span class="on">성장</span><span>소통</span></div></div>
+        </div>
+      </div>
+      <div class="card-text">
+        <div class="card-number" style="color:#a78bfa">02 — PORTFOLIO</div>
+        <div class="card-title"><em style="color:#a78bfa">연습 영상</em><br>포트폴리오</div>
+        <div class="card-desc">촬영 후 바로 업로드. 선생님이 영상 타임스탬프에 맞춰 정확한 피드백을 남깁니다.</div>
+        <div class="card-tags">
+          <span class="ctag">🎬 영상 업로드</span>
+          <span class="ctag">⏱ 타임스탬프 피드백</span>
+          <span class="ctag">📂 시리즈 관리</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer"><div class="logo">S</div><span>SOL-ACT · 쏠연기뮤지컬학원</span></div>
+  </div>
+</div>
+
+<!-- ===== 3. 과제 ===== -->
+<div class="card">
+  <div class="card-bg"></div>
+  <div class="card-glow" style="width:700px;height:700px;top:-100px;left:-200px;background:radial-gradient(circle,rgba(59,130,246,0.12),transparent 60%)"></div>
+  <div class="card-strip" style="top:550px;left:-50px;background:linear-gradient(90deg,transparent,rgba(59,130,246,0.25),transparent)"></div>
+  <div class="card-inner layout-right">
+    <div class="card-body">
+      <div class="card-text">
+        <div class="card-number" style="color:#60a5fa">03 — ASSIGNMENTS</div>
+        <div class="card-title"><em style="color:#60a5fa">과제</em> 부여<br>& 채점</div>
+        <div class="card-desc">선생님이 과제를 부여하고, 학생은 영상/파일로 제출. S~D 등급 채점과 상세 피드백까지.</div>
+        <div class="card-tags">
+          <span class="ctag">📋 과제 부여</span>
+          <span class="ctag">📤 파일 제출</span>
+          <span class="ctag">🏆 등급 채점</span>
+        </div>
+      </div>
+      <div class="card-phone">
+        <div class="phone" style="width:380px;height:720px">
+          <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+            <div class="sa">
+              <h4>과제</h4>
+              <div class="acard"><div class="at">셰익스피어 독백 연습</div><div class="ad">햄릿 Act 3, Scene 1의 "To be or not to be" 독백을 준비해 영상으로 제출하세요.</div><div class="af"><span class="adate">마감: 4/10</span><span class="abadge ab-pending">진행 중</span></div></div>
+              <div class="acard"><div class="at">뮤지컬 넘버 분석</div><div class="ad">지정된 뮤지컬 넘버의 캐릭터 분석 보고서를 작성하세요.</div><div class="af"><span class="adate">마감: 4/8</span><span class="abadge ab-done">제출 완료</span></div></div>
+              <div class="acard"><div class="at">기본기 호흡 훈련 영상</div><div class="ad">호흡 훈련 3세트를 촬영하세요.</div><div class="af"><span class="adate">마감: 4/5</span><span class="abadge ab-graded">채점 완료</span></div></div>
+              <div class="agrade">
+                <div class="ag-item"><div class="gv">S</div><div class="gl">등급</div></div>
+                <div class="ag-item"><div class="gv">3</div><div class="gl">제출</div></div>
+                <div class="ag-item"><div class="gv">1</div><div class="gl">진행 중</div></div>
+              </div>
+            </div>
+          </div><div class="pnv"><span>홈</span><span>수업</span><span class="on">과제</span><span>성장</span><span>소통</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer"><div class="logo">S</div><span>SOL-ACT · 쏠연기뮤지컬학원</span></div>
+  </div>
+</div>
+
+<!-- ===== 4. 식단 · 체중 ===== -->
+<div class="card">
+  <div class="card-bg"></div>
+  <div class="card-glow" style="width:800px;height:800px;bottom:-200px;right:-200px;background:radial-gradient(circle,rgba(34,197,94,0.12),transparent 60%)"></div>
+  <div class="card-strip" style="top:520px;left:-50px;background:linear-gradient(90deg,transparent,rgba(34,197,94,0.25),transparent)"></div>
+  <div class="card-inner layout-right">
+    <div class="card-body">
+      <div class="card-phone">
+        <div class="phone" style="width:380px;height:720px">
+          <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+            <div class="sdi">
+              <div class="dtabs"><div class="dtab ag">식단</div><div class="dtab">체중·인바디</div></div>
+              <div class="meal"><div class="meal-img">🍱</div><div class="meal-info"><span class="meal-type">점심</span><div class="meal-desc">닭가슴살 샐러드, 현미밥, 된장국</div><div class="meal-cal">520 kcal · 선생님: 균형 잡힌 식사네요! 👍</div></div></div>
+              <div class="meal"><div class="meal-img">🥗</div><div class="meal-info"><span class="meal-type">저녁</span><div class="meal-desc">연어 포케, 아보카도, 잡곡밥</div><div class="meal-cal">680 kcal</div></div></div>
+              <div class="wbox" style="margin-top:10px">
+                <div class="wv">54.2 kg</div>
+                <div class="wd">-1.8kg <span class="dn">↓</span> (30일)</div>
+                <div class="wsvg"><svg viewBox="0 0 200 60" preserveAspectRatio="none"><defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.3"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/></linearGradient></defs><path d="M0,40 Q30,45 60,35 T120,28 T200,15 V60 H0Z" fill="url(#g1)"/><polyline points="0,40 30,43 60,35 90,32 120,28 150,22 180,18 200,15" fill="none" stroke="#8b5cf6" stroke-width="2"/><circle cx="0" cy="40" r="2.5" fill="#8b5cf6"/><circle cx="60" cy="35" r="2.5" fill="#8b5cf6"/><circle cx="120" cy="28" r="2.5" fill="#8b5cf6"/><circle cx="200" cy="15" r="2.5" fill="#8b5cf6"/></svg></div>
+              </div>
+              <div class="ibr">
+                <div class="ibc"><div class="iv iv-o">18.5%</div><div class="il">체지방률</div></div>
+                <div class="ibc"><div class="iv iv-b">25.3kg</div><div class="il">근육량</div></div>
+                <div class="ibc"><div class="iv iv-r">Lv.4</div><div class="il">내장지방</div></div>
+              </div>
+            </div>
+          </div><div class="pnv"><span>홈</span><span>수업</span><span>과제</span><span class="on">식단</span><span>소통</span></div></div>
+        </div>
+      </div>
+      <div class="card-text">
+        <div class="card-number" style="color:#4ade80">04 — HEALTH</div>
+        <div class="card-title"><em style="color:#4ade80">식단 · 체중</em><br>인바디</div>
+        <div class="card-desc">매일 식단 기록 + 선생님 코멘트. 체중 그래프와 인바디 수치로 체력 관리까지 완벽하게.</div>
+        <div class="card-tags">
+          <span class="ctag">🥗 식단 기록</span>
+          <span class="ctag">📊 체중 그래프</span>
+          <span class="ctag">💪 인바디</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer"><div class="logo">S</div><span>SOL-ACT · 쏠연기뮤지컬학원</span></div>
+  </div>
+</div>
+
+<!-- ===== 5. 실시간 채팅 ===== -->
+<div class="card">
+  <div class="card-bg"></div>
+  <div class="card-glow" style="width:700px;height:700px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(236,72,153,0.1),transparent 60%)"></div>
+  <div class="card-strip" style="top:580px;left:-50px;background:linear-gradient(90deg,transparent,rgba(236,72,153,0.2),transparent)"></div>
+  <div class="card-inner layout-right">
+    <div class="card-body">
+      <div class="card-text">
+        <div class="card-number" style="color:#f472b6">05 — CHAT</div>
+        <div class="card-title"><em style="color:#f472b6">실시간</em><br>소통 & 알림</div>
+        <div class="card-desc">클래스 채팅으로 바로 소통. 앱을 닫아도 푸시 알림으로 중요한 안내를 놓치지 마세요.</div>
+        <div class="card-tags">
+          <span class="ctag">💬 클래스 채팅</span>
+          <span class="ctag">🔔 푸시 알림</span>
+          <span class="ctag">📢 공지사항</span>
+        </div>
+      </div>
+      <div class="card-phone">
+        <div class="phone" style="width:380px;height:720px">
+          <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+            <div class="sch">
+              <div class="chh"><h4>고등입시A반</h4><span>6명 참여 중</span></div>
+              <div class="chb">
+                <div class="mg r"><div class="mbb"><b>김세희 선생님</b><br>내일 수업 장소가 변경되었어요! 산곡점으로 와주세요.</div><div class="mmt">오후 3:24</div></div>
+                <div class="mg s"><div class="mbb">네 알겠습니다!</div><div class="mmt">오후 3:25</div></div>
+                <div class="mg r"><div class="mbb"><b>박민지</b><br>오늘 과제 영상 올렸어요~</div><div class="mmt">오후 4:10</div></div>
+                <div class="mg s"><div class="mbb">저도 올렸습니다 :)</div><div class="mmt">오후 4:15</div></div>
+                <div class="mg r"><div class="mbb"><b>김세희 선생님</b><br>잘했어요! 피드백 남겨놓을게요 👍</div><div class="mmt">오후 4:20</div></div>
+              </div>
+              <div class="chi"><input placeholder="메시지 입력..." /><button>전송</button></div>
+            </div>
+          </div><div class="pnv"><span>홈</span><span>수업</span><span>과제</span><span>성장</span><span class="on">소통</span></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer"><div class="logo">S</div><span>SOL-ACT · 쏠연기뮤지컬학원</span></div>
+  </div>
+</div>
+
+<!-- ===== 6. 연습일지 ===== -->
+<div class="card">
+  <div class="card-bg"></div>
+  <div class="card-glow" style="width:700px;height:700px;bottom:-100px;left:-150px;background:radial-gradient(circle,rgba(139,92,246,0.12),transparent 60%)"></div>
+  <div class="card-glow" style="width:500px;height:500px;top:-100px;right:-100px;background:radial-gradient(circle,rgba(251,191,36,0.08),transparent 60%)"></div>
+  <div class="card-strip" style="top:560px;left:-50px;background:linear-gradient(90deg,transparent,rgba(139,92,246,0.2),transparent)"></div>
+  <div class="card-inner layout-right">
+    <div class="card-body">
+      <div class="card-phone">
+        <div class="phone" style="width:380px;height:720px">
+          <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+            <div class="sj">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><h4>연습일지</h4><button class="sj-btn">+ 일지 쓰기</button></div>
+              <div class="jcard"><div class="jt">셰익스피어 독백 연습</div><div class="jc">오늘은 햄릿 독백의 감정선을 잡는 데 집중했다. 초반부의 고뇌를 표현하는 게 어려웠지만, 호흡을 깊게 가져가니 자연스러워졌다.</div><div class="jm">4/7 · 김서준</div></div>
+              <div class="jcard"><div class="jt">뮤지컬 넘버 안무 연습</div><div class="jc">발동작이 아직 부족하다. 내일은 하체 스트레칭을 더 하고 리듬감을 살려야겠다.</div><div class="jimg">📸</div><div class="jm">4/6 · 김서준</div></div>
+              <div class="jcard"><div class="jt">기본기 호흡 훈련</div><div class="jc">복식호흡 3세트 완료. 점점 길게 유지할 수 있게 되고 있다.</div><div class="jm">4/5 · 김서준</div></div>
+            </div>
+          </div><div class="pnv"><span>홈</span><span>수업</span><span>과제</span><span class="on">성장</span><span>소통</span></div></div>
+        </div>
+      </div>
+      <div class="card-text">
+        <div class="card-number" style="color:#c084fc">06 — JOURNAL</div>
+        <div class="card-title"><em style="color:#c084fc">연습일지</em><br>매일 기록</div>
+        <div class="card-desc">매일의 연습을 기록하고, 사진도 첨부하세요. 선생님이 전체 학생의 일지를 한눈에 확인할 수 있습니다.</div>
+        <div class="card-tags">
+          <span class="ctag">📓 일지 작성</span>
+          <span class="ctag">📸 사진 첨부</span>
+          <span class="ctag">👀 선생님 열람</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer"><div class="logo">S</div><span>SOL-ACT · 쏠연기뮤지컬학원</span></div>
+  </div>
+</div>
+
+</body>
+</html>

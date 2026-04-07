@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#000;display:flex;justify-content:center;padding:20px;overflow-x:auto}
+
+.panorama{width:3240px;height:1350px;position:relative;overflow:hidden;display:flex}
+
+/* === Deep dark base with warm cinematic tones === */
+.bg{position:absolute;inset:0;background:#08070b}
+.bg::after{content:'';position:absolute;inset:0;background:
+  radial-gradient(ellipse 1200px 800px at 540px 675px, rgba(251,191,36,0.18), transparent 70%),
+  radial-gradient(ellipse 900px 700px at 1620px 400px, rgba(139,92,246,0.12), transparent 70%),
+  radial-gradient(ellipse 1000px 800px at 2700px 675px, rgba(251,191,36,0.15), transparent 70%)}
+
+/* Diagonal gold accent line spanning all 3 panels */
+.diag-line{position:absolute;width:4000px;height:2px;background:linear-gradient(90deg,transparent,rgba(251,191,36,0.3) 20%,rgba(251,191,36,0.5) 50%,rgba(251,191,36,0.3) 80%,transparent);top:675px;left:-200px;transform:rotate(-8deg);z-index:1}
+.diag-line2{position:absolute;width:4000px;height:1px;background:linear-gradient(90deg,transparent,rgba(139,92,246,0.2) 30%,rgba(139,92,246,0.3) 50%,rgba(139,92,246,0.2) 70%,transparent);top:700px;left:-200px;transform:rotate(-8deg);z-index:1}
+
+/* Floating particles */
+.particle{position:absolute;border-radius:50%;z-index:1}
+.particle.gold{background:rgba(251,191,36,0.6)}
+.particle.violet{background:rgba(139,92,246,0.5)}
+.particle.white{background:rgba(255,255,255,0.15)}
+
+/* Panel */
+.panel{width:1080px;height:1350px;position:relative;z-index:2}
+
+/* ===== PANEL 1: Cinematic Hero ===== */
+.p1{display:flex;flex-direction:column;justify-content:space-between;padding:80px 70px}
+
+.p1-top{display:flex;align-items:center;gap:16px;margin-bottom:auto}
+.brand-mark{width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:900;color:#fff}
+.brand-name{font-size:16px;font-weight:700;color:rgba(255,255,255,0.5);letter-spacing:2px}
+
+.p1-center{margin:auto 0}
+.p1-center .eyebrow{font-size:14px;font-weight:700;color:#fbbf24;letter-spacing:6px;margin-bottom:20px}
+.p1-center h1{font-size:64px;font-weight:900;color:#fff;line-height:1.1;margin-bottom:20px}
+.p1-center h1 em{font-style:normal;background:linear-gradient(135deg,#fbbf24,#fcd34d);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.p1-center .sub{font-size:20px;color:rgba(255,255,255,0.4);line-height:1.6}
+
+.p1-bottom{display:flex;gap:20px;margin-top:auto}
+.feature-pill{display:flex;align-items:center;gap:10px;padding:14px 24px;border-radius:16px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.06);backdrop-filter:blur(10px)}
+.feature-pill .icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.feature-pill .label{font-size:13px;font-weight:700;color:rgba(255,255,255,0.7)}
+
+/* ===== PANEL 2: App Showcase ===== */
+.p2{display:flex;align-items:center;justify-content:center}
+.p2-inner{position:relative;width:1000px;height:1200px}
+
+/* Floating phone */
+.phone{position:absolute;background:#111;border-radius:44px;padding:8px;box-shadow:0 40px 100px rgba(0,0,0,0.7),0 0 0 1px rgba(255,255,255,0.05);transition:transform 0.3s}
+.phone::before{content:'';position:absolute;inset:-1px;border-radius:45px;background:linear-gradient(135deg,rgba(251,191,36,0.15),transparent 50%,rgba(139,92,246,0.1));z-index:-1}
+.pin{width:100%;height:100%;background:#fff;border-radius:38px;overflow:hidden;display:flex;flex-direction:column}
+.pst{height:24px;display:flex;align-items:center;justify-content:center}
+.pnt{width:66px;height:5px;background:#111;border-radius:3px}
+.pct{flex:1;overflow:hidden;font-size:9px}
+.pnv{height:32px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-around;font-size:7px;color:#94a3b8;font-weight:700}
+.pnv .on{color:#f59e0b}
+
+/* Phone positions: center front, sides angled */
+.ph-center{width:320px;height:640px;left:340px;top:280px;z-index:5}
+.ph-left{width:280px;height:560px;left:30px;top:320px;z-index:3;transform:perspective(800px) rotateY(12deg)}
+.ph-right{width:280px;height:560px;right:30px;top:320px;z-index:3;transform:perspective(800px) rotateY(-12deg)}
+
+/* Floating badges */
+.float-badge{position:absolute;z-index:6;padding:10px 20px;border-radius:14px;font-size:13px;font-weight:700;color:#fff;backdrop-filter:blur(20px);box-shadow:0 10px 30px rgba(0,0,0,0.3);white-space:nowrap}
+.fb1{background:rgba(251,191,36,0.2);border:1px solid rgba(251,191,36,0.3);top:240px;left:80px}
+.fb2{background:rgba(139,92,246,0.2);border:1px solid rgba(139,92,246,0.3);top:200px;right:120px}
+.fb3{background:rgba(34,197,94,0.2);border:1px solid rgba(34,197,94,0.3);bottom:250px;left:150px}
+.fb4{background:rgba(236,72,153,0.2);border:1px solid rgba(236,72,153,0.3);bottom:220px;right:80px}
+
+.p2-caption{position:absolute;bottom:100px;left:0;right:0;text-align:center;z-index:6}
+.p2-caption p{font-size:22px;font-weight:900;color:rgba(255,255,255,0.6)}
+.p2-caption p em{font-style:normal;color:#fbbf24}
+
+/* Screen styles */
+.sd{padding:10px;background:#f8fafc;height:100%}
+.sd .gr{font-size:13px;font-weight:900;color:#1e293b;margin-bottom:8px}
+.sd .gr span{color:#f59e0b}
+.sgg{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:8px}
+.scc{background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0}
+.scc .si{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;margin-bottom:3px}
+.scc .sv{font-size:17px;font-weight:900;color:#1e293b}
+.scc .sl{font-size:7px;color:#94a3b8}
+.ddc{background:linear-gradient(135deg,#fbbf24,#ec4899);border-radius:10px;padding:8px;color:#fff}
+.ddc .sv,.ddc .sl{color:#fff}.ddc .sl{opacity:0.8}
+.tss{background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0}
+.tss .tt{font-size:8px;font-weight:700;color:#334155;margin-bottom:5px}
+.lli{display:flex;align-items:center;gap:5px;padding:3px 0;border-bottom:1px solid #f1f5f9}
+.lli .lt{font-size:7px;font-weight:700;color:#f59e0b;background:#fef3c7;padding:1px 4px;border-radius:3px}
+.lli .ln{font-size:8px;font-weight:700;color:#334155;flex:1}
+
+.spp{padding:10px;background:#f8fafc;height:100%}
+.spp .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.spp .hdr h4{font-size:12px;font-weight:900;color:#1e293b}
+.pbb{font-size:7px;font-weight:700;background:#f59e0b;color:#fff;padding:3px 8px;border-radius:6px;border:none}
+.ppg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.ppc{background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0}
+.ppth{height:58px;display:flex;align-items:center;justify-content:center}
+.ppth.c1{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.ppth.c2{background:linear-gradient(135deg,#ede9fe,#ddd6fe)}
+.ppth.c3{background:linear-gradient(135deg,#dbeafe,#bfdbfe)}
+.ppth.c4{background:linear-gradient(135deg,#dcfce7,#bbf7d0)}
+.pppl{width:16px;height:16px;background:rgba(0,0,0,0.3);border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:7px}
+.ppfi{padding:4px}
+.ppfi .tl{font-size:7px;font-weight:700;color:#334155}
+.ppfi .mt{font-size:6px;color:#94a3b8}
+
+.schh{display:flex;flex-direction:column;height:100%;background:#f8fafc}
+.cch{padding:8px 10px;background:#fff;border-bottom:1px solid #e2e8f0}
+.cch h4{font-size:10px;font-weight:900;color:#1e293b}
+.cch span{font-size:7px;color:#94a3b8}
+.ccb{flex:1;padding:8px;display:flex;flex-direction:column;gap:5px;overflow:hidden}
+.mg{max-width:78%;display:flex;flex-direction:column}
+.mg.s{align-self:flex-end}.mg.r{align-self:flex-start}
+.mbb{padding:5px 8px;border-radius:10px;font-size:8px;line-height:1.4}
+.mg.s .mbb{background:#f59e0b;color:#fff;border-bottom-right-radius:3px}
+.mg.r .mbb{background:#fff;color:#334155;border:1px solid #e2e8f0;border-bottom-left-radius:3px}
+.mmt{font-size:6px;color:#94a3b8;margin-top:1px}.mg.s .mmt{text-align:right}
+.cci{padding:5px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:3px}
+.cci input{flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:4px 6px;font-size:7px;outline:none}
+.cci button{background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:4px 8px;font-size:7px;font-weight:700}
+
+/* ===== PANEL 3: CTA with drama ===== */
+.p3{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:80px 70px}
+
+/* Glowing circle behind QR */
+.glow-ring{width:320px;height:320px;border-radius:50%;background:radial-gradient(circle,rgba(251,191,36,0.12),transparent 70%);display:flex;align-items:center;justify-content:center;margin-bottom:40px;position:relative}
+.glow-ring::before{content:'';position:absolute;width:260px;height:260px;border-radius:50%;border:1px solid rgba(251,191,36,0.15)}
+.glow-ring::after{content:'';position:absolute;width:200px;height:200px;border-radius:50%;border:1px solid rgba(251,191,36,0.1)}
+
+.qr-card{background:#fff;border-radius:24px;padding:20px;box-shadow:0 20px 60px rgba(251,191,36,0.15);position:relative;z-index:1}
+.qr-card img{width:140px;height:140px;display:block}
+
+.p3 .url{font-size:22px;font-weight:900;color:rgba(255,255,255,0.6);margin-bottom:4px;letter-spacing:1px}
+.p3 .scan-hint{font-size:14px;color:rgba(255,255,255,0.25);margin-bottom:48px}
+
+.p3 .academy{font-size:36px;font-weight:900;color:#fff;margin-bottom:8px}
+.p3 .tel{font-size:48px;font-weight:900;background:linear-gradient(135deg,#fbbf24,#fcd34d);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:20px}
+
+.p3 .note-pill{display:inline-block;font-size:14px;font-weight:700;color:rgba(255,255,255,0.4);padding:10px 28px;border:1px solid rgba(255,255,255,0.08);border-radius:50px;background:rgba(255,255,255,0.02)}
+
+/* Decorative corner marks */
+.corner{position:absolute;width:30px;height:30px;z-index:2}
+.corner-tl{top:20px;left:20px;border-top:2px solid rgba(251,191,36,0.3);border-left:2px solid rgba(251,191,36,0.3)}
+.corner-tr{top:20px;right:20px;border-top:2px solid rgba(251,191,36,0.3);border-right:2px solid rgba(251,191,36,0.3)}
+.corner-bl{bottom:20px;left:20px;border-bottom:2px solid rgba(251,191,36,0.3);border-left:2px solid rgba(251,191,36,0.3)}
+.corner-br{bottom:20px;right:20px;border-bottom:2px solid rgba(251,191,36,0.3);border-right:2px solid rgba(251,191,36,0.3)}
+</style>
+</head>
+<body>
+
+<div class="panorama">
+  <div class="bg"></div>
+  <div class="diag-line"></div>
+  <div class="diag-line2"></div>
+
+  <!-- Scattered particles -->
+  <div class="particle gold" style="width:4px;height:4px;top:200px;left:300px"></div>
+  <div class="particle gold" style="width:3px;height:3px;top:800px;left:150px"></div>
+  <div class="particle violet" style="width:5px;height:5px;top:400px;left:1500px"></div>
+  <div class="particle white" style="width:2px;height:2px;top:300px;left:1800px"></div>
+  <div class="particle gold" style="width:3px;height:3px;top:600px;left:2200px"></div>
+  <div class="particle violet" style="width:4px;height:4px;top:900px;left:2600px"></div>
+  <div class="particle gold" style="width:6px;height:6px;top:150px;left:2800px"></div>
+  <div class="particle white" style="width:2px;height:2px;top:1100px;left:500px"></div>
+  <div class="particle gold" style="width:3px;height:3px;top:1000px;left:1200px"></div>
+  <div class="particle violet" style="width:3px;height:3px;top:250px;left:950px"></div>
+
+  <!-- PANEL 1 -->
+  <div class="panel p1">
+    <div class="corner corner-tl"></div>
+    <div class="corner corner-bl"></div>
+
+    <div class="p1-top">
+      <div class="brand-mark">S</div>
+      <div class="brand-name">SOL-ACT</div>
+    </div>
+
+    <div class="p1-center">
+      <div class="eyebrow">ACTING ACADEMY</div>
+      <h1>연기 입시,<br><em>스마트하게</em></h1>
+      <div class="sub">수업부터 연습영상, 과제, 식단, 소통까지<br>하나의 앱에서 모든 것을 관리하세요</div>
+    </div>
+
+    <div class="p1-bottom">
+      <div class="feature-pill"><div class="icon" style="background:rgba(251,191,36,0.15)">🎬</div><div class="label">연습 영상</div></div>
+      <div class="feature-pill"><div class="icon" style="background:rgba(139,92,246,0.15)">📋</div><div class="label">수업 관리</div></div>
+      <div class="feature-pill"><div class="icon" style="background:rgba(34,197,94,0.15)">🥗</div><div class="label">식단 · 체중</div></div>
+      <div class="feature-pill"><div class="icon" style="background:rgba(236,72,153,0.15)">💬</div><div class="label">실시간 소통</div></div>
+    </div>
+  </div>
+
+  <!-- PANEL 2 -->
+  <div class="panel p2">
+    <div class="p2-inner">
+      <div class="float-badge fb1">📅 수업 · 출석 관리</div>
+      <div class="float-badge fb2">🎭 연습 포트폴리오</div>
+      <div class="float-badge fb3">📊 체중 · 인바디</div>
+      <div class="float-badge fb4">🔔 푸시 알림</div>
+
+      <!-- Left phone: Dashboard -->
+      <div class="phone ph-left">
+        <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+          <div class="sd">
+            <div class="gr">안녕하세요, <span>김서준</span>님!</div>
+            <div class="sgg">
+              <div class="scc"><div class="si" style="background:#ede9fe">📅</div><div class="sv">2</div><div class="sl">오늘 수업</div></div>
+              <div class="scc"><div class="si" style="background:#dbeafe">📋</div><div class="sv">1</div><div class="sl">진행 중 과제</div></div>
+              <div class="scc"><div class="si" style="background:#dcfce7">🍽</div><div class="sv">580</div><div class="sl">오늘 칼로리</div></div>
+              <div class="ddc"><div class="sv">D-12</div><div class="sl">서울예고 입시</div></div>
+            </div>
+            <div class="tss"><div class="tt">오늘의 수업</div>
+              <div class="lli"><span class="lt">18:00</span><span class="ln">입시A반 · 연기</span></div>
+              <div class="lli"><span class="lt">20:00</span><span class="ln">입시A반 · 뮤지컬</span></div>
+            </div>
+          </div>
+        </div><div class="pnv"><span class="on">홈</span><span>수업</span><span>과제</span><span>성장</span><span>소통</span></div></div>
+      </div>
+
+      <!-- Center phone: Portfolio -->
+      <div class="phone ph-center">
+        <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+          <div class="spp">
+            <div class="hdr"><h4>포트폴리오</h4><button class="pbb">+ 영상 올리기</button></div>
+            <div class="ppg">
+              <div class="ppc"><div class="ppth c1"><div class="pppl">▶</div></div><div class="ppfi"><div class="tl">햄릿 독백 연습</div><div class="mt">4/5 · 2:34</div></div></div>
+              <div class="ppc"><div class="ppth c2"><div class="pppl">▶</div></div><div class="ppfi"><div class="tl">뮤지컬 넘버</div><div class="mt">4/4 · 3:12</div></div></div>
+              <div class="ppc"><div class="ppth c3"><div class="pppl">▶</div></div><div class="ppfi"><div class="tl">기본기 호흡 훈련</div><div class="mt">4/3 · 1:45</div></div></div>
+              <div class="ppc"><div class="ppth c4"><div class="pppl">▶</div></div><div class="ppfi"><div class="tl">즉흥연기 연습</div><div class="mt">4/2 · 4:20</div></div></div>
+            </div>
+          </div>
+        </div><div class="pnv"><span>홈</span><span>수업</span><span>과제</span><span class="on">성장</span><span>소통</span></div></div>
+      </div>
+
+      <!-- Right phone: Chat -->
+      <div class="phone ph-right">
+        <div class="pin"><div class="pst"><div class="pnt"></div></div><div class="pct">
+          <div class="schh">
+            <div class="cch"><h4>고등입시A반</h4><span>6명</span></div>
+            <div class="ccb">
+              <div class="mg r"><div class="mbb"><b>김세희 선생님</b><br>내일 수업 장소 변경!</div><div class="mmt">3:24</div></div>
+              <div class="mg s"><div class="mbb">네 알겠습니다!</div><div class="mmt">3:25</div></div>
+              <div class="mg r"><div class="mbb"><b>박민지</b><br>과제 영상 올렸어요~</div><div class="mmt">4:10</div></div>
+              <div class="mg s"><div class="mbb">저도 올렸습니다 :)</div><div class="mmt">4:15</div></div>
+              <div class="mg r"><div class="mbb"><b>선생님</b><br>피드백 남겨놓을게요 👍</div><div class="mmt">4:20</div></div>
+            </div>
+            <div class="cci"><input placeholder="메시지..." /><button>전송</button></div>
+          </div>
+        </div><div class="pnv"><span>홈</span><span>수업</span><span>과제</span><span>성장</span><span class="on">소통</span></div></div>
+      </div>
+    </div>
+    <div class="p2-caption"><p><em>하나의 앱</em>으로 수업부터 소통까지</p></div>
+  </div>
+
+  <!-- PANEL 3 -->
+  <div class="panel p3">
+    <div class="corner corner-tr"></div>
+    <div class="corner corner-br"></div>
+
+    <div class="academy">쏠연기뮤지컬학원</div>
+
+    <div class="glow-ring">
+      <div class="qr-card">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=https://sol-manager.com&bgcolor=ffffff" alt="QR" />
+      </div>
+    </div>
+
+    <div class="url">sol-manager.com</div>
+    <div class="scan-hint">카메라로 QR코드를 스캔하세요</div>
+
+    <div class="tel">010-7625-3047</div>
+
+    <div class="note-pill">본원 수강생 전용 · 앱 설치 없이 바로 사용</div>
+  </div>
+</div>
+
+</body>
+</html>

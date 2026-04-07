@@ -73,7 +73,7 @@ CHUNK_SIZE = 4 * 1024 * 1024  # 4MB chunks
 MIN_VIDEO_SIZE = 1024  # 1KB — anything smaller is a failed/corrupt upload
 
 # Limit concurrent ffmpeg processes — M4 Pro 14-core can handle more
-_compression_semaphore = threading.Semaphore(5)
+_compression_semaphore = threading.Semaphore(6)
 
 
 async def save_file(
@@ -185,7 +185,7 @@ def _do_compress(src: Path, user_id: Optional[str]) -> None:
         # This skips unknown/unsupported streams (e.g. Apple apac codec, data tracks)
         # that would cause ffmpeg to fail on iPhone .mov files.
         "-map", "0:v:0", "-map", "0:a:0?",
-        "-c:v", "libx264", "-preset", "medium", "-crf", "28",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "28",
         "-threads", "8",
         # Landscape: cap width at 1280 (auto height). Portrait: cap height at 1280 (auto width).
         # -2 ensures the auto-calculated dimension is divisible by 2 (required by libx264).

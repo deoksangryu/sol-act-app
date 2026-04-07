@@ -53,6 +53,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [portfolios, setPortfolios] = useState<PortfolioItem[]>([]);
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
+  const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
   const [newPfTitles, setNewPfTitles] = useState<string[]>(['']);
   const [newPfDesc, setNewPfDesc] = useState('');
   const [newPfCategory, setNewPfCategory] = useState('other');
@@ -401,6 +402,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   };
 
   const handleCreatePortfolio = async () => {
+    if (isCreatingPortfolio) return;
     const titles = newPfTitles.map(t => t.trim()).filter(Boolean);
     const files = newPfVideoFiles;
 
@@ -409,6 +411,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       return;
     }
 
+    setIsCreatingPortfolio(true);
     try {
       const practiceGroup =
         newPfPracticeGroup === '__new__'
@@ -486,7 +489,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         });
         toast.success(`포트폴리오 ${files.length}개 등록! 영상 업로드 중...`);
       }
-    } catch { toast.error('포트폴리오 등록에 실패했습니다.'); }
+    } catch { toast.error('포트폴리오 등록에 실패했습니다.'); } finally { setIsCreatingPortfolio(false); }
   };
 
   const handleDeletePortfolio = async () => {
@@ -2006,7 +2009,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                   </div>
                 </div>
               </details>
-              <button onClick={handleCreatePortfolio} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200">등록하기</button>
+              <button onClick={handleCreatePortfolio} disabled={isCreatingPortfolio} className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 shadow-lg shadow-brand-200 disabled:opacity-50 disabled:cursor-not-allowed">{isCreatingPortfolio ? '등록 중...' : '등록하기'}</button>
             </div>
           </div>
         </div>

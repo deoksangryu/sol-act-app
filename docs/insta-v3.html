@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#000;display:flex;justify-content:center;padding:20px;overflow-x:auto}
+
+.panorama{width:3240px;height:1350px;position:relative;overflow:hidden;display:flex;background:#0a0a0a}
+
+/* === Dramatic background === */
+.bg-gradient{position:absolute;inset:0;background:
+  radial-gradient(ellipse 800px 600px at 15% 80%, rgba(251,191,36,0.25), transparent),
+  radial-gradient(ellipse 600px 500px at 50% 20%, rgba(139,92,246,0.15), transparent),
+  radial-gradient(ellipse 700px 600px at 85% 70%, rgba(251,191,36,0.2), transparent);
+z-index:0}
+
+/* Floating light streaks */
+.streak{position:absolute;border-radius:50%;filter:blur(80px);opacity:0.4;z-index:0}
+.s1{width:500px;height:200px;background:#fbbf24;top:100px;left:200px;transform:rotate(-15deg)}
+.s2{width:400px;height:150px;background:#8b5cf6;top:600px;left:1200px;transform:rotate(10deg)}
+.s3{width:600px;height:200px;background:#fbbf24;top:300px;right:100px;transform:rotate(-5deg)}
+.s4{width:300px;height:120px;background:#ec4899;bottom:200px;left:600px;transform:rotate(20deg);opacity:0.2}
+
+/* Noise texture overlay */
+.noise{position:absolute;inset:0;z-index:1;opacity:0.03;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+
+/* === PANEL 1: Hero Impact === */
+.p1{width:1080px;height:1350px;position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px}
+
+.logo-ring{width:120px;height:120px;border:3px solid rgba(251,191,36,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;margin-bottom:32px;position:relative}
+.logo-ring::before{content:'';position:absolute;inset:-8px;border:1px solid rgba(251,191,36,0.15);border-radius:50%}
+.logo-inner{font-size:48px;font-weight:900;color:#fbbf24;line-height:1}
+
+.hero-title{font-size:56px;font-weight:900;color:#fff;line-height:1.15;margin-bottom:16px;letter-spacing:-1px}
+.hero-title .gold{background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.hero-sub{font-size:20px;color:rgba(255,255,255,0.5);margin-bottom:40px;line-height:1.6}
+
+.hero-chips{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:48px}
+.chip{font-size:15px;font-weight:700;padding:10px 22px;border-radius:50px;border:1px solid rgba(255,255,255,0.1);color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.03);backdrop-filter:blur(10px)}
+.chip .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px}
+
+.hero-cta{font-size:14px;color:rgba(255,255,255,0.3);letter-spacing:4px;font-weight:700}
+.hero-arrow{margin-top:12px;font-size:24px;color:rgba(251,191,36,0.4)}
+
+/* === PANEL 2: Phones Showcase === */
+.p2{width:1080px;height:1350px;position:relative;z-index:2;display:flex;align-items:center;justify-content:center}
+
+.phones-group{position:relative;width:900px;height:1100px}
+
+/* Phone mockup */
+.phone{position:absolute;background:#111;border-radius:44px;padding:8px;box-shadow:0 30px 80px rgba(0,0,0,0.6),0 0 0 1px rgba(255,255,255,0.06)}
+.phone-in{width:100%;height:100%;background:#fff;border-radius:38px;overflow:hidden;display:flex;flex-direction:column}
+.pst{height:26px;display:flex;align-items:center;justify-content:center}
+.pnt{width:70px;height:5px;background:#111;border-radius:3px}
+.pct{flex:1;overflow:hidden;font-size:9px}
+.pnv{height:34px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-around;font-size:7px;color:#94a3b8;font-weight:700}
+.pnv .on{color:#f59e0b}
+
+/* Phone positions — staggered */
+.phone-1{width:300px;height:580px;left:0;top:60px;z-index:3;transform:rotate(-4deg)}
+.phone-2{width:320px;height:620px;left:280px;top:0;z-index:4;transform:rotate(0deg)}
+.phone-3{width:300px;height:580px;left:580px;top:80px;z-index:3;transform:rotate(4deg)}
+
+/* Labels */
+.phone-label{position:absolute;color:#fff;font-size:14px;font-weight:700;padding:8px 18px;border-radius:12px;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,0.08);white-space:nowrap}
+.label-1{bottom:680px;left:20px}
+.label-2{top:-40px;left:50%;transform:translateX(-50%)}
+.label-3{bottom:680px;right:20px}
+
+/* Bottom text */
+.p2-bottom{position:absolute;bottom:80px;left:0;right:0;text-align:center;z-index:5}
+.p2-bottom p{font-size:18px;color:rgba(255,255,255,0.35);font-weight:700}
+
+/* Screen contents */
+.sd{padding:10px;background:#f8fafc;height:100%}
+.sd .gr{font-size:14px;font-weight:900;color:#1e293b;margin-bottom:8px}
+.sd .gr span{color:#f59e0b}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.sc{background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0}
+.sc .si{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:12px;margin-bottom:3px}
+.sc .sv{font-size:18px;font-weight:900;color:#1e293b}
+.sc .sl{font-size:8px;color:#94a3b8}
+.ddc{background:linear-gradient(135deg,#fbbf24,#ec4899);border-radius:10px;padding:8px;color:#fff}
+.ddc .sv,.ddc .sl{color:#fff}
+.ddc .sl{opacity:0.8}
+.ts{background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0}
+.ts .tt{font-size:9px;font-weight:700;color:#334155;margin-bottom:5px}
+.li{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f1f5f9}
+.li .lt{font-size:8px;font-weight:700;color:#f59e0b;background:#fef3c7;padding:2px 5px;border-radius:4px}
+.li .ln{font-size:9px;font-weight:700;color:#334155;flex:1}
+
+.sp{padding:10px;background:#f8fafc;height:100%}
+.sp .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.sp .hdr h4{font-size:12px;font-weight:900;color:#1e293b}
+.pbtn{font-size:7px;font-weight:700;background:#f59e0b;color:#fff;padding:3px 8px;border-radius:6px;border:none}
+.pfg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.pfc{background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0}
+.pfth{height:60px;display:flex;align-items:center;justify-content:center}
+.pfth.c1{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.pfth.c2{background:linear-gradient(135deg,#ede9fe,#ddd6fe)}
+.pfth.c3{background:linear-gradient(135deg,#dbeafe,#bfdbfe)}
+.pfth.c4{background:linear-gradient(135deg,#dcfce7,#bbf7d0)}
+.pfpl{width:18px;height:18px;background:rgba(0,0,0,0.3);border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px}
+.pfi{padding:5px}
+.pfi .tl{font-size:8px;font-weight:700;color:#334155}
+.pfi .mt{font-size:6px;color:#94a3b8}
+
+.sch{display:flex;flex-direction:column;height:100%;background:#f8fafc}
+.ch{padding:8px 10px;background:#fff;border-bottom:1px solid #e2e8f0}
+.ch h4{font-size:10px;font-weight:900;color:#1e293b}
+.ch span{font-size:7px;color:#94a3b8}
+.cbb{flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.mg{max-width:78%;display:flex;flex-direction:column}
+.mg.s{align-self:flex-end}
+.mg.r{align-self:flex-start}
+.mbb{padding:6px 9px;border-radius:10px;font-size:8px;line-height:1.5}
+.mg.s .mbb{background:#f59e0b;color:#fff;border-bottom-right-radius:3px}
+.mg.r .mbb{background:#fff;color:#334155;border:1px solid #e2e8f0;border-bottom-left-radius:3px}
+.mmt{font-size:6px;color:#94a3b8;margin-top:1px}
+.mg.s .mmt{text-align:right}
+.cip{padding:6px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:4px}
+.cip input{flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px 7px;font-size:8px;outline:none}
+.cip button{background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:5px 8px;font-size:8px;font-weight:700}
+
+/* === PANEL 3: CTA === */
+.p3{width:1080px;height:1350px;position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:60px}
+
+.cta-title{font-size:48px;font-weight:900;color:#fff;line-height:1.2;margin-bottom:12px}
+.cta-title .gold{background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.cta-sub{font-size:18px;color:rgba(255,255,255,0.4);margin-bottom:48px;line-height:1.6}
+
+.qr-container{background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:32px;padding:40px;display:inline-block;margin-bottom:32px}
+.qr-frame{background:#fff;border-radius:20px;padding:16px;margin-bottom:16px;display:inline-block}
+.qr-frame img{width:160px;height:160px;display:block}
+.qr-url{font-size:18px;font-weight:700;color:rgba(255,255,255,0.6)}
+.qr-hint{font-size:13px;color:rgba(255,255,255,0.3);margin-top:8px}
+
+.cta-phone{font-size:40px;font-weight:900;background:linear-gradient(135deg,#fbbf24,#f59e0b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:12px}
+
+.cta-academy{font-size:28px;font-weight:900;color:#fff;margin-bottom:8px}
+.cta-note{font-size:14px;color:rgba(255,255,255,0.3);padding:8px 24px;border:1px solid rgba(255,255,255,0.08);border-radius:50px;display:inline-block}
+</style>
+</head>
+<body>
+
+<div class="panorama">
+  <div class="bg-gradient"></div>
+  <div class="streak s1"></div>
+  <div class="streak s2"></div>
+  <div class="streak s3"></div>
+  <div class="streak s4"></div>
+  <div class="noise"></div>
+
+  <!-- PANEL 1: Hero -->
+  <div class="p1">
+    <div class="logo-ring"><div class="logo-inner">S</div></div>
+    <div class="hero-title">
+      연기 입시의 모든 것<br>
+      <span class="gold">하나의 앱으로</span>
+    </div>
+    <div class="hero-sub">
+      수업 · 연습 · 과제 · 식단 · 소통<br>
+      쏠연기뮤지컬학원 전용 학습 관리
+    </div>
+    <div class="hero-chips">
+      <div class="chip"><span class="dot" style="background:#fbbf24"></span>수업 관리</div>
+      <div class="chip"><span class="dot" style="background:#a78bfa"></span>연습 영상</div>
+      <div class="chip"><span class="dot" style="background:#4ade80"></span>식단 · 체중</div>
+      <div class="chip"><span class="dot" style="background:#f472b6"></span>실시간 채팅</div>
+    </div>
+    <div class="hero-cta">SWIPE FOR MORE</div>
+    <div class="hero-arrow">→</div>
+  </div>
+
+  <!-- PANEL 2: Phones -->
+  <div class="p2">
+    <div class="phones-group">
+      <div class="phone-label label-1">📋 수업 · 과제 · 출석</div>
+      <div class="phone-label label-2">🎬 연습 영상 포트폴리오</div>
+      <div class="phone-label label-3">💬 실시간 소통</div>
+
+      <!-- Phone 1: Dashboard -->
+      <div class="phone phone-1">
+        <div class="phone-in">
+          <div class="pst"><div class="pnt"></div></div>
+          <div class="pct">
+            <div class="sd">
+              <div class="gr">안녕하세요, <span>김서준</span>님!</div>
+              <div class="sg">
+                <div class="sc"><div class="si" style="background:#ede9fe">📅</div><div class="sv">2</div><div class="sl">오늘 수업</div></div>
+                <div class="sc"><div class="si" style="background:#dbeafe">📋</div><div class="sv">1</div><div class="sl">진행 중 과제</div></div>
+                <div class="sc"><div class="si" style="background:#dcfce7">🍽</div><div class="sv">580</div><div class="sl">오늘 칼로리</div></div>
+                <div class="ddc"><div class="sv">D-12</div><div class="sl">서울예고 입시</div></div>
+              </div>
+              <div class="ts">
+                <div class="tt">오늘의 수업</div>
+                <div class="li"><span class="lt">18:00</span><span class="ln">입시A반 · 연기</span></div>
+                <div class="li"><span class="lt">20:00</span><span class="ln">입시A반 · 뮤지컬</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="pnv"><span class="on">홈</span><span>수업</span><span>과제</span><span>성장</span><span>소통</span></div>
+        </div>
+      </div>
+
+      <!-- Phone 2: Portfolio (center, larger) -->
+      <div class="phone phone-2">
+        <div class="phone-in">
+          <div class="pst"><div class="pnt"></div></div>
+          <div class="pct">
+            <div class="sp">
+              <div class="hdr"><h4>포트폴리오</h4><button class="pbtn">+ 영상 올리기</button></div>
+              <div class="pfg">
+                <div class="pfc"><div class="pfth c1"><div class="pfpl">▶</div></div><div class="pfi"><div class="tl">햄릿 독백</div><div class="mt">4/5 · 2:34</div></div></div>
+                <div class="pfc"><div class="pfth c2"><div class="pfpl">▶</div></div><div class="pfi"><div class="tl">뮤지컬 넘버</div><div class="mt">4/4 · 3:12</div></div></div>
+                <div class="pfc"><div class="pfth c3"><div class="pfpl">▶</div></div><div class="pfi"><div class="tl">기본기 호흡</div><div class="mt">4/3 · 1:45</div></div></div>
+                <div class="pfc"><div class="pfth c4"><div class="pfpl">▶</div></div><div class="pfi"><div class="tl">즉흥연기</div><div class="mt">4/2 · 4:20</div></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="pnv"><span>홈</span><span>수업</span><span>과제</span><span class="on">성장</span><span>소통</span></div>
+        </div>
+      </div>
+
+      <!-- Phone 3: Chat -->
+      <div class="phone phone-3">
+        <div class="phone-in">
+          <div class="pst"><div class="pnt"></div></div>
+          <div class="pct">
+            <div class="sch">
+              <div class="ch"><h4>고등입시A반</h4><span>6명</span></div>
+              <div class="cbb">
+                <div class="mg r"><div class="mbb"><b>김세희 선생님</b><br>내일 수업 장소 변경!</div><div class="mmt">3:24</div></div>
+                <div class="mg s"><div class="mbb">네 알겠습니다!</div><div class="mmt">3:25</div></div>
+                <div class="mg r"><div class="mbb"><b>박민지</b><br>과제 영상 올렸어요</div><div class="mmt">4:10</div></div>
+                <div class="mg s"><div class="mbb">저도요 :)</div><div class="mmt">4:15</div></div>
+                <div class="mg r"><div class="mbb"><b>선생님</b><br>잘했어요! 👍</div><div class="mmt">4:20</div></div>
+              </div>
+              <div class="cip"><input placeholder="메시지..." /><button>전송</button></div>
+            </div>
+          </div>
+          <div class="pnv"><span>홈</span><span>수업</span><span>과제</span><span>성장</span><span class="on">소통</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="p2-bottom"><p>앱 하나로 수업부터 소통까지</p></div>
+  </div>
+
+  <!-- PANEL 3: CTA -->
+  <div class="p3">
+    <div class="cta-academy">쏠연기뮤지컬학원</div>
+    <div class="cta-title">지금 바로<br><span class="gold">시작하세요</span></div>
+    <div class="cta-sub">앱 설치 없이 QR코드 스캔 한 번으로<br>홈 화면에 추가하면 앱처럼 사용할 수 있습니다</div>
+
+    <div class="qr-container">
+      <div class="qr-frame">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=https://sol-manager.com&bgcolor=ffffff" alt="QR" />
+      </div>
+      <div class="qr-url">sol-manager.com</div>
+      <div class="qr-hint">카메라로 스캔하세요</div>
+    </div>
+
+    <div class="cta-phone">010-7625-3047</div>
+    <div class="cta-note">본원 수강생 전용 서비스</div>
+  </div>
+</div>
+
+</body>
+</html>
