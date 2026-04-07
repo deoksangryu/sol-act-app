@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쏠연기뮤지컬학원 - SOL-ACT</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Noto Sans KR', sans-serif;
+    background: #f8fafc;
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .flyer {
+    width: 400px;
+    background: #fff;
+    border-radius: 32px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.12);
+  }
+
+  /* Hero */
+  .hero {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%);
+    padding: 48px 32px 40px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -60px; right: -60px;
+    width: 200px; height: 200px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 50%;
+  }
+  .hero::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; left: -40px;
+    width: 150px; height: 150px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 50%;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.25);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 20px;
+    margin-bottom: 16px;
+    letter-spacing: 1px;
+  }
+  .hero h1 {
+    color: #fff;
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1.3;
+    margin-bottom: 8px;
+    position: relative;
+    z-index: 1;
+  }
+  .hero h1 span {
+    display: block;
+    font-size: 16px;
+    font-weight: 700;
+    opacity: 0.9;
+    margin-top: 4px;
+  }
+  .hero-sub {
+    color: rgba(255,255,255,0.9);
+    font-size: 13px;
+    font-weight: 400;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* Features */
+  .features {
+    padding: 32px 24px;
+  }
+  .features-title {
+    text-align: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    letter-spacing: 2px;
+    margin-bottom: 20px;
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .feature-card {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .feature-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+    font-size: 22px;
+  }
+  .feature-card:nth-child(1) .feature-icon { background: #fef3c7; }
+  .feature-card:nth-child(2) .feature-icon { background: #ede9fe; }
+  .feature-card:nth-child(3) .feature-icon { background: #dbeafe; }
+  .feature-card:nth-child(4) .feature-icon { background: #dcfce7; }
+  .feature-card:nth-child(5) .feature-icon { background: #fce7f3; }
+  .feature-card:nth-child(6) .feature-icon { background: #ffedd5; }
+  .feature-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 4px;
+  }
+  .feature-desc {
+    font-size: 10px;
+    color: #94a3b8;
+    line-height: 1.4;
+  }
+
+  /* Highlight */
+  .highlight {
+    margin: 0 24px;
+    background: linear-gradient(135deg, #1e1b4b, #312e81);
+    border-radius: 20px;
+    padding: 24px;
+    color: #fff;
+    text-align: center;
+  }
+  .highlight-title {
+    font-size: 15px;
+    font-weight: 900;
+    margin-bottom: 8px;
+  }
+  .highlight-desc {
+    font-size: 11px;
+    opacity: 0.8;
+    line-height: 1.6;
+  }
+
+  /* QR */
+  .qr-section {
+    padding: 28px 24px;
+    text-align: center;
+  }
+  .qr-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+    margin-bottom: 16px;
+  }
+  .qr-box {
+    display: inline-block;
+    background: #f8fafc;
+    border: 2px solid #e2e8f0;
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+  .qr-box img {
+    width: 140px;
+    height: 140px;
+    display: block;
+  }
+  .qr-url {
+    font-size: 11px;
+    color: #64748b;
+    word-break: break-all;
+  }
+
+  /* Footer */
+  .footer {
+    background: #f1f5f9;
+    padding: 24px;
+    text-align: center;
+    border-top: 1px solid #e2e8f0;
+  }
+  .footer-academy {
+    font-size: 15px;
+    font-weight: 900;
+    color: #334155;
+    margin-bottom: 6px;
+  }
+  .footer-phone {
+    font-size: 20px;
+    font-weight: 900;
+    color: #f59e0b;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+  .footer-note {
+    font-size: 10px;
+    color: #94a3b8;
+  }
+
+  /* Print */
+  @media print {
+    body { background: #fff; padding: 0; }
+    .flyer { box-shadow: none; border-radius: 0; width: 100%; max-width: 400px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="flyer">
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-badge">SMART ACADEMY</div>
+    <h1>
+      쏠연기뮤지컬학원
+      <span>전용 학습 관리 앱</span>
+    </h1>
+    <p class="hero-sub">스마트폰 하나로 수업부터 연습까지 한눈에</p>
+  </div>
+
+  <!-- Features -->
+  <div class="features">
+    <div class="features-title">MAIN FEATURES</div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-icon">🎬</div>
+        <div class="feature-name">연습영상 관리</div>
+        <div class="feature-desc">영상 업로드 & 선생님 피드백</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📋</div>
+        <div class="feature-name">수업 관리</div>
+        <div class="feature-desc">시간표 · 출석 · 수업일지</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📝</div>
+        <div class="feature-name">과제 & 평가</div>
+        <div class="feature-desc">과제 제출 · 채점 · 성장 리포트</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">🥗</div>
+        <div class="feature-name">식단 · 체중</div>
+        <div class="feature-desc">식단 기록 · 체중 그래프</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">💬</div>
+        <div class="feature-name">실시간 소통</div>
+        <div class="feature-desc">클래스 채팅 · 푸시 알림</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">📓</div>
+        <div class="feature-name">연습일지</div>
+        <div class="feature-desc">매일 연습 기록 · 사진 첨부</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Highlight -->
+  <div class="highlight">
+    <div class="highlight-title">PWA 앱 — 설치 없이 바로 사용!</div>
+    <div class="highlight-desc">
+      앱스토어 다운로드 없이 QR코드 스캔 후<br>
+      홈 화면에 추가하면 앱처럼 사용할 수 있습니다
+    </div>
+  </div>
+
+  <!-- QR -->
+  <div class="qr-section">
+    <div class="qr-title">QR코드를 스캔하세요</div>
+    <div class="qr-box">
+      <!-- QR code via public API -->
+      <img src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=https://sol-act-app.ngrok.app&bgcolor=f8fafc" alt="QR Code" />
+    </div>
+    <div class="qr-url">sol-act-app.ngrok.app</div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <div class="footer-academy">쏠연기뮤지컬학원</div>
+    <div class="footer-phone">010-7625-3047</div>
+    <div class="footer-note">SOL-ACT | Smart Academy Management Platform</div>
+  </div>
+</div>
+
+</body>
+</html>

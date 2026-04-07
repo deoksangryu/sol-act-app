@@ -91,6 +91,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [journalContent, setJournalContent] = useState('');
   const [editingJournalId, setEditingJournalId] = useState<string | null>(null);
   const [isJournalSaving, setIsJournalSaving] = useState(false);
+  const [selectedJournal, setSelectedJournal] = useState<Record<string, unknown> | null>(null);
   const [journalAttachmentFile, setJournalAttachmentFile] = useState<File | null>(null);
   const [journalAttachmentUrl, setJournalAttachmentUrl] = useState<string>('');
   const [isJournalAttachmentUploading, setIsJournalAttachmentUploading] = useState(false);
@@ -1220,7 +1221,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                 const canEdit = studentId === user.id || user.role !== UserRole.STUDENT;
 
                 return (
-                  <div key={id} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                  <div key={id} onClick={() => setSelectedJournal(j)} className="bg-white rounded-xl p-4 border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
                         {isStaff && <span className="text-xs font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">{studentName}</span>}
@@ -1265,6 +1266,47 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
           )}
         </div>
       )}
+
+      {/* Journal Detail Modal */}
+      {selectedJournal && (() => {
+        const sj = selectedJournal;
+        const sjStudentName = (sj.studentName || sj.student_name) as string;
+        const sjTitle = sj.title as string;
+        const sjContent = sj.content as string;
+        const sjCreatedAt = (sj.createdAt || sj.created_at) as string;
+        const sjAttachment = (sj.attachmentUrl || sj.attachment_url) as string | undefined;
+
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedJournal(null)}>
+            <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-lg p-6 shadow-2xl relative max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <button onClick={() => setSelectedJournal(null)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              {isStaff && <span className="text-xs font-bold text-violet-600 bg-violet-100 px-2 py-0.5 rounded-full">{sjStudentName}</span>}
+              <h3 className="text-xl font-bold text-slate-800 mt-2 mb-2">{sjTitle}</h3>
+              <span className="text-xs text-slate-400">{new Date(sjCreatedAt).toLocaleDateString('ko-KR')}</span>
+              <div className="mt-4 text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{sjContent}</div>
+              {sjAttachment && (() => {
+                const fullUrl = sjAttachment.startsWith('/') ? `${API_URL}${sjAttachment}` : sjAttachment;
+                const ext = sjAttachment.split('.').pop()?.toLowerCase() || '';
+                const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
+                return (
+                  <div className="mt-4 border-t border-slate-100 pt-4">
+                    {isImage ? (
+                      <img src={fullUrl} alt="첨부" className="rounded-xl max-h-64 object-cover w-full" />
+                    ) : (
+                      <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-violet-500 hover:text-violet-600 flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                        첨부파일 보기
+                      </a>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Journal Write/Edit Modal */}
       {isJournalModalOpen && (

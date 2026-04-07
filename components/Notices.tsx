@@ -23,6 +23,8 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
   const [newClassId, setNewClassId] = useState('');
   const [editingNotice, setEditingNotice] = useState<Notice | null>(null);
   const [deleteNoticeId, setDeleteNoticeId] = useState<string | null>(null);
+  const [selectedNoticeId, setSelectedNoticeId] = useState<string | null>(null);
+  const selectedNotice = notices.find(n => n.id === selectedNoticeId);
 
   const loadData = useCallback(() => {
     return noticeApi.list().then(setNotices).catch((err) => {
@@ -141,7 +143,7 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
         {loading ? (
           <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-slate-300 border-t-brand-400 rounded-full animate-spin mx-auto"></div></div>
         ) : notices.length > 0 ? notices.map((notice) => (
-          <div key={notice.id} className="p-6 hover:bg-slate-50 transition-colors cursor-pointer group flex justify-between items-start gap-4">
+          <div key={notice.id} onClick={() => setSelectedNoticeId(notice.id)} className="p-6 hover:bg-slate-50 transition-colors cursor-pointer group flex justify-between items-start gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex flex-wrap gap-1.5 items-center mb-2">
                  {notice.important && (
@@ -255,6 +257,32 @@ export const Notices: React.FC<NoticesProps> = ({ user }) => {
       )}
 
       {/* Delete Confirmation Dialog */}
+      {/* Notice Detail Modal */}
+      {selectedNotice && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center p-0 md:p-4 backdrop-blur-sm animate-fade-in" onClick={() => setSelectedNoticeId(null)}>
+          <div role="dialog" aria-modal="true" className="bg-white rounded-t-3xl md:rounded-3xl w-full max-w-lg p-6 shadow-2xl relative max-h-[85vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setSelectedNoticeId(null)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <div className="flex flex-wrap gap-1.5 items-center mb-3">
+              {selectedNotice.important && <span className="bg-brand-100 text-brand-600 text-xs font-bold px-2 py-0.5 rounded-full">중요</span>}
+              {selectedNotice.classId && (
+                <span className="bg-blue-50 text-blue-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                  {classes.find(c => c.id === selectedNotice.classId)?.name || selectedNotice.classId}
+                </span>
+              )}
+            </div>
+            <h3 className="text-xl font-bold text-slate-800 mb-2">{selectedNotice.title}</h3>
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-xs text-slate-400">{selectedNotice.author}</span>
+              <span className="text-xs text-slate-300">·</span>
+              <span className="text-xs text-slate-400">{formatDateKo(selectedNotice.date)}</span>
+            </div>
+            <div className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{selectedNotice.content}</div>
+          </div>
+        </div>
+      )}
+
       {deleteNoticeId && (
         <ConfirmDialog
           title="공지사항 삭제"

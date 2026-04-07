@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#111}
+.card{width:1080px;height:1350px;background:linear-gradient(180deg,#1e293b 0%,#1e293b 65%,#f59e0b 65%);position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:200px;right:-100px;width:300px;height:300px;background:rgba(251,191,36,0.08);border-radius:50%}
+
+.content{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:60px}
+
+.section-title{color:rgba(255,255,255,0.4);font-size:16px;font-weight:700;letter-spacing:3px;margin-bottom:24px}
+
+/* Feature rows */
+.feature-row{display:flex;gap:32px;align-items:center;margin-bottom:36px}
+.feature-row.reverse{flex-direction:row-reverse}
+
+.phone-sm{width:280px;height:520px;background:#0f172a;border-radius:36px;padding:10px;flex-shrink:0;box-shadow:0 20px 50px rgba(0,0,0,0.4)}
+.phone-sm-inner{width:100%;height:100%;background:#fff;border-radius:28px;overflow:hidden;display:flex;flex-direction:column}
+.ps{height:24px;display:flex;align-items:center;justify-content:center}
+.ps-notch{width:70px;height:5px;background:#0f172a;border-radius:3px}
+.pc{flex:1;overflow:hidden;font-size:9px}
+.pn{height:32px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-around;font-size:7px;color:#94a3b8;font-weight:700}
+.pn .active{color:#f59e0b}
+
+.feat-text{flex:1;color:#fff}
+.feat-text h3{font-size:28px;font-weight:900;margin-bottom:10px;line-height:1.3}
+.feat-text h3 .acc{color:#fbbf24}
+.feat-text p{font-size:16px;color:rgba(255,255,255,0.6);line-height:1.6;margin-bottom:12px}
+.feat-tags{display:flex;gap:8px;flex-wrap:wrap}
+.ft{font-size:12px;font-weight:700;padding:5px 14px;border-radius:8px}
+.ft-a{background:rgba(251,191,36,0.2);color:#fbbf24}
+.ft-v{background:rgba(139,92,246,0.2);color:#a78bfa}
+.ft-g{background:rgba(34,197,94,0.2);color:#4ade80}
+.ft-p{background:rgba(236,72,153,0.2);color:#f472b6}
+
+/* Chat screen */
+.scr-chat{display:flex;flex-direction:column;height:100%;background:#f8fafc}
+.ch{padding:8px 10px;background:#fff;border-bottom:1px solid #e2e8f0}
+.ch h4{font-size:10px;font-weight:900;color:#1e293b}
+.ch span{font-size:7px;color:#94a3b8}
+.cb{flex:1;padding:8px;display:flex;flex-direction:column;gap:6px;overflow:hidden}
+.msg{max-width:80%;display:flex;flex-direction:column}
+.msg.s{align-self:flex-end}
+.msg.r{align-self:flex-start}
+.mb{padding:6px 9px;border-radius:10px;font-size:8px;line-height:1.5}
+.msg.s .mb{background:#f59e0b;color:#fff;border-bottom-right-radius:3px}
+.msg.r .mb{background:#fff;color:#334155;border:1px solid #e2e8f0;border-bottom-left-radius:3px}
+.mm{font-size:6px;color:#94a3b8;margin-top:1px}
+.msg.s .mm{text-align:right}
+.ci{padding:6px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:4px}
+.ci input{flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:6px;padding:5px 7px;font-size:8px;outline:none}
+.ci button{background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:5px 8px;font-size:8px;font-weight:700}
+
+/* Diet screen */
+.scr-diet{padding:10px;background:#f8fafc;height:100%}
+.dt{display:flex;background:#e2e8f0;border-radius:8px;padding:2px;margin-bottom:8px}
+.dti{flex:1;text-align:center;font-size:8px;font-weight:700;padding:5px;border-radius:6px;color:#64748b}
+.dti.av{background:#8b5cf6;color:#fff}
+.wc{background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0;margin-bottom:6px}
+.wv{text-align:center;font-size:16px;font-weight:900;color:#8b5cf6;margin-bottom:2px}
+.wd{text-align:center;font-size:8px;color:#64748b}
+.wd .dn{color:#22c55e;font-weight:700}
+.chart-area{height:60px;margin:6px 0}
+.chart-area svg{width:100%;height:100%}
+.ir{display:flex;gap:4px;margin-top:6px}
+.ic{flex:1;background:#fff;border-radius:6px;padding:5px;border:1px solid #e2e8f0;text-align:center}
+.ic .v{font-size:11px;font-weight:900}
+.ic .l{font-size:6px;color:#94a3b8;margin-top:1px}
+.v-o{color:#f97316}.v-b{color:#3b82f6}.v-r{color:#ef4444}
+
+/* Bottom CTA */
+.cta{position:absolute;bottom:0;left:0;right:0;background:#f59e0b;padding:50px 60px;display:flex;align-items:center;justify-content:space-between}
+.cta-text h2{font-size:32px;font-weight:900;color:#fff;margin-bottom:6px}
+.cta-text .phone-num{font-size:26px;font-weight:900;color:#fff;opacity:0.9}
+.cta-text p{font-size:14px;color:rgba(255,255,255,0.7);margin-top:4px}
+.qr-box{background:#fff;border-radius:20px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,0.15)}
+.qr-box img{width:140px;height:140px;display:block}
+.qr-label{text-align:center;font-size:11px;color:#64748b;margin-top:6px;font-weight:700}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="content">
+    <div class="section-title">MORE FEATURES</div>
+
+    <!-- Chat -->
+    <div class="feature-row">
+      <div class="phone-sm">
+        <div class="phone-sm-inner">
+          <div class="ps"><div class="ps-notch"></div></div>
+          <div class="pc">
+            <div class="scr-chat">
+              <div class="ch"><h4>고등입시A반</h4><span>6명 참여 중</span></div>
+              <div class="cb">
+                <div class="msg r"><div class="mb"><b>김세희 선생님</b><br>내일 수업 장소가 변경되었습니다!</div><div class="mm">3:24 PM</div></div>
+                <div class="msg s"><div class="mb">네 알겠습니다!</div><div class="mm">3:25 PM</div></div>
+                <div class="msg r"><div class="mb"><b>박민지</b><br>오늘 과제 영상 올렸어요~</div><div class="mm">4:10 PM</div></div>
+                <div class="msg s"><div class="mb">저도 올렸습니다 :)</div><div class="mm">4:15 PM</div></div>
+                <div class="msg r"><div class="mb"><b>김세희 선생님</b><br>잘했어요! 피드백 남길게요 👍</div><div class="mm">4:20 PM</div></div>
+              </div>
+              <div class="ci"><input placeholder="메시지 입력..." /><button>전송</button></div>
+            </div>
+          </div>
+          <div class="pn"><span>홈</span><span>수업</span><span>과제</span><span>성장</span><span class="active">소통</span></div>
+        </div>
+      </div>
+      <div class="feat-text">
+        <h3>클래스별<br><span class="acc">실시간 소통</span></h3>
+        <p>선생님과 학생이 바로 소통.<br>앱을 닫아도 푸시 알림으로<br>중요한 안내를 놓치지 마세요.</p>
+        <div class="feat-tags"><span class="ft ft-a">실시간 채팅</span><span class="ft ft-p">푸시 알림</span></div>
+      </div>
+    </div>
+
+    <!-- Diet / Weight -->
+    <div class="feature-row reverse">
+      <div class="phone-sm">
+        <div class="phone-sm-inner">
+          <div class="ps"><div class="ps-notch"></div></div>
+          <div class="pc">
+            <div class="scr-diet">
+              <div class="dt"><div class="dti">식단</div><div class="dti av">체중·인바디</div></div>
+              <div class="wc">
+                <div class="wv">54.2 kg</div>
+                <div class="wd">-1.8kg <span class="dn">↓</span> (30일)</div>
+                <div class="chart-area">
+                  <svg viewBox="0 0 200 60" preserveAspectRatio="none">
+                    <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.3"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0"/></linearGradient></defs>
+                    <path d="M0,40 Q30,45 60,35 T120,28 T200,15 V60 H0Z" fill="url(#g)"/>
+                    <polyline points="0,40 30,43 60,35 90,32 120,28 150,22 180,18 200,15" fill="none" stroke="#8b5cf6" stroke-width="2"/>
+                    <circle cx="0" cy="40" r="2.5" fill="#8b5cf6"/><circle cx="60" cy="35" r="2.5" fill="#8b5cf6"/><circle cx="120" cy="28" r="2.5" fill="#8b5cf6"/><circle cx="200" cy="15" r="2.5" fill="#8b5cf6"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="ir">
+                <div class="ic"><div class="v v-o">18.5%</div><div class="l">체지방률</div></div>
+                <div class="ic"><div class="v v-b">25.3kg</div><div class="l">근육량</div></div>
+                <div class="ic"><div class="v v-r">Lv.4</div><div class="l">내장지방</div></div>
+              </div>
+            </div>
+          </div>
+          <div class="pn"><span>홈</span><span>수업</span><span>과제</span><span class="active">식단</span><span>소통</span></div>
+        </div>
+      </div>
+      <div class="feat-text">
+        <h3><span class="acc">식단 · 체중</span><br>인바디 관리</h3>
+        <p>매일 식단 기록, 체중 그래프,<br>인바디 수치까지 한곳에서.<br>연기 입시생의 체력 관리를 완벽하게.</p>
+        <div class="feat-tags"><span class="ft ft-g">식단 기록</span><span class="ft ft-v">체중 그래프</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta">
+    <div class="cta-text">
+      <h2>쏠연기뮤지컬학원</h2>
+      <div class="phone-num">010-7625-3047</div>
+      <p>본원 수강생 전용 서비스</p>
+    </div>
+    <div>
+      <div class="qr-box">
+        <img src="https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=https://sol-manager.com" alt="QR" />
+      </div>
+      <div class="qr-label">sol-manager.com</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

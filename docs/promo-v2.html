@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쏠연기뮤지컬학원 - SOL-ACT 홍보물</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;background:#f1f5f9;color:#334155}
+
+.page{max-width:1000px;margin:0 auto;padding:40px 20px}
+
+/* Hero */
+.hero{background:linear-gradient(135deg,#fbbf24,#f59e0b,#d97706);border-radius:32px;padding:48px 40px;text-align:center;color:#fff;margin-bottom:48px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-80px;right:-80px;width:250px;height:250px;background:rgba(255,255,255,0.1);border-radius:50%}
+.hero-badge{display:inline-block;background:rgba(255,255,255,0.2);font-size:11px;font-weight:700;padding:5px 16px;border-radius:20px;margin-bottom:16px;letter-spacing:2px}
+.hero h1{font-size:32px;font-weight:900;margin-bottom:8px;position:relative;z-index:1}
+.hero p{font-size:14px;opacity:0.9;position:relative;z-index:1}
+
+/* Section */
+.section{display:flex;gap:40px;align-items:center;margin-bottom:56px}
+.section.reverse{flex-direction:row-reverse}
+.section-text{flex:1}
+.section-text h2{font-size:22px;font-weight:900;margin-bottom:8px;color:#1e293b}
+.section-text h2 .accent{color:#f59e0b}
+.section-text p{font-size:14px;color:#64748b;line-height:1.7;margin-bottom:12px}
+.section-text .tag{display:inline-block;font-size:11px;font-weight:700;padding:3px 10px;border-radius:8px;margin-right:6px;margin-bottom:6px}
+.tag-amber{background:#fef3c7;color:#92400e}
+.tag-violet{background:#ede9fe;color:#5b21b6}
+.tag-green{background:#dcfce7;color:#166534}
+.tag-blue{background:#dbeafe;color:#1e40af}
+.tag-pink{background:#fce7f3;color:#9d174d}
+
+/* Phone mockup */
+.phone{flex-shrink:0;width:260px;height:520px;background:#1e293b;border-radius:36px;padding:12px;box-shadow:0 25px 60px rgba(0,0,0,0.2);position:relative}
+.phone-inner{width:100%;height:100%;background:#fff;border-radius:26px;overflow:hidden;display:flex;flex-direction:column}
+.phone-status{height:28px;background:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;color:#94a3b8;font-weight:700}
+.phone-notch{width:80px;height:6px;background:#1e293b;border-radius:3px;margin:0 auto}
+.phone-content{flex:1;overflow:hidden;font-size:10px}
+.phone-nav{height:44px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-around;font-size:8px;color:#94a3b8;font-weight:700}
+.phone-nav .active{color:#f59e0b}
+
+/* Screen: Dashboard */
+.scr-dash{padding:10px;background:#f8fafc;height:100%;overflow:hidden}
+.scr-dash .greeting{font-size:13px;font-weight:900;color:#1e293b;margin-bottom:8px}
+.scr-dash .greeting span{color:#f59e0b}
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.stat-card{background:#fff;border-radius:12px;padding:8px;border:1px solid #e2e8f0}
+.stat-icon{width:22px;height:22px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:11px;margin-bottom:4px}
+.stat-val{font-size:16px;font-weight:900;color:#1e293b}
+.stat-lbl{font-size:8px;color:#94a3b8}
+.dday-card{background:linear-gradient(135deg,#fbbf24,#ec4899);border-radius:12px;padding:8px;color:#fff}
+.dday-card .stat-val{color:#fff}
+.dday-card .stat-lbl{color:rgba(255,255,255,0.8)}
+.quick-btns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}
+.quick-btn{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:8px;display:flex;align-items:center;gap:6px}
+.quick-btn .qi{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:13px}
+.quick-btn span{font-size:9px;font-weight:700;color:#334155}
+.today-sec{background:#fff;border-radius:12px;padding:8px;border:1px solid #e2e8f0}
+.today-title{font-size:9px;font-weight:700;color:#334155;margin-bottom:6px}
+.lesson-item{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid #f1f5f9}
+.lesson-time{font-size:8px;font-weight:700;color:#f59e0b;background:#fef3c7;padding:2px 5px;border-radius:4px}
+.lesson-name{font-size:9px;font-weight:700;color:#334155;flex:1}
+.lesson-badge{font-size:7px;font-weight:700;padding:1px 5px;border-radius:4px}
+.badge-scheduled{background:#fef3c7;color:#92400e}
+.badge-acting{background:#ede9fe;color:#5b21b6}
+
+/* Screen: Lessons */
+.scr-lessons{padding:10px;background:#f8fafc;height:100%;overflow:hidden}
+.scr-lessons .hdr{font-size:13px;font-weight:900;color:#1e293b;margin-bottom:8px}
+.cal{background:#fff;border-radius:12px;padding:8px;border:1px solid #e2e8f0;margin-bottom:8px}
+.cal-month{font-size:10px;font-weight:700;text-align:center;margin-bottom:6px;color:#334155}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;text-align:center}
+.cal-day{font-size:7px;color:#94a3b8;font-weight:700;padding:2px 0}
+.cal-cell{font-size:8px;padding:4px 0;border-radius:6px;position:relative;color:#475569}
+.cal-cell.today{background:#f59e0b;color:#fff;font-weight:900;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;margin:0 auto}
+.cal-cell.has-dot::after{content:'';width:3px;height:3px;background:#f59e0b;border-radius:50%;position:absolute;bottom:1px;left:50%;transform:translateX(-50%)}
+.cal-cell.has-dot-green::after{background:#22c55e}
+.lesson-card{background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0;margin-bottom:6px}
+.lesson-card .lc-time{font-size:9px;font-weight:700;color:#f59e0b;margin-bottom:2px}
+.lesson-card .lc-name{font-size:10px;font-weight:700;color:#1e293b}
+.lesson-card .lc-sub{font-size:8px;color:#94a3b8}
+
+/* Screen: Portfolio */
+.scr-pf{padding:10px;background:#f8fafc;height:100%;overflow:hidden}
+.scr-pf .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.scr-pf .hdr h3{font-size:13px;font-weight:900;color:#1e293b}
+.pf-btn{font-size:8px;font-weight:700;background:#f59e0b;color:#fff;padding:4px 10px;border-radius:8px;border:none}
+.pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.pf-card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0}
+.pf-thumb{height:70px;display:flex;align-items:center;justify-content:center;position:relative}
+.pf-thumb.t1{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.pf-thumb.t2{background:linear-gradient(135deg,#ede9fe,#ddd6fe)}
+.pf-thumb.t3{background:linear-gradient(135deg,#dbeafe,#bfdbfe)}
+.pf-thumb.t4{background:linear-gradient(135deg,#dcfce7,#bbf7d0)}
+.pf-play{width:24px;height:24px;background:rgba(0,0,0,0.4);border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px}
+.pf-info{padding:6px}
+.pf-info .title{font-size:9px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf-info .meta{font-size:7px;color:#94a3b8;margin-top:2px}
+.pf-tags{display:flex;gap:3px;margin-top:3px}
+.pf-tag{font-size:6px;background:#f1f5f9;color:#64748b;padding:1px 4px;border-radius:3px;font-weight:700}
+
+/* Screen: Chat */
+.scr-chat{display:flex;flex-direction:column;height:100%;background:#f8fafc}
+.scr-chat .chat-hdr{padding:10px;background:#fff;border-bottom:1px solid #e2e8f0}
+.scr-chat .chat-hdr h3{font-size:11px;font-weight:900;color:#1e293b}
+.scr-chat .chat-hdr span{font-size:8px;color:#94a3b8}
+.chat-body{flex:1;padding:10px;display:flex;flex-direction:column;gap:8px;overflow:hidden}
+.msg{max-width:80%;display:flex;flex-direction:column}
+.msg.sent{align-self:flex-end}
+.msg.recv{align-self:flex-start}
+.msg-bubble{padding:7px 10px;border-radius:12px;font-size:9px;line-height:1.5}
+.msg.sent .msg-bubble{background:#f59e0b;color:#fff;border-bottom-right-radius:4px}
+.msg.recv .msg-bubble{background:#fff;color:#334155;border:1px solid #e2e8f0;border-bottom-left-radius:4px}
+.msg-meta{font-size:7px;color:#94a3b8;margin-top:2px}
+.msg.sent .msg-meta{text-align:right}
+.chat-input{padding:8px;background:#fff;border-top:1px solid #e2e8f0;display:flex;gap:6px}
+.chat-input input{flex:1;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:8px;padding:6px 8px;font-size:9px;outline:none}
+.chat-input button{background:#f59e0b;color:#fff;border:none;border-radius:8px;padding:6px 10px;font-size:9px;font-weight:700}
+
+/* Screen: Diet */
+.scr-diet{padding:10px;background:#f8fafc;height:100%;overflow:hidden}
+.diet-tabs{display:flex;background:#e2e8f0;border-radius:10px;padding:2px;margin-bottom:10px}
+.diet-tab{flex:1;text-align:center;font-size:9px;font-weight:700;padding:6px;border-radius:8px;color:#64748b}
+.diet-tab.active-green{background:#22c55e;color:#fff}
+.diet-tab.active-violet{background:#8b5cf6;color:#fff}
+.weight-chart{background:#fff;border-radius:12px;padding:10px;border:1px solid #e2e8f0;margin-bottom:8px}
+.chart-area{height:80px;position:relative;margin:8px 0}
+.chart-line{position:absolute;bottom:0;left:0;right:0;height:100%}
+.chart-svg{width:100%;height:100%}
+.weight-val{text-align:center;font-size:18px;font-weight:900;color:#8b5cf6;margin-bottom:2px}
+.weight-delta{text-align:center;font-size:9px;color:#64748b}
+.weight-delta .down{color:#22c55e;font-weight:700}
+.inbody-row{display:flex;gap:6px;margin-top:8px}
+.inbody-card{flex:1;background:#fff;border-radius:8px;padding:6px;border:1px solid #e2e8f0;text-align:center}
+.inbody-card .iv{font-size:13px;font-weight:900}
+.inbody-card .il{font-size:7px;color:#94a3b8;margin-top:2px}
+.ib-orange{color:#f97316}
+.ib-blue{color:#3b82f6}
+.ib-red{color:#ef4444}
+
+/* Footer */
+.footer{background:linear-gradient(135deg,#1e293b,#334155);border-radius:32px;padding:40px;text-align:center;color:#fff;margin-top:20px}
+.footer h2{font-size:24px;font-weight:900;margin-bottom:6px}
+.footer .phone-num{font-size:28px;font-weight:900;color:#fbbf24;margin:12px 0}
+.footer .qr-wrap{display:inline-block;background:#fff;border-radius:16px;padding:12px;margin:16px 0}
+.footer .qr-wrap img{width:120px;height:120px;display:block}
+.footer .url{font-size:12px;color:#94a3b8;margin-bottom:4px}
+.footer .pwa-note{font-size:11px;color:rgba(255,255,255,0.6);margin-top:8px}
+
+@media(max-width:700px){
+  .section{flex-direction:column!important;text-align:center}
+  .phone{margin:0 auto}
+}
+@media print{
+  body{background:#fff}
+  .page{padding:10px}
+  .section{break-inside:avoid}
+}
+</style>
+</head>
+<body>
+
+<div class="page">
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-badge">SMART ACADEMY PLATFORM</div>
+  <h1>쏠연기뮤지컬학원 전용 앱</h1>
+  <p>수업 · 연습영상 · 식단 · 소통까지 — 스마트폰 하나로 한눈에 관리</p>
+</div>
+
+<!-- 1. Dashboard -->
+<div class="section">
+  <div class="phone">
+    <div class="phone-inner">
+      <div class="phone-status"><div class="phone-notch"></div></div>
+      <div class="phone-content">
+        <div class="scr-dash">
+          <div class="greeting">안녕하세요, <span>김서준</span>님!</div>
+          <div class="stat-grid">
+            <div class="stat-card"><div class="stat-icon" style="background:#ede9fe">📅</div><div class="stat-val">2</div><div class="stat-lbl">오늘 수업</div></div>
+            <div class="stat-card"><div class="stat-icon" style="background:#dbeafe">📋</div><div class="stat-val">1</div><div class="stat-lbl">진행 중 과제</div></div>
+            <div class="stat-card"><div class="stat-icon" style="background:#dcfce7">🍽</div><div class="stat-val">580</div><div class="stat-lbl">오늘 칼로리</div></div>
+            <div class="dday-card"><div class="stat-val">D-12</div><div class="stat-lbl">서울예고 입시</div></div>
+          </div>
+          <div class="quick-btns">
+            <div class="quick-btn"><div class="qi" style="background:#fce7f3">🎬</div><span>연습영상 올리기</span></div>
+            <div class="quick-btn"><div class="qi" style="background:#fef3c7">📝</div><span>연습일지 쓰기</span></div>
+          </div>
+          <div class="today-sec">
+            <div class="today-title">오늘의 수업</div>
+            <div class="lesson-item"><span class="lesson-time">18:00</span><span class="lesson-name">고등입시A반 · 연기</span><span class="lesson-badge badge-scheduled">예정</span></div>
+            <div class="lesson-item"><span class="lesson-time">20:00</span><span class="lesson-name">고등입시A반 · 뮤지컬</span><span class="lesson-badge badge-acting">예정</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-nav"><span class="active">홈</span><span>수업</span><span>과제</span><span>성장</span><span>소통</span></div>
+    </div>
+  </div>
+  <div class="section-text">
+    <h2>한눈에 보는 <span class="accent">오늘의 현황</span></h2>
+    <p>오늘 수업, 과제, 식단, D-Day까지 대시보드 하나로 확인하세요. 빠른 버튼으로 연습영상 업로드와 일지 작성도 바로 가능합니다.</p>
+    <span class="tag tag-amber">오늘 수업</span>
+    <span class="tag tag-blue">과제 현황</span>
+    <span class="tag tag-green">식단 칼로리</span>
+    <span class="tag tag-pink">D-Day</span>
+  </div>
+</div>
+
+<!-- 2. Lessons -->
+<div class="section reverse">
+  <div class="phone">
+    <div class="phone-inner">
+      <div class="phone-status"><div class="phone-notch"></div></div>
+      <div class="phone-content">
+        <div class="scr-lessons">
+          <div class="hdr">수업</div>
+          <div class="cal">
+            <div class="cal-month">2026년 4월</div>
+            <div class="cal-grid">
+              <div class="cal-day">일</div><div class="cal-day">월</div><div class="cal-day">화</div><div class="cal-day">수</div><div class="cal-day">목</div><div class="cal-day">금</div><div class="cal-day">토</div>
+              <div class="cal-cell"></div><div class="cal-cell"></div><div class="cal-cell">1</div><div class="cal-cell has-dot">2</div><div class="cal-cell has-dot">3</div><div class="cal-cell has-dot">4</div><div class="cal-cell has-dot">5</div>
+              <div class="cal-cell has-dot-green">6</div><div class="cal-cell today">7</div><div class="cal-cell has-dot">8</div><div class="cal-cell">9</div><div class="cal-cell has-dot">10</div><div class="cal-cell has-dot">11</div><div class="cal-cell has-dot">12</div>
+              <div class="cal-cell">13</div><div class="cal-cell">14</div><div class="cal-cell has-dot">15</div><div class="cal-cell">16</div><div class="cal-cell has-dot">17</div><div class="cal-cell has-dot">18</div><div class="cal-cell has-dot">19</div>
+            </div>
+          </div>
+          <div class="lesson-card"><div class="lc-time">18:00 - 20:00</div><div class="lc-name">고등입시A반 · 연기</div><div class="lc-sub">산곡점 · 김세희 선생님</div></div>
+          <div class="lesson-card"><div class="lc-time">20:00 - 22:00</div><div class="lc-name">고등입시A반 · 뮤지컬</div><div class="lc-sub">작전점 · 박진혁 선생님</div></div>
+        </div>
+      </div>
+      <div class="phone-nav"><span>홈</span><span class="active">수업</span><span>과제</span><span>성장</span><span>소통</span></div>
+    </div>
+  </div>
+  <div class="section-text">
+    <h2><span class="accent">수업 일정</span>을 캘린더로</h2>
+    <p>날짜별 수업 확인, 출석 관리, 수업일지 작성까지. 선생님은 수업 등록과 출석 체크, 학생은 본인 수업과 출석을 한눈에 볼 수 있습니다.</p>
+    <span class="tag tag-amber">캘린더 뷰</span>
+    <span class="tag tag-violet">수업일지</span>
+    <span class="tag tag-green">출석 관리</span>
+  </div>
+</div>
+
+<!-- 3. Portfolio -->
+<div class="section">
+  <div class="phone">
+    <div class="phone-inner">
+      <div class="phone-status"><div class="phone-notch"></div></div>
+      <div class="phone-content">
+        <div class="scr-pf">
+          <div class="hdr"><h3>포트폴리오</h3><button class="pf-btn">+ 영상 올리기</button></div>
+          <div class="pf-grid">
+            <div class="pf-card"><div class="pf-thumb t1"><div class="pf-play">▶</div></div><div class="pf-info"><div class="title">햄릿 독백 연습</div><div class="meta">4/5 · 2:34</div><div class="pf-tags"><span class="pf-tag">독백</span><span class="pf-tag">입시</span></div></div></div>
+            <div class="pf-card"><div class="pf-thumb t2"><div class="pf-play">▶</div></div><div class="pf-info"><div class="title">뮤지컬 넘버</div><div class="meta">4/4 · 3:12</div><div class="pf-tags"><span class="pf-tag">뮤지컬</span></div></div></div>
+            <div class="pf-card"><div class="pf-thumb t3"><div class="pf-play">▶</div></div><div class="pf-info"><div class="title">기본기 호흡 훈련</div><div class="meta">4/3 · 1:45</div><div class="pf-tags"><span class="pf-tag">기본기</span></div></div></div>
+            <div class="pf-card"><div class="pf-thumb t4"><div class="pf-play">▶</div></div><div class="pf-info"><div class="title">즉흥연기 연습</div><div class="meta">4/2 · 4:20</div><div class="pf-tags"><span class="pf-tag">즉흥</span><span class="pf-tag">팀</span></div></div></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-nav"><span>홈</span><span>수업</span><span>과제</span><span class="active">성장</span><span>소통</span></div>
+    </div>
+  </div>
+  <div class="section-text">
+    <h2><span class="accent">연습 영상</span>을 체계적으로</h2>
+    <p>연습 영상을 촬영 후 바로 업로드하세요. 선생님이 영상에 타임스탬프 댓글로 정확한 피드백을 남길 수 있습니다. 여러 영상을 한 번에 올리는 것도 가능합니다.</p>
+    <span class="tag tag-amber">영상 업로드</span>
+    <span class="tag tag-violet">선생님 피드백</span>
+    <span class="tag tag-blue">연습 시리즈</span>
+  </div>
+</div>
+
+<!-- 4. Chat -->
+<div class="section reverse">
+  <div class="phone">
+    <div class="phone-inner">
+      <div class="phone-status"><div class="phone-notch"></div></div>
+      <div class="phone-content">
+        <div class="scr-chat">
+          <div class="chat-hdr"><h3>고등입시A반</h3><span>6명 참여 중</span></div>
+          <div class="chat-body">
+            <div class="msg recv"><div class="msg-bubble"><b>김세희 선생님</b><br>내일 수업 장소가 변경되었습니다. 산곡점으로 와주세요!</div><div class="msg-meta">오후 3:24</div></div>
+            <div class="msg sent"><div class="msg-bubble">네, 알겠습니다!</div><div class="msg-meta">오후 3:25</div></div>
+            <div class="msg recv"><div class="msg-bubble"><b>박민지</b><br>선생님 오늘 과제 영상 올렸어요~</div><div class="msg-meta">오후 4:10</div></div>
+            <div class="msg sent"><div class="msg-bubble">저도 방금 올렸습니다 😊</div><div class="msg-meta">오후 4:15</div></div>
+            <div class="msg recv"><div class="msg-bubble"><b>김세희 선생님</b><br>잘했어요! 피드백 남겨놓을게요 👍</div><div class="msg-meta">오후 4:20</div></div>
+          </div>
+          <div class="chat-input"><input placeholder="메시지 입력..." /><button>전송</button></div>
+        </div>
+      </div>
+      <div class="phone-nav"><span>홈</span><span>수업</span><span>과제</span><span>성장</span><span class="active">소통</span></div>
+    </div>
+  </div>
+  <div class="section-text">
+    <h2>클래스별 <span class="accent">실시간 소통</span></h2>
+    <p>클래스 채팅으로 선생님과 학생이 바로 소통합니다. 수업 안내, 과제 피드백, 일정 변경을 실시간으로. 앱을 닫아도 푸시 알림으로 놓치지 않습니다.</p>
+    <span class="tag tag-amber">실시간 채팅</span>
+    <span class="tag tag-pink">푸시 알림</span>
+    <span class="tag tag-green">공지사항</span>
+  </div>
+</div>
+
+<!-- 5. Diet / Weight -->
+<div class="section">
+  <div class="phone">
+    <div class="phone-inner">
+      <div class="phone-status"><div class="phone-notch"></div></div>
+      <div class="phone-content">
+        <div class="scr-diet">
+          <div class="diet-tabs"><div class="diet-tab">식단</div><div class="diet-tab active-violet">체중·인바디</div></div>
+          <div class="weight-chart">
+            <div class="weight-val">54.2 kg</div>
+            <div class="weight-delta">-1.8kg <span class="down">↓</span> (최근 30일)</div>
+            <div class="chart-area">
+              <svg class="chart-svg" viewBox="0 0 200 70" preserveAspectRatio="none">
+                <defs><linearGradient id="wg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#8b5cf6" stop-opacity="0.3"/><stop offset="100%" stop-color="#8b5cf6" stop-opacity="0.02"/></linearGradient></defs>
+                <path d="M0,45 Q25,50 50,40 T100,35 T150,25 T200,20 V70 H0 Z" fill="url(#wg)"/>
+                <polyline points="0,45 25,48 50,40 75,38 100,35 125,30 150,25 175,22 200,20" fill="none" stroke="#8b5cf6" stroke-width="2"/>
+                <circle cx="0" cy="45" r="3" fill="#8b5cf6"/><circle cx="50" cy="40" r="3" fill="#8b5cf6"/><circle cx="100" cy="35" r="3" fill="#8b5cf6"/><circle cx="150" cy="25" r="3" fill="#8b5cf6"/><circle cx="200" cy="20" r="3" fill="#8b5cf6"/>
+              </svg>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:7px;color:#94a3b8;margin-top:2px"><span>3/08</span><span>3/15</span><span>3/22</span><span>3/29</span><span>4/05</span></div>
+          </div>
+          <div class="inbody-row">
+            <div class="inbody-card"><div class="iv ib-orange">18.5%</div><div class="il">체지방률</div></div>
+            <div class="inbody-card"><div class="iv ib-blue">25.3kg</div><div class="il">근육량</div></div>
+            <div class="inbody-card"><div class="iv ib-red">Lv.4</div><div class="il">내장지방</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="phone-nav"><span>홈</span><span>수업</span><span>과제</span><span>식단</span><span>소통</span></div>
+    </div>
+  </div>
+  <div class="section-text">
+    <h2><span class="accent">식단 · 체중 · 인바디</span> 관리</h2>
+    <p>매일 식단을 사진과 함께 기록하고, 체중과 인바디 수치를 그래프로 추적하세요. 선생님이 영양 코멘트도 남겨줍니다. 연기 입시생의 체력 관리까지 완벽하게.</p>
+    <span class="tag tag-green">식단 기록</span>
+    <span class="tag tag-violet">체중 그래프</span>
+    <span class="tag tag-blue">인바디</span>
+  </div>
+</div>
+
+<!-- Footer / CTA -->
+<div class="footer">
+  <h2>쏠연기뮤지컬학원</h2>
+  <p style="font-size:13px;opacity:0.7">본원 수강생 전용 · 앱 설치 없이 QR코드만 스캔하세요</p>
+  <div class="phone-num">010-7625-3047</div>
+  <div class="qr-wrap">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=https://sol-manager.com" alt="QR Code" />
+  </div>
+  <div class="url">sol-manager.com</div>
+  <div class="pwa-note">본원 수강생 전용 서비스입니다 · 홈 화면에 추가하면 앱처럼 사용할 수 있습니다</div>
+</div>
+
+</div>
+</body>
+</html>

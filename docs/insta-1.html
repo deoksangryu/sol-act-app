@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#111}
+.card{width:1080px;height:1350px;background:linear-gradient(180deg,#fbbf24 0%,#f59e0b 30%,#1e293b 30%);position:relative;overflow:hidden}
+.top{padding:80px 60px 40px;color:#fff;position:relative;z-index:1}
+.badge{display:inline-block;background:rgba(255,255,255,0.2);font-size:18px;font-weight:700;padding:8px 24px;border-radius:30px;letter-spacing:3px;margin-bottom:24px}
+.top h1{font-size:52px;font-weight:900;line-height:1.2;margin-bottom:12px}
+.top p{font-size:22px;opacity:0.9}
+.top::after{content:'';position:absolute;top:-100px;right:-60px;width:300px;height:300px;background:rgba(255,255,255,0.08);border-radius:50%}
+.body{padding:40px 60px;color:#fff}
+/* Phone mockup */
+.phone{width:420px;height:780px;background:#0f172a;border-radius:52px;padding:16px;margin:0 auto 40px;box-shadow:0 30px 80px rgba(0,0,0,0.5)}
+.phone-inner{width:100%;height:100%;background:#fff;border-radius:40px;overflow:hidden;display:flex;flex-direction:column}
+.phone-status{height:40px;background:#fff;display:flex;align-items:center;justify-content:center}
+.phone-notch{width:120px;height:8px;background:#0f172a;border-radius:4px}
+.phone-content{flex:1;overflow:hidden;font-size:14px}
+.phone-nav{height:56px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-around;font-size:11px;color:#94a3b8;font-weight:700}
+.phone-nav .active{color:#f59e0b}
+/* Dashboard screen */
+.scr{padding:16px;background:#f8fafc;height:100%}
+.scr .greeting{font-size:20px;font-weight:900;color:#1e293b;margin-bottom:14px}
+.scr .greeting span{color:#f59e0b}
+.sg{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.sc{background:#fff;border-radius:16px;padding:14px;border:1px solid #e2e8f0}
+.sc .si{width:32px;height:32px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:6px}
+.sc .sv{font-size:24px;font-weight:900;color:#1e293b}
+.sc .sl{font-size:11px;color:#94a3b8}
+.dday{background:linear-gradient(135deg,#fbbf24,#ec4899);border-radius:16px;padding:14px;color:#fff}
+.dday .sv{color:#fff;font-size:24px;font-weight:900}
+.dday .sl{color:rgba(255,255,255,0.8);font-size:11px}
+.qb{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+.qbi{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:12px;display:flex;align-items:center;gap:10px}
+.qbi .icon{width:36px;height:36px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px}
+.qbi span{font-size:13px;font-weight:700;color:#334155}
+.ts{background:#fff;border-radius:16px;padding:14px;border:1px solid #e2e8f0}
+.ts .tt{font-size:13px;font-weight:700;color:#334155;margin-bottom:10px}
+.li{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #f1f5f9}
+.li .lt{font-size:11px;font-weight:700;color:#f59e0b;background:#fef3c7;padding:3px 8px;border-radius:6px}
+.li .ln{font-size:13px;font-weight:700;color:#334155;flex:1}
+.li .lb{font-size:10px;font-weight:700;padding:2px 8px;border-radius:6px;background:#fef3c7;color:#92400e}
+/* Bottom label */
+.bottom{position:absolute;bottom:0;left:0;right:0;padding:40px 60px;text-align:center}
+.bottom h2{font-size:36px;font-weight:900;color:#fff;margin-bottom:8px}
+.bottom p{font-size:18px;color:rgba(255,255,255,0.5)}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="top">
+    <div class="badge">SMART ACADEMY</div>
+    <h1>쏠연기뮤지컬학원<br>전용 앱</h1>
+    <p>수강생을 위한 스마트 학습 관리</p>
+  </div>
+  <div class="body">
+    <div class="phone">
+      <div class="phone-inner">
+        <div class="phone-status"><div class="phone-notch"></div></div>
+        <div class="phone-content">
+          <div class="scr">
+            <div class="greeting">안녕하세요, <span>김서준</span>님!</div>
+            <div class="sg">
+              <div class="sc"><div class="si" style="background:#ede9fe">📅</div><div class="sv">2</div><div class="sl">오늘 수업</div></div>
+              <div class="sc"><div class="si" style="background:#dbeafe">📋</div><div class="sv">1</div><div class="sl">진행 중 과제</div></div>
+              <div class="sc"><div class="si" style="background:#dcfce7">🍽</div><div class="sv">580</div><div class="sl">오늘 칼로리</div></div>
+              <div class="dday"><div class="sv">D-12</div><div class="sl">서울예고 입시</div></div>
+            </div>
+            <div class="qb">
+              <div class="qbi"><div class="icon" style="background:#fce7f3">🎬</div><span>연습영상 올리기</span></div>
+              <div class="qbi"><div class="icon" style="background:#fef3c7">📝</div><span>연습일지 쓰기</span></div>
+            </div>
+            <div class="ts">
+              <div class="tt">오늘의 수업</div>
+              <div class="li"><span class="lt">18:00</span><span class="ln">고등입시A반 · 연기</span><span class="lb">예정</span></div>
+              <div class="li"><span class="lt">20:00</span><span class="ln">고등입시A반 · 뮤지컬</span><span class="lb">예정</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="phone-nav"><span class="active">홈</span><span>수업</span><span>과제</span><span>성장</span><span>소통</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom">
+    <h2>쏠연기뮤지컬학원</h2>
+    <p>본원 수강생 전용 · sol-manager.com</p>
+  </div>
+</div>
+</body>
+</html>

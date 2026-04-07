@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Noto Sans KR',sans-serif;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#111}
+.card{width:1080px;height:1350px;background:#1e293b;position:relative;overflow:hidden}
+.card::before{content:'';position:absolute;top:-150px;left:-150px;width:400px;height:400px;background:rgba(139,92,246,0.15);border-radius:50%}
+.card::after{content:'';position:absolute;bottom:-100px;right:-100px;width:350px;height:350px;background:rgba(251,191,36,0.1);border-radius:50%}
+
+.content{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;padding:60px}
+
+.section-title{color:rgba(255,255,255,0.4);font-size:16px;font-weight:700;letter-spacing:3px;margin-bottom:24px}
+
+/* Feature rows */
+.feature-row{display:flex;gap:32px;align-items:center;margin-bottom:36px}
+.feature-row.reverse{flex-direction:row-reverse}
+
+.phone-sm{width:280px;height:520px;background:#0f172a;border-radius:36px;padding:10px;flex-shrink:0;box-shadow:0 20px 50px rgba(0,0,0,0.4)}
+.phone-sm-inner{width:100%;height:100%;background:#fff;border-radius:28px;overflow:hidden;display:flex;flex-direction:column}
+.ps{height:24px;display:flex;align-items:center;justify-content:center}
+.ps-notch{width:70px;height:5px;background:#0f172a;border-radius:3px}
+.pc{flex:1;overflow:hidden;font-size:9px}
+.pn{height:32px;background:#fff;border-top:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-around;font-size:7px;color:#94a3b8;font-weight:700}
+.pn .active{color:#f59e0b}
+
+.feat-text{flex:1;color:#fff}
+.feat-text h3{font-size:28px;font-weight:900;margin-bottom:10px;line-height:1.3}
+.feat-text h3 .acc{color:#fbbf24}
+.feat-text p{font-size:16px;color:rgba(255,255,255,0.6);line-height:1.6;margin-bottom:12px}
+.feat-tags{display:flex;gap:8px;flex-wrap:wrap}
+.ft{font-size:12px;font-weight:700;padding:5px 14px;border-radius:8px}
+.ft-a{background:rgba(251,191,36,0.2);color:#fbbf24}
+.ft-v{background:rgba(139,92,246,0.2);color:#a78bfa}
+.ft-g{background:rgba(34,197,94,0.2);color:#4ade80}
+.ft-b{background:rgba(59,130,246,0.2);color:#60a5fa}
+
+/* Portfolio screen */
+.scr-pf{padding:10px;background:#f8fafc;height:100%}
+.scr-pf .hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.scr-pf .hdr h4{font-size:12px;font-weight:900;color:#1e293b}
+.pf-btn{font-size:7px;font-weight:700;background:#f59e0b;color:#fff;padding:3px 8px;border-radius:6px;border:none}
+.pfg{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.pfc{background:#fff;border-radius:8px;overflow:hidden;border:1px solid #e2e8f0}
+.pfth{height:55px;display:flex;align-items:center;justify-content:center}
+.pfth.c1{background:linear-gradient(135deg,#fef3c7,#fde68a)}
+.pfth.c2{background:linear-gradient(135deg,#ede9fe,#ddd6fe)}
+.pfth.c3{background:linear-gradient(135deg,#dbeafe,#bfdbfe)}
+.pfth.c4{background:linear-gradient(135deg,#dcfce7,#bbf7d0)}
+.pfpl{width:18px;height:18px;background:rgba(0,0,0,0.35);border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-size:8px}
+.pfi{padding:5px}
+.pfi .t{font-size:8px;font-weight:700;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pfi .m{font-size:6px;color:#94a3b8;margin-top:1px}
+
+/* Lessons screen */
+.scr-ls{padding:10px;background:#f8fafc;height:100%}
+.scr-ls h4{font-size:12px;font-weight:900;color:#1e293b;margin-bottom:6px}
+.cal-mini{background:#fff;border-radius:10px;padding:8px;border:1px solid #e2e8f0;margin-bottom:6px}
+.cm-title{font-size:9px;font-weight:700;text-align:center;margin-bottom:4px;color:#334155}
+.cm-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;text-align:center}
+.cm-d{font-size:6px;color:#94a3b8;font-weight:700;padding:2px 0}
+.cm-c{font-size:7px;padding:3px 0;color:#475569;position:relative;border-radius:4px}
+.cm-c.today{background:#f59e0b;color:#fff;font-weight:900;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;margin:0 auto}
+.cm-c.dot::after{content:'';width:2px;height:2px;background:#f59e0b;border-radius:50%;position:absolute;bottom:0;left:50%;transform:translateX(-50%)}
+.lc{background:#fff;border-radius:8px;padding:7px;border:1px solid #e2e8f0;margin-bottom:4px}
+.lc .lct{font-size:8px;font-weight:700;color:#f59e0b;margin-bottom:1px}
+.lc .lcn{font-size:9px;font-weight:700;color:#1e293b}
+.lc .lcs{font-size:7px;color:#94a3b8}
+
+.bottom{position:absolute;bottom:40px;left:0;right:0;text-align:center;z-index:1}
+.bottom p{font-size:16px;color:rgba(255,255,255,0.3)}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="content">
+    <div class="section-title">MAIN FEATURES</div>
+
+    <!-- Portfolio -->
+    <div class="feature-row">
+      <div class="phone-sm">
+        <div class="phone-sm-inner">
+          <div class="ps"><div class="ps-notch"></div></div>
+          <div class="pc">
+            <div class="scr-pf">
+              <div class="hdr"><h4>포트폴리오</h4><button class="pf-btn">+ 영상</button></div>
+              <div class="pfg">
+                <div class="pfc"><div class="pfth c1"><div class="pfpl">▶</div></div><div class="pfi"><div class="t">햄릿 독백 연습</div><div class="m">4/5 · 2:34</div></div></div>
+                <div class="pfc"><div class="pfth c2"><div class="pfpl">▶</div></div><div class="pfi"><div class="t">뮤지컬 넘버</div><div class="m">4/4 · 3:12</div></div></div>
+                <div class="pfc"><div class="pfth c3"><div class="pfpl">▶</div></div><div class="pfi"><div class="t">기본기 호흡</div><div class="m">4/3 · 1:45</div></div></div>
+                <div class="pfc"><div class="pfth c4"><div class="pfpl">▶</div></div><div class="pfi"><div class="t">즉흥연기</div><div class="m">4/2 · 4:20</div></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="pn"><span>홈</span><span>수업</span><span>과제</span><span class="active">성장</span><span>소통</span></div>
+        </div>
+      </div>
+      <div class="feat-text">
+        <h3><span class="acc">연습 영상</span>을<br>체계적으로 관리</h3>
+        <p>영상 촬영 후 바로 업로드.<br>선생님의 타임스탬프 피드백으로<br>정확한 코칭을 받으세요.</p>
+        <div class="feat-tags"><span class="ft ft-a">영상 업로드</span><span class="ft ft-v">선생님 피드백</span></div>
+      </div>
+    </div>
+
+    <!-- Lessons -->
+    <div class="feature-row reverse">
+      <div class="phone-sm">
+        <div class="phone-sm-inner">
+          <div class="ps"><div class="ps-notch"></div></div>
+          <div class="pc">
+            <div class="scr-ls">
+              <h4>수업</h4>
+              <div class="cal-mini">
+                <div class="cm-title">2026년 4월</div>
+                <div class="cm-grid">
+                  <div class="cm-d">일</div><div class="cm-d">월</div><div class="cm-d">화</div><div class="cm-d">수</div><div class="cm-d">목</div><div class="cm-d">금</div><div class="cm-d">토</div>
+                  <div class="cm-c"></div><div class="cm-c"></div><div class="cm-c">1</div><div class="cm-c dot">2</div><div class="cm-c dot">3</div><div class="cm-c dot">4</div><div class="cm-c dot">5</div>
+                  <div class="cm-c">6</div><div class="cm-c today">7</div><div class="cm-c dot">8</div><div class="cm-c">9</div><div class="cm-c dot">10</div><div class="cm-c dot">11</div><div class="cm-c dot">12</div>
+                </div>
+              </div>
+              <div class="lc"><div class="lct">18:00 - 20:00</div><div class="lcn">고등입시A반 · 연기</div><div class="lcs">산곡점 · 김세희 선생님</div></div>
+              <div class="lc"><div class="lct">20:00 - 22:00</div><div class="lcn">고등입시A반 · 뮤지컬</div><div class="lcs">작전점 · 박진혁 선생님</div></div>
+            </div>
+          </div>
+          <div class="pn"><span>홈</span><span class="active">수업</span><span>과제</span><span>성장</span><span>소통</span></div>
+        </div>
+      </div>
+      <div class="feat-text">
+        <h3><span class="acc">수업 · 출석 · 일지</span><br>한눈에 관리</h3>
+        <p>캘린더로 수업 일정 확인,<br>출석 체크, 수업일지 작성까지.<br>선생님과 학생 모두 편리하게.</p>
+        <div class="feat-tags"><span class="ft ft-a">캘린더</span><span class="ft ft-g">출석 관리</span><span class="ft ft-b">수업일지</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="bottom"><p>쏠연기뮤지컬학원 · 본원 수강생 전용</p></div>
+</div>
+</body>
+</html>
