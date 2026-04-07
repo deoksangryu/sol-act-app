@@ -250,9 +250,13 @@ def _update_video_urls_in_db(old_path: str, new_path: str) -> None:
         try:
             updated = 0
             # Update portfolio video_url
-            from app.models.portfolio import Portfolio
+            from app.models.portfolio import Portfolio, PortfolioVideo
             updated += db.query(Portfolio).filter(Portfolio.video_url == old_url).update(
                 {Portfolio.video_url: new_url}
+            )
+            # Update portfolio_videos
+            updated += db.query(PortfolioVideo).filter(PortfolioVideo.video_url == old_url).update(
+                {PortfolioVideo.video_url: new_url}
             )
             # Update assignment submission_file_url
             from app.models.assignment import Assignment
