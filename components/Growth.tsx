@@ -55,6 +55,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
+  const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
   const [newPfTitles, setNewPfTitles] = useState<string[]>(['']);
   const [newPfDesc, setNewPfDesc] = useState('');
   const [newPfCategory, setNewPfCategory] = useState('other');
@@ -1720,6 +1721,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                           className="w-full h-full object-contain"
                           preload="metadata"
                         />
+                        <button
+                          onClick={() => setFullscreenVideo(currentVideo.url.startsWith('/') ? `${API_URL}${currentVideo.url}` : currentVideo.url)}
+                          className="absolute top-2 right-2 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center text-white hover:bg-black/70 transition-colors z-10"
+                          title="전체화면"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" /></svg>
+                        </button>
                         {/* Navigation arrows */}
                         {allVideos.length > 1 && (
                           <>
@@ -2091,6 +2099,27 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
           onConfirm={handleDeleteEvent}
           onCancel={() => setDeleteEventId(null)}
         />
+      )}
+
+      {fullscreenVideo && (
+        <div
+          className="fixed inset-0 bg-black/95 z-[9999] flex items-center justify-center"
+          onClick={() => setFullscreenVideo(null)}
+        >
+          <button
+            onClick={() => setFullscreenVideo(null)}
+            className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <video
+            src={fullscreenVideo}
+            controls
+            autoPlay
+            className="max-w-full max-h-full object-contain p-4"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
 
       {fullscreenImage && (
