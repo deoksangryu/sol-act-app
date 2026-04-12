@@ -56,6 +56,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [fullscreenVideo, setFullscreenVideo] = useState<string | null>(null);
+  const imgZoomRef = useRef({ scale: 1, x: 0, y: 0, startDist: 0, startScale: 1, startX: 0, startY: 0, startTx: 0, startTy: 0, isPanning: false });
   const [newPfTitles, setNewPfTitles] = useState<string[]>(['']);
   const [newPfDesc, setNewPfDesc] = useState('');
   const [newPfCategory, setNewPfCategory] = useState('other');
@@ -1254,7 +1255,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                       return (
                         <div className="mt-2">
                           {isImage ? (
-                            <img src={fullUrl} alt="첨부" className="rounded-lg max-h-48 object-cover cursor-pointer" onClick={(e) => { e.stopPropagation(); setFullscreenImage(fullUrl); }} />
+                            <img src={fullUrl} alt="첨부" className="rounded-lg max-h-48 object-cover cursor-pointer" onClick={(e) => { e.stopPropagation(); Object.assign(imgZoomRef.current, { scale: 1, x: 0, y: 0 }); setFullscreenImage(fullUrl); }} />
                           ) : (
                             <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-violet-500 hover:text-violet-600 flex items-center gap-1">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
@@ -1298,7 +1299,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                 return (
                   <div className="mt-4 border-t border-slate-100 pt-4">
                     {isImage ? (
-                      <img src={fullUrl} alt="첨부" className="rounded-xl max-h-64 object-cover w-full cursor-pointer" onClick={() => setFullscreenImage(fullUrl)} />
+                      <img src={fullUrl} alt="첨부" className="rounded-xl max-h-64 object-cover w-full cursor-pointer" onClick={() => { Object.assign(imgZoomRef.current, { scale: 1, x: 0, y: 0 }); setFullscreenImage(fullUrl); }} />
                     ) : (
                       <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-violet-500 hover:text-violet-600 flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
@@ -2123,46 +2124,78 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       )}
 
       {fullscreenImage && (() => {
+        const state = imgZoomRef.current;
+        const applyTransform = (img: HTMLElement) => {
+          img.style.transform = `translate(${state.x}px, ${state.y}px) scale(${state.scale})`;
+        };
         const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
           e.stopPropagation();
-          const container = e.currentTarget;
-          const img = container.querySelector('img');
+          const img = e.currentTarget.querySelector('img') as HTMLElement | null;
           if (!img) return;
-          const cur = parseFloat(img.style.transform?.match(/scale\(([\d.]+)\)/)?.[1] || '1');
-          const next = Math.min(Math.max(cur + (e.deltaY > 0 ? -0.2 : 0.2), 1), 5);
-          img.style.transform = `scale(${next})`;
+          state.scale = Math.min(Math.max(state.scale + (e.deltaY > 0 ? -0.2 : 0.2), 1), 5);
+          if (state.scale === 1) { state.x = 0; state.y = 0; }
+          applyTransform(img);
         };
-        const pinchState = { startDist: 0, startScale: 1 };
         const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
           if (e.touches.length === 2) {
             e.stopPropagation();
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
-            pinchState.startDist = Math.hypot(dx, dy);
-            const img = e.currentTarget.querySelector('img');
-            pinchState.startScale = parseFloat(img?.style.transform?.match(/scale\(([\d.]+)\)/)?.[1] || '1');
+            state.startDist = Math.hypot(dx, dy);
+            // Read current state from img transform
+            const img = e.currentTarget.querySelector('img') as HTMLElement | null;
+            const m = img?.style.transform?.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)\s*scale\(([\d.]+)\)/);
+            if (m) { state.x = parseFloat(m[1]); state.y = parseFloat(m[2]); state.scale = parseFloat(m[3]); }
+            state.startScale = state.scale;
+            state.startTx = state.x; state.startTy = state.y;
+            const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            state.startX = cx; state.startY = cy;
+          } else if (e.touches.length === 1 && state.scale > 1) {
+            e.stopPropagation();
+            state.isPanning = true;
+            state.startX = e.touches[0].clientX;
+            state.startY = e.touches[0].clientY;
+            const img = e.currentTarget.querySelector('img') as HTMLElement | null;
+            const m = img?.style.transform?.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/);
+            if (m) { state.x = parseFloat(m[1]); state.y = parseFloat(m[2]); }
+            state.startTx = state.x; state.startTy = state.y;
           }
         };
         const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+          const img = e.currentTarget.querySelector('img') as HTMLElement | null;
+          if (!img) return;
           if (e.touches.length === 2) {
             e.stopPropagation();
             e.preventDefault();
             const dx = e.touches[0].clientX - e.touches[1].clientX;
             const dy = e.touches[0].clientY - e.touches[1].clientY;
             const dist = Math.hypot(dx, dy);
-            const scale = Math.min(Math.max(pinchState.startScale * (dist / pinchState.startDist), 1), 5);
-            const img = e.currentTarget.querySelector('img');
-            if (img) img.style.transform = `scale(${scale})`;
+            state.scale = Math.min(Math.max(state.startScale * (dist / state.startDist), 1), 5);
+            const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            state.x = state.startTx + (cx - state.startX);
+            state.y = state.startTy + (cy - state.startY);
+            if (state.scale === 1) { state.x = 0; state.y = 0; }
+            applyTransform(img);
+          } else if (e.touches.length === 1 && state.isPanning) {
+            e.stopPropagation();
+            e.preventDefault();
+            state.x = state.startTx + (e.touches[0].clientX - state.startX);
+            state.y = state.startTy + (e.touches[0].clientY - state.startY);
+            applyTransform(img);
           }
         };
+        const handleTouchEnd = () => { state.isPanning = false; };
         return (
           <div
-            className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center"
+            className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center overflow-hidden"
             onClick={() => setFullscreenImage(null)}
             onContextMenu={(e) => e.preventDefault()}
             onWheel={handleWheel}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
           >
             <button
               onClick={() => setFullscreenImage(null)}
@@ -2173,7 +2206,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             <img
               src={fullscreenImage}
               alt="첨부 자료"
-              className="max-w-full max-h-full object-contain p-4 transition-transform duration-100"
+              className="max-w-full max-h-full object-contain p-4"
               draggable={false}
               onClick={(e) => e.stopPropagation()}
               style={{ userSelect: 'none', WebkitUserDrag: 'none', touchAction: 'none' } as any}
