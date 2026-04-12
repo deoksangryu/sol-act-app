@@ -601,6 +601,26 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
         </div>
 
         {renderDetailModal()}
+
+        {fullscreenImage && (
+          <div
+            className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center"
+            onClick={() => setFullscreenImage(null)}
+          >
+            <button
+              onClick={() => setFullscreenImage(null)}
+              className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <img
+              src={fullscreenImage}
+              alt="식단 사진"
+              className="max-w-full max-h-full object-contain p-4"
+              onClick={(e) => e.stopPropagation()}
+            />
+          </div>
+        )}
       </div>
     );
   }
