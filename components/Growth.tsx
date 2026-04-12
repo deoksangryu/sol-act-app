@@ -455,7 +455,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             let failCount = 0;
             for (let i = 1; i < files.length; i++) {
               try {
-                const result = await uploadApi.upload(files[i], undefined, 'portfolios', 'portfolio', pfId);
+                const result = await uploadApi.upload(files[i], undefined, 'portfolios');
                 await portfolioApi.addVideo(pfId, result.url);
               } catch {
                 failCount++;
