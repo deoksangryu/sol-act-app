@@ -16,9 +16,12 @@ type GrowthTab = 'evaluation' | 'portfolio' | 'journal' | 'competition';
 type PortfolioView = 'grid' | 'timeline';
 
 const PORTFOLIO_CATEGORY_LABELS: Record<string, string> = {
+  acting: '연기',
+  dance: '무용',
+  musical: '뮤지컬',
+  basics: '기본기',
   monologue: '독백',
   scene: '장면연기',
-  musical: '뮤지컬',
   improv: '즉흥연기',
   audition_prep: '오디션 준비',
   other: '기타',
@@ -59,7 +62,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const imgZoomRef = useRef({ scale: 1, x: 0, y: 0, startDist: 0, startScale: 1, startX: 0, startY: 0, startTx: 0, startTy: 0, isPanning: false });
   const [newPfTitles, setNewPfTitles] = useState<string[]>(['']);
   const [newPfDesc, setNewPfDesc] = useState('');
-  const [newPfCategory, setNewPfCategory] = useState('other');
+  const [newPfCategory, setNewPfCategory] = useState('');
   const [newPfTags, setNewPfTags] = useState('');
   const [newPfVideoFiles, setNewPfVideoFiles] = useState<File[]>([]);
   const [pfUploadMode, setPfUploadMode] = useState<'individual' | 'single'>('individual'); // individual=영상별 포트폴리오, single=하나에 모아서
@@ -413,6 +416,10 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       toast.error('제목을 입력해주세요.');
       return;
     }
+    if (!newPfCategory) {
+      toast.error('카테고리를 선택해주세요.');
+      return;
+    }
 
     setIsCreatingPortfolio(true);
     try {
@@ -427,14 +434,14 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
           title: titles[0],
           description: newPfDesc,
           videoUrl: undefined,
-          category: newPfCategory || 'other',
+          category: newPfCategory,
           tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
           practiceGroup,
         });
         setPortfolios(prev => [...prev, newPf]);
 
         setIsPortfolioModalOpen(false);
-        setNewPfTitles(['']); setNewPfDesc(''); setNewPfCategory('other'); setNewPfTags('');
+        setNewPfTitles(['']); setNewPfDesc(''); setNewPfCategory(''); setNewPfTags('');
         setNewPfVideoFiles([]); setPfUploadMode('individual');
         setNewPfPracticeGroup(''); setNewPfPracticeGroupCustom('');
 
@@ -474,7 +481,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             title,
             description: newPfDesc,
             videoUrl: undefined,
-            category: newPfCategory || 'other',
+            category: newPfCategory,
             tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
             practiceGroup,
           });
@@ -483,7 +490,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
 
         setPortfolios(prev => [...prev, ...createdPfs]);
         setIsPortfolioModalOpen(false);
-        setNewPfTitles(['']); setNewPfDesc(''); setNewPfCategory('other'); setNewPfTags('');
+        setNewPfTitles(['']); setNewPfDesc(''); setNewPfCategory(''); setNewPfTags('');
         setNewPfVideoFiles([]); setPfUploadMode('individual');
         setNewPfPracticeGroup(''); setNewPfPracticeGroupCustom('');
 
@@ -959,7 +966,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
 
             {isStudent && (
               <button
-                onClick={() => { setNewPfTitles(['']); setNewPfDesc(''); setNewPfCategory('other'); setNewPfTags(''); setNewPfVideoFiles([]); setPfUploadMode('individual'); setIsPortfolioModalOpen(true); }}
+                onClick={() => { setNewPfTitles(['']); setNewPfDesc(''); setNewPfCategory(''); setNewPfTags(''); setNewPfVideoFiles([]); setPfUploadMode('individual'); setIsPortfolioModalOpen(true); }}
                 className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md flex items-center gap-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -1969,6 +1976,21 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                   <p className="text-xs text-slate-400 mt-1">영상 {newPfVideoFiles.length}개에 같은 제목이 자동 번호와 함께 적용됩니다.</p>
                 )}
               </div>
+              <div>
+                <label htmlFor="input-portfolio-category" className="block text-xs font-bold text-slate-500 mb-1">카테고리 <span className="text-red-400">*</span></label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[{ value: 'acting', label: '연기' }, { value: 'dance', label: '무용' }, { value: 'musical', label: '뮤지컬' }, { value: 'basics', label: '기본기' }].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setNewPfCategory(opt.value)}
+                      className={`py-2.5 rounded-xl text-sm font-bold transition-colors ${newPfCategory === opt.value ? 'bg-brand-500 text-white shadow-md' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
               {/* Collapsible detail settings */}
               <details className="group">
                 <summary className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-400 hover:text-slate-600 py-1">
@@ -1976,16 +1998,6 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                   상세 설정
                 </summary>
                 <div className="space-y-4 mt-3">
-                  <div>
-                    <label htmlFor="input-portfolio-category" className="block text-xs font-bold text-slate-500 mb-1">카테고리 <span className="text-red-400">*</span></label>
-                    <select id="input-portfolio-category" value={newPfCategory} onChange={e => setNewPfCategory(e.target.value)} className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500">
-                      <option value="other">기타</option>
-                      <option value="monologue">독백</option>
-                      <option value="scene">장면연기</option>
-                      <option value="musical">뮤지컬</option>
-                      <option value="improv">즉흥연기</option>
-                    </select>
-                  </div>
                   <div>
                     <label htmlFor="input-portfolio-practice-group" className="block text-xs font-bold text-slate-500 mb-1">연습 시리즈</label>
                     <select
