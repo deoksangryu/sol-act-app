@@ -501,9 +501,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         setNewPfVideoFiles([]); setPfUploadMode('individual');
         setNewPfPracticeGroup(''); setNewPfPracticeGroupCustom('');
 
-        files.forEach((file, i) => {
-          startPfVideoUpload(file, createdPfs[i].id);
-        });
+        // Upload videos sequentially to avoid mobile memory issues
+        (async () => {
+          for (let i = 0; i < files.length; i++) {
+            await startPfVideoUpload(files[i], createdPfs[i].id);
+          }
+          toast.success(`영상 ${files.length}개 모두 업로드 완료!`);
+        })();
         toast.success(`포트폴리오 ${files.length}개 등록! 영상 업로드 중...`);
       }
     } catch { toast.error('포트폴리오 등록에 실패했습니다.'); } finally { setIsCreatingPortfolio(false); }
