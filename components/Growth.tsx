@@ -2122,28 +2122,65 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         </div>
       )}
 
-      {fullscreenImage && (
-        <div
-          className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center"
-          onClick={() => setFullscreenImage(null)}
-          onContextMenu={(e) => e.preventDefault()}
-        >
-          <button
+      {fullscreenImage && (() => {
+        const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+          e.stopPropagation();
+          const container = e.currentTarget;
+          const img = container.querySelector('img');
+          if (!img) return;
+          const cur = parseFloat(img.style.transform?.match(/scale\(([\d.]+)\)/)?.[1] || '1');
+          const next = Math.min(Math.max(cur + (e.deltaY > 0 ? -0.2 : 0.2), 1), 5);
+          img.style.transform = `scale(${next})`;
+        };
+        const pinchState = { startDist: 0, startScale: 1 };
+        const handleTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+          if (e.touches.length === 2) {
+            e.stopPropagation();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            pinchState.startDist = Math.hypot(dx, dy);
+            const img = e.currentTarget.querySelector('img');
+            pinchState.startScale = parseFloat(img?.style.transform?.match(/scale\(([\d.]+)\)/)?.[1] || '1');
+          }
+        };
+        const handleTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+          if (e.touches.length === 2) {
+            e.stopPropagation();
+            e.preventDefault();
+            const dx = e.touches[0].clientX - e.touches[1].clientX;
+            const dy = e.touches[0].clientY - e.touches[1].clientY;
+            const dist = Math.hypot(dx, dy);
+            const scale = Math.min(Math.max(pinchState.startScale * (dist / pinchState.startDist), 1), 5);
+            const img = e.currentTarget.querySelector('img');
+            if (img) img.style.transform = `scale(${scale})`;
+          }
+        };
+        return (
+          <div
+            className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center"
             onClick={() => setFullscreenImage(null)}
-            className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+            onContextMenu={(e) => e.preventDefault()}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-          <img
-            src={fullscreenImage}
-            alt="첨부 자료"
-            className="max-w-full max-h-full object-contain p-4"
-            draggable={false}
-            onClick={(e) => e.stopPropagation()}
-            style={{ userSelect: 'none', WebkitUserDrag: 'none' } as any}
-          />
-        </div>
-      )}
+            <button
+              onClick={() => setFullscreenImage(null)}
+              className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            <img
+              src={fullscreenImage}
+              alt="첨부 자료"
+              className="max-w-full max-h-full object-contain p-4 transition-transform duration-100"
+              draggable={false}
+              onClick={(e) => e.stopPropagation()}
+              style={{ userSelect: 'none', WebkitUserDrag: 'none', touchAction: 'none' } as any}
+            />
+          </div>
+        );
+      })()}
     </div>
   );
 };
