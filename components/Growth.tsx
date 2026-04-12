@@ -54,6 +54,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(null);
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [isCreatingPortfolio, setIsCreatingPortfolio] = useState(false);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [newPfTitles, setNewPfTitles] = useState<string[]>(['']);
   const [newPfDesc, setNewPfDesc] = useState('');
   const [newPfCategory, setNewPfCategory] = useState('other');
@@ -1252,7 +1253,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                       return (
                         <div className="mt-2">
                           {isImage ? (
-                            <img src={fullUrl} alt="첨부" className="rounded-lg max-h-48 object-cover" />
+                            <img src={fullUrl} alt="첨부" className="rounded-lg max-h-48 object-cover cursor-pointer" onClick={(e) => { e.stopPropagation(); setFullscreenImage(fullUrl); }} />
                           ) : (
                             <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-violet-500 hover:text-violet-600 flex items-center gap-1">
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
@@ -1296,7 +1297,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                 return (
                   <div className="mt-4 border-t border-slate-100 pt-4">
                     {isImage ? (
-                      <img src={fullUrl} alt="첨부" className="rounded-xl max-h-64 object-cover w-full" />
+                      <img src={fullUrl} alt="첨부" className="rounded-xl max-h-64 object-cover w-full cursor-pointer" onClick={() => setFullscreenImage(fullUrl)} />
                     ) : (
                       <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-violet-500 hover:text-violet-600 flex items-center gap-1">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
@@ -2090,6 +2091,29 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
           onConfirm={handleDeleteEvent}
           onCancel={() => setDeleteEventId(null)}
         />
+      )}
+
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center"
+          onClick={() => setFullscreenImage(null)}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            onClick={() => setFullscreenImage(null)}
+            className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <img
+            src={fullscreenImage}
+            alt="첨부 자료"
+            className="max-w-full max-h-full object-contain p-4"
+            draggable={false}
+            onClick={(e) => e.stopPropagation()}
+            style={{ userSelect: 'none', WebkitUserDrag: 'none' } as any}
+          />
+        </div>
       )}
     </div>
   );
