@@ -121,6 +121,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
   // Form State
   const [newMeal, setNewMeal] = useState('');
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [newMealType, setNewMealType] = useState<'breakfast' | 'lunch' | 'dinner' | 'snack'>('lunch');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -420,7 +421,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
       <div className="flex gap-4">
         {log.imageUrl ? (
           <div className="shrink-0 w-20 h-20 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
-            <img src={log.imageUrl.startsWith('/') ? `${API_URL}${log.imageUrl}` : log.imageUrl} alt="Meal" className="w-full h-full object-cover" />
+            <img src={log.imageUrl.startsWith('/') ? `${API_URL}${log.imageUrl}` : log.imageUrl} alt="Meal" loading="lazy" className="w-full h-full object-cover" />
           </div>
         ) : (
           <div className="shrink-0 w-20 h-20 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-center">
@@ -471,7 +472,7 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
 
         {/* Image */}
         {detailLog.imageUrl ? (
-          <div className="w-full h-64 md:h-80 bg-slate-100">
+          <div className="w-full h-64 md:h-80 bg-slate-100 cursor-pointer" onClick={(e) => { e.stopPropagation(); setFullscreenImage(detailLog.imageUrl!.startsWith('/') ? `${API_URL}${detailLog.imageUrl}` : detailLog.imageUrl!); }}>
             <img src={detailLog.imageUrl.startsWith('/') ? `${API_URL}${detailLog.imageUrl}` : detailLog.imageUrl} alt="Meal" className="w-full h-full object-cover" />
           </div>
         ) : (
@@ -1077,6 +1078,26 @@ export const Diet: React.FC<DietProps> = ({ user }) => {
       )}
     </div>
     )}
+
+      {fullscreenImage && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[9999] flex items-center justify-center"
+          onClick={() => setFullscreenImage(null)}
+        >
+          <button
+            onClick={() => setFullscreenImage(null)}
+            className="absolute top-4 right-4 z-10 w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/30 transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+          <img
+            src={fullscreenImage}
+            alt="식단 사진"
+            className="max-w-full max-h-full object-contain p-4"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };

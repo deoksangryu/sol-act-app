@@ -164,6 +164,13 @@ async def serve_uploads(request: Request, call_next):
 
     rel = path[len("/uploads/"):]  # strip prefix
 
+    # Cache headers for static uploads (images/videos don't change after upload)
+    cache_headers = {
+        "x-content-type-options": "nosniff",
+        "content-security-policy": "default-src 'none'",
+        "cache-control": "public, max-age=31536000, immutable",
+    }
+
     # Try external SSD first
     name = settings.EXTERNAL_DRIVE_NAME
     if name:
@@ -171,8 +178,8 @@ async def serve_uploads(request: Request, call_next):
         if os.path.isfile(ext_file):
             from starlette.responses import FileResponse as SFileResponse
             resp = SFileResponse(ext_file)
-            resp.headers["x-content-type-options"] = "nosniff"
-            resp.headers["content-security-policy"] = "default-src 'none'"
+            for k, v in cache_headers.items():
+                resp.headers[k] = v
             return resp
 
     # Fall back to local
@@ -180,8 +187,8 @@ async def serve_uploads(request: Request, call_next):
     if os.path.isfile(local_file):
         from starlette.responses import FileResponse as SFileResponse
         resp = SFileResponse(local_file)
-        resp.headers["x-content-type-options"] = "nosniff"
-        resp.headers["content-security-policy"] = "default-src 'none'"
+        for k, v in cache_headers.items():
+            resp.headers[k] = v
         return resp
 
     return JSONResponse(status_code=404, content={"detail": "Not found"})

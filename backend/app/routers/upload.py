@@ -5,8 +5,8 @@ from app.models.user import User
 from app.utils.auth import get_current_user
 from app.database import get_db
 from app.services.file_upload import (
-    save_file, is_video, compress_video_sync, extract_thumbnail,
-    UPLOAD_DIR, get_max_size, validate_file_ext,
+    save_file, is_video, is_image, compress_video_sync, compress_image_sync,
+    extract_thumbnail, UPLOAD_DIR, get_max_size, validate_file_ext,
 )
 from pathlib import Path
 from pydantic import BaseModel
@@ -86,6 +86,9 @@ async def upload_file(
         # Extract thumbnail before compression (synchronous, fast ~1s)
         thumbnail_url = extract_thumbnail(file_path)
         background_tasks.add_task(compress_video_sync, file_path, current_user.id)
+    elif is_image(filename):
+        file_path = str(UPLOAD_DIR / url.removeprefix("/uploads/"))
+        background_tasks.add_task(compress_image_sync, file_path)
 
     return {"url": url, "filename": filename, "is_video": video, "thumbnail_url": thumbnail_url}
 
@@ -244,13 +247,16 @@ async def chunked_complete(
             target_path.unlink(missing_ok=True)
             logger.warning(f"Cleaned up orphaned chunked upload: {url}")
 
-    # Video compression
+    # Video compression / Image compression
     video = is_video(filename)
     thumbnail_url = None
     if video:
         file_path = str(UPLOAD_DIR / url.removeprefix("/uploads/"))
         thumbnail_url = extract_thumbnail(file_path)
         background_tasks.add_task(compress_video_sync, file_path, current_user.id)
+    elif is_image(filename):
+        file_path = str(UPLOAD_DIR / url.removeprefix("/uploads/"))
+        background_tasks.add_task(compress_image_sync, file_path)
 
     logger.info(f"Chunked upload complete: {url} ({actual_size // 1024}KB)")
     return {"url": url, "filename": filename, "is_video": video, "thumbnail_url": thumbnail_url}

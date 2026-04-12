@@ -127,6 +127,55 @@ async def save_file(
     return relative_url, file.filename
 
 
+ALLOWED_IMAGE = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+IMAGE_MAX_DIMENSION = 1280  # Max width or height
+IMAGE_QUALITY = 80  # JPEG quality
+
+
+def is_image(filename: str) -> bool:
+    return Path(filename).suffix.lower() in ALLOWED_IMAGE
+
+
+def compress_image_sync(file_path: str) -> None:
+    """Compress and resize image. Replaces original file on success."""
+    try:
+        from PIL import Image
+        src = Path(file_path)
+        if not src.exists():
+            return
+
+        img = Image.open(src)
+
+        # Convert RGBA/P to RGB for JPEG
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+
+        # Resize if larger than max dimension
+        w, h = img.size
+        if w > IMAGE_MAX_DIMENSION or h > IMAGE_MAX_DIMENSION:
+            img.thumbnail((IMAGE_MAX_DIMENSION, IMAGE_MAX_DIMENSION), Image.LANCZOS)
+
+        original_size = src.stat().st_size
+
+        # Save as JPEG
+        out_path = src.with_suffix('.jpg') if src.suffix.lower() != '.jpg' else src
+        img.save(out_path, 'JPEG', quality=IMAGE_QUALITY, optimize=True)
+        compressed_size = out_path.stat().st_size
+
+        # Remove original if extension changed
+        if out_path != src:
+            src.unlink(missing_ok=True)
+
+        logger.info(
+            f"Image compressed: {original_size // 1024}KB -> {compressed_size // 1024}KB "
+            f"({100 - compressed_size * 100 // max(original_size, 1)}% reduction)"
+        )
+    except ImportError:
+        logger.warning("Pillow not installed, skipping image compression")
+    except Exception as e:
+        logger.warning(f"Image compression failed: {e}")
+
+
 def check_ffmpeg() -> bool:
     return shutil.which("ffmpeg") is not None
 
