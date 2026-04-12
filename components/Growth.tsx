@@ -348,7 +348,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     });
   };
 
-  const startPfVideoUpload = (file: File, portfolioId: string) => {
+  const startPfVideoUpload = (file: File, portfolioId: string): Promise<void> => {
     setActiveUploads(prev => ({ ...prev, [portfolioId]: { progress: 0, error: null, file } }));
     globalStartUpload(portfolioId, `영상: ${file.name}`);
 
@@ -370,7 +370,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     );
     uploadAbortRefs.current[portfolioId] = () => uploadPromise.abort();
 
-    uploadPromise.then(async (result) => {
+    return uploadPromise.then(async (result) => {
       try {
         const updated = await portfolioApi.update(portfolioId, { videoUrl: result.url });
         setPortfolios(prev => prev.map(p => p.id === portfolioId ? updated : p));
@@ -446,23 +446,30 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         setNewPfPracticeGroup(''); setNewPfPracticeGroupCustom('');
 
         if (files.length > 0) {
-          // First video → main videoUrl via startPfVideoUpload
-          startPfVideoUpload(files[0], newPf.id);
-          // Additional videos → portfolio_videos via addVideo after first upload completes
-          if (files.length > 1) {
-            const additionalFiles = files.slice(1);
-            // Upload remaining in background
-            (async () => {
-              for (const file of additionalFiles) {
-                try {
-                  const result = await uploadApi.upload(file, undefined, 'portfolios', 'portfolio', newPf.id);
-                  await portfolioApi.addVideo(newPf.id, result.url);
-                } catch { /* individual failure, continue */ }
+          // Upload videos sequentially to avoid mobile memory issues
+          const pfId = newPf.id;
+          (async () => {
+            // First video → main videoUrl
+            await startPfVideoUpload(files[0], pfId);
+            // Additional videos → portfolio_videos, one at a time
+            let failCount = 0;
+            for (let i = 1; i < files.length; i++) {
+              try {
+                const result = await uploadApi.upload(files[i], undefined, 'portfolios', 'portfolio', pfId);
+                await portfolioApi.addVideo(pfId, result.url);
+              } catch {
+                failCount++;
+                toast.error(`영상 ${i + 1} 업로드에 실패했습니다.`);
               }
-              const updated = await portfolioApi.get(newPf.id);
-              setPortfolios(prev => prev.map(p => p.id === newPf.id ? updated : p));
-            })();
-          }
+            }
+            if (files.length > 1) {
+              try {
+                const updated = await portfolioApi.get(pfId);
+                setPortfolios(prev => prev.map(p => p.id === pfId ? updated : p));
+              } catch { /* refresh failed, non-critical */ }
+              if (failCount === 0) toast.success(`영상 ${files.length}개 모두 업로드 완료!`);
+            }
+          })();
           toast.success(`포트폴리오 등록! 영상 ${files.length}개 업로드 중...`);
         } else {
           toast.success('포트폴리오가 등록되었습니다.');
@@ -1780,19 +1787,18 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                       <label className="ml-2 flex items-center gap-1 text-xs text-brand-500 hover:text-brand-600 cursor-pointer font-bold">
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
                         영상 추가
-                        <input type="file" className="hidden" accept="video/*" onChange={(e) => {
+                        <input type="file" className="hidden" accept="video/*" onClick={(e) => { (e.target as HTMLInputElement).value = ''; }} onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (file && selectedPortfolio) {
-                            // Upload then add to portfolio videos
-                            const uploadPromise = uploadApi.upload(file, undefined, 'portfolios', 'portfolio', selectedPortfolio.id);
-                            uploadPromise.then(async (result) => {
-                              await portfolioApi.addVideo(selectedPortfolio.id, result.url);
-                              // Refresh portfolio data
-                              const updated = await portfolioApi.get(selectedPortfolio.id);
-                              setPortfolios(prev => prev.map(p => p.id === selectedPortfolio.id ? updated : p));
-                              toast.success('영상이 추가되었습니다.');
-                            }).catch(() => toast.error('영상 추가에 실패했습니다.'));
-                          }
+                          if (!file || !selectedPortfolioId) return;
+                          const pfId = selectedPortfolioId;
+                          toast.success('영상 업로드를 시작합니다...');
+                          const uploadPromise = uploadApi.upload(file, undefined, 'portfolios', 'portfolio', pfId);
+                          uploadPromise.then(async (result) => {
+                            await portfolioApi.addVideo(pfId, result.url);
+                            const updated = await portfolioApi.get(pfId);
+                            setPortfolios(prev => prev.map(p => p.id === pfId ? updated : p));
+                            toast.success('영상이 추가되었습니다.');
+                          }).catch(() => toast.error('영상 추가에 실패했습니다.'));
                         }} />
                       </label>
                     )}
