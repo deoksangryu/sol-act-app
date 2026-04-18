@@ -817,8 +817,8 @@ export const privateLessonApi = {
 
 // --- Upload API ---
 
-// Threshold for switching to chunked upload (10MB)
-const CHUNKED_THRESHOLD = 10 * 1024 * 1024;
+// Threshold for switching to chunked upload — low threshold to avoid single upload crashes on mobile
+const CHUNKED_THRESHOLD = 1 * 1024 * 1024;
 // Initial chunk size: 2MB, adapts up to 8MB based on speed
 const INITIAL_CHUNK_SIZE = 2 * 1024 * 1024;
 const MAX_CHUNK_SIZE = 8 * 1024 * 1024;
