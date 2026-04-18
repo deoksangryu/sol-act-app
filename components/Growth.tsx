@@ -480,6 +480,9 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
           category: newPfCategory,
           tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
           practiceGroup,
+          uploadMode: 'single',
+          totalVideos: files.length,
+          videoIndex: 1,
         });
         setPortfolios(prev => [...prev, newPf]);
 
@@ -534,6 +537,9 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             category: newPfCategory,
             tags: newPfTags.split(',').map(t => t.trim()).filter(Boolean),
             practiceGroup,
+            uploadMode: 'individual',
+            totalVideos: files.length,
+            videoIndex: i + 1,
           });
           createdPfs.push(newPf);
         }

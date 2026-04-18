@@ -642,7 +642,7 @@ export const portfolioApi = {
     const data = await apiRequest<Record<string, unknown>>(`/api/portfolios/${id}`);
     return mapPortfolio(data);
   },
-  async create(data: Partial<PortfolioItem>): Promise<PortfolioItem> {
+  async create(data: Partial<PortfolioItem> & { uploadMode?: string; totalVideos?: number; videoIndex?: number }): Promise<PortfolioItem> {
     // Convert tags array to comma-separated string for backend
     const payload: Record<string, unknown> = { ...data };
     if (Array.isArray(payload.tags)) payload.tags = (payload.tags as string[]).join(',');

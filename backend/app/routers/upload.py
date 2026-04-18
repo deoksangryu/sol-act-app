@@ -145,7 +145,7 @@ async def chunked_init(
         "unique_name": unique_name,
         "created_at": time.time(),
     }
-    logger.info(f"Chunked upload init: {upload_id} ({data.filename}, {data.total_size // 1024}KB)")
+    logger.info(f"Chunked upload init: {upload_id} by {current_user.name}({current_user.id}) ({data.filename}, {data.total_size // 1024}KB, target={data.target_type}/{data.target_id})")
     return {"upload_id": upload_id}
 
 
@@ -258,7 +258,7 @@ async def chunked_complete(
         file_path = str(UPLOAD_DIR / url.removeprefix("/uploads/"))
         background_tasks.add_task(compress_image_sync, file_path)
 
-    logger.info(f"Chunked upload complete: {url} ({actual_size // 1024}KB)")
+    logger.info(f"Chunked upload complete: {url} by {current_user.name}({current_user.id}) ({actual_size // 1024}KB)")
     return {"url": url, "filename": filename, "is_video": video, "thumbnail_url": thumbnail_url}
 
 

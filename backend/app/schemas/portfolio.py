@@ -12,6 +12,10 @@ class PortfolioCreate(BaseModel):
     tags: Optional[str] = None
     practice_group: Optional[str] = None
     video_duration: Optional[int] = None
+    # Upload metadata (for logging only, not stored)
+    upload_mode: Optional[str] = None  # "single" or "individual"
+    total_videos: Optional[int] = None
+    video_index: Optional[int] = None  # 1-based index in batch
 
 
 class PortfolioUpdate(BaseModel):
