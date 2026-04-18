@@ -212,6 +212,17 @@ export function useNotificationWebSocket(
 
 // --- Data refresh hook ---
 
+export function useCompressionProgress(onProgress: (pct: number) => void) {
+  const ref = useRef(onProgress);
+  ref.current = onProgress;
+  useEffect(() => {
+    return wsClient.on('compression_progress', (parsed) => {
+      const pct = parsed?.data?.progress;
+      if (typeof pct === 'number') ref.current(pct);
+    });
+  }, []);
+}
+
 export function useDataRefresh(
   entities: string | string[],
   onRefresh: () => void
@@ -222,11 +233,17 @@ export function useDataRefresh(
   const key = entityList.join(',');
 
   useEffect(() => {
-    return wsClient.on('data_changed', (parsed) => {
+    const unsub1 = wsClient.on('data_changed', (parsed) => {
       if (entityList.includes(parsed.entity)) {
         onRefreshRef.current();
       }
     });
+    const unsub2 = wsClient.on('file_ready', () => {
+      if (entityList.includes('portfolios')) {
+        onRefreshRef.current();
+      }
+    });
+    return () => { unsub1(); unsub2(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 }

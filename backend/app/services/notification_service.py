@@ -62,9 +62,12 @@ def _send_web_push_sync(user_id: str, message: str, tag: str = "general") -> Non
                     )
                     logger.warning(f"Web push sent to {user_id} via {sub.endpoint[:50]}")
                 except WebPushException as e:
-                    if e.response and e.response.status_code in (404, 410):
+                    status = getattr(e.response, 'status_code', None) if e.response else None
+                    is_gone = status in (404, 410) or '410' in str(e) or '404' in str(e)
+                    if is_gone:
                         db.delete(sub)
                         db.commit()
+                        logger.warning(f"Web push subscription removed (expired): {sub.endpoint[:50]}")
                     else:
                         logger.warning(f"Web push failed for {sub.endpoint[:50]}: {e}")
                 except Exception as e:

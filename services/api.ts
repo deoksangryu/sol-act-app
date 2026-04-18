@@ -819,10 +819,11 @@ export const privateLessonApi = {
 
 // Threshold for switching to chunked upload (10MB)
 const CHUNKED_THRESHOLD = 10 * 1024 * 1024;
-// Chunk size: 5MB for faster upload (balance between speed and retry cost)
-const UPLOAD_CHUNK_SIZE = 5 * 1024 * 1024;
+// Initial chunk size: 2MB, adapts up to 8MB based on speed
+const INITIAL_CHUNK_SIZE = 2 * 1024 * 1024;
+const MAX_CHUNK_SIZE = 8 * 1024 * 1024;
 // Parallel chunk uploads
-const PARALLEL_CHUNKS = 3;
+const PARALLEL_CHUNKS = 5;
 // localStorage key for resumable uploads
 const UPLOAD_STATE_KEY = 'sol_act_pending_upload';
 
@@ -844,6 +845,10 @@ function releaseWakeLock() {
     _wakeLock.release().catch(() => {});
     _wakeLock = null;
   }
+}
+
+function notifySW(type: string, data?: Record<string, unknown>) {
+  navigator.serviceWorker?.controller?.postMessage({ type, ...data });
 }
 
 export const uploadApi = {
@@ -1006,6 +1011,7 @@ function _chunkedUpload(
 
   const promise = (async () => {
     await acquireWakeLock();
+    notifySW('upload_start', { id: file.name, label: file.name });
 
     // Check for resumable upload
     let uploadId: string;
@@ -1032,15 +1038,18 @@ function _chunkedUpload(
       uploadId = initRes.uploadId;
     }
 
-    // 2. Send chunks (parallel)
-    const totalChunks = Math.ceil(file.size / UPLOAD_CHUNK_SIZE);
-    let completedChunks = startChunk;
+    // 2. Send chunks with adaptive sizing (byte-offset based to avoid index*size miscalculation)
+    let chunkSize = INITIAL_CHUNK_SIZE;
+    let bytesSent = startChunk * INITIAL_CHUNK_SIZE;
+    let chunkIdx = startChunk;
+    const uploadStartTime = Date.now();
+    let firstBatchDone = false;
 
-    const sendChunk = async (idx: number): Promise<void> => {
+    const sendChunkAt = async (offset: number, idx: number): Promise<number> => {
       if (aborted) throw new Error('업로드가 취소되었습니다.');
-      const chunkOffset = idx * UPLOAD_CHUNK_SIZE;
-      const end = Math.min(chunkOffset + UPLOAD_CHUNK_SIZE, file.size);
-      const chunk = file.slice(chunkOffset, end);
+      const end = Math.min(offset + chunkSize, file.size);
+      const chunk = file.slice(offset, end);
+      const size = end - offset;
 
       const formData = new FormData();
       formData.append('file', chunk, `chunk_${idx}`);
@@ -1074,34 +1083,53 @@ function _chunkedUpload(
         } catch (e: any) {
           retries++;
           if (retries >= MAX_RETRIES || aborted || e.message?.includes('세션') || e.message?.includes('만료')) throw e;
-          await new Promise(r => setTimeout(r, Math.min(retries * 1000 * retries, 8000)));
+          await new Promise(r => setTimeout(r, Math.min(retries * 1000 * retries, 8000) + Math.random() * 500));
         }
       }
 
-      completedChunks++;
+      bytesSent += size;
       _saveUploadState({
         uploadId,
         filename: file.name,
         fileSize: file.size,
-        chunkIndex: completedChunks,
+        chunkIndex: idx + 1,
         subfolder: subfolder || 'assignments',
         targetType,
         targetId,
         timestamp: Date.now(),
       });
       if (onProgress) {
-        onProgress(Math.round((completedChunks / totalChunks) * 95));
+        onProgress(Math.round((bytesSent / file.size) * 95));
       }
+      notifySW('upload_progress');
+      return size;
     };
 
-    // Send chunks in parallel batches (backend assembles in order by chunk index)
-    for (let i = startChunk; i < totalChunks; i += PARALLEL_CHUNKS) {
+    // Send chunks in parallel batches with adaptive sizing
+    while (bytesSent < file.size) {
       if (aborted) throw new Error('업로드가 취소되었습니다.');
+
+      // Adapt chunk size after first batch based on measured speed
+      if (firstBatchDone && chunkSize === INITIAL_CHUNK_SIZE) {
+        const elapsed = (Date.now() - uploadStartTime) / 1000;
+        if (elapsed > 0) {
+          const speedMbps = (bytesSent * 8) / (elapsed * 1_000_000);
+          if (speedMbps > 25) chunkSize = MAX_CHUNK_SIZE;
+          else if (speedMbps > 10) chunkSize = 5 * 1024 * 1024;
+        }
+      }
+
+      // Build batch with correct byte offsets
       const batch = [];
-      for (let j = 0; j < PARALLEL_CHUNKS && i + j < totalChunks; j++) {
-        batch.push(sendChunk(i + j));
+      let batchOffset = bytesSent;
+      for (let j = 0; j < PARALLEL_CHUNKS && batchOffset < file.size; j++) {
+        const offset = batchOffset;
+        const idx = chunkIdx++;
+        batch.push(sendChunkAt(offset, idx));
+        batchOffset += chunkSize;
       }
       await Promise.all(batch);
+      firstBatchDone = true;
     }
 
     // 3. Complete
@@ -1113,9 +1141,11 @@ function _chunkedUpload(
 
     // Clear saved state on success
     _clearUploadState();
+    notifySW('upload_complete');
     releaseWakeLock();
     return result;
   })().catch((e) => {
+    notifySW('upload_complete');
     releaseWakeLock();
     throw e;
   });

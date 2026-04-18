@@ -157,12 +157,15 @@ def compress_image_sync(file_path: str) -> None:
 
         original_size = src.stat().st_size
 
-        # Save as JPEG
-        out_path = src.with_suffix('.jpg') if src.suffix.lower() != '.jpg' else src
+        # Save as JPEG (keep original extension if already jpg/jpeg)
+        if src.suffix.lower() in ('.jpg', '.jpeg'):
+            out_path = src
+        else:
+            out_path = src.with_suffix('.jpg')
         img.save(out_path, 'JPEG', quality=IMAGE_QUALITY, optimize=True)
         compressed_size = out_path.stat().st_size
 
-        # Remove original if extension changed
+        # Remove original if extension changed (e.g. .png → .jpg)
         if out_path != src:
             src.unlink(missing_ok=True)
 
@@ -180,6 +183,73 @@ def check_ffmpeg() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
+def _check_videotoolbox() -> bool:
+    """Check if VideoToolbox hardware encoder is available (macOS only)."""
+    try:
+        result = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-encoders"],
+            capture_output=True, timeout=5
+        )
+        return b"h264_videotoolbox" in result.stdout
+    except Exception:
+        return False
+
+
+_has_videotoolbox: Optional[bool] = None
+
+
+def has_videotoolbox() -> bool:
+    global _has_videotoolbox
+    if _has_videotoolbox is None:
+        _has_videotoolbox = _check_videotoolbox()
+        if _has_videotoolbox:
+            logger.info("VideoToolbox hardware encoder available")
+    return _has_videotoolbox
+
+
+def _probe_video(file_path: str) -> Optional[dict]:
+    """Probe video with ffprobe to get codec, resolution, bitrate."""
+    try:
+        cmd = [
+            "ffprobe", "-v", "quiet", "-print_format", "json",
+            "-show_streams", "-show_format", str(file_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, timeout=15)
+        if result.returncode == 0:
+            import json
+            return json.loads(result.stdout)
+    except Exception as e:
+        logger.warning(f"ffprobe failed: {e}")
+    return None
+
+
+def _should_skip_compression(probe_data: dict) -> bool:
+    """Check if video is already optimized and compression can be skipped."""
+    if not probe_data:
+        return False
+    streams = probe_data.get("streams", [])
+    video_stream = next((s for s in streams if s.get("codec_type") == "video"), None)
+    if not video_stream:
+        return False
+
+    codec = video_stream.get("codec_name", "")
+    width = int(video_stream.get("width", 9999))
+    height = int(video_stream.get("height", 9999))
+    max_dim = max(width, height)
+
+    # Get bitrate (stream or format level)
+    bitrate = int(video_stream.get("bit_rate", 0))
+    if not bitrate:
+        bitrate = int(probe_data.get("format", {}).get("bit_rate", 0))
+    bitrate_mbps = bitrate / 1_000_000 if bitrate else 0
+
+    # Skip if already H.264, resolution <= 1280, and bitrate <= 3 Mbps
+    if codec == "h264" and max_dim <= IMAGE_MAX_DIMENSION and 0 < bitrate_mbps <= 3:
+        logger.info(f"Skipping compression: already optimized ({codec}, {width}x{height}, {bitrate_mbps:.1f}Mbps)")
+        return True
+    return False
+
+
 def compress_video_sync(file_path: str, user_id: Optional[str] = None) -> None:
     """Compress video with ffmpeg. Replaces original file on success."""
     src = Path(file_path)
@@ -191,7 +261,38 @@ def compress_video_sync(file_path: str, user_id: Optional[str] = None) -> None:
         logger.warning("ffmpeg not installed, skipping video compression")
         return
 
-    # Throttle: wait if 3 compressions already running
+    # Probe video to check if compression is needed
+    probe = _probe_video(file_path)
+    if _should_skip_compression(probe):
+        # Re-mux to .mp4 container if needed (fast, no re-encoding)
+        if src.suffix.lower() != ".mp4":
+            final_path = src.with_suffix(".mp4")
+            try:
+                remux_cmd = [
+                    "ffmpeg", "-y", "-i", str(src),
+                    "-c", "copy", "-movflags", "+faststart",
+                    str(final_path),
+                ]
+                result = subprocess.run(remux_cmd, capture_output=True, timeout=60)
+                if result.returncode == 0:
+                    src.unlink(missing_ok=True)
+                    _update_video_urls_in_db(str(src), str(final_path))
+                    logger.info(f"Video re-muxed (no compression needed): {src.name} → {final_path.name}")
+                else:
+                    logger.warning(f"Re-mux failed, falling through to compression: {result.stderr.decode(errors='replace')[:200]}")
+                    final_path.unlink(missing_ok=True)
+                    # Fall through to full compression below
+                    with _compression_semaphore:
+                        _do_compress(src, user_id)
+                    return
+            except Exception as e:
+                logger.warning(f"Re-mux error: {e}")
+                final_path.unlink(missing_ok=True)
+        if user_id:
+            _notify_file_ready(user_id)
+        return
+
+    # Throttle: wait if too many compressions already running
     logger.info(f"Waiting for compression slot: {src.name}")
     with _compression_semaphore:
         _do_compress(src, user_id)
@@ -228,26 +329,55 @@ def _do_compress(src: Path, user_id: Optional[str]) -> None:
     """Internal: run ffmpeg and notify on completion."""
     # Output to temp file, then swap
     tmp_out = src.with_suffix(".tmp.mp4")
+    scale_filter = "scale='if(gte(iw,ih),min(1280,iw),-2)':'if(gte(iw,ih),-2,min(1280,ih))'"
+
+    # libx264 with CRF gives better size control than VideoToolbox fixed bitrate
     cmd = [
         "ffmpeg", "-y", "-threads", "8", "-i", str(src),
-        # Select only the first video and first audio stream.
-        # This skips unknown/unsupported streams (e.g. Apple apac codec, data tracks)
-        # that would cause ffmpeg to fail on iPhone .mov files.
         "-map", "0:v:0", "-map", "0:a:0?",
         "-c:v", "libx264", "-preset", "fast", "-crf", "28",
         "-threads", "8",
-        # Landscape: cap width at 1280 (auto height). Portrait: cap height at 1280 (auto width).
-        # -2 ensures the auto-calculated dimension is divisible by 2 (required by libx264).
-        "-vf", "scale='if(gte(iw,ih),min(1280,iw),-2)':'if(gte(iw,ih),-2,min(1280,ih))'",
+        "-vf", scale_filter,
         "-c:a", "aac", "-b:a", "128k",
         "-movflags", "+faststart",
         str(tmp_out),
     ]
+    encoder = "libx264"
+
+    logger.info(f"Compressing {src.name} with {encoder}")
+
+    # Get duration for progress tracking
+    duration_sec = _get_duration(str(src))
 
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=600)
-        if result.returncode != 0:
-            logger.error(f"ffmpeg failed: {result.stderr.decode()[:500]}")
+        import re, time as _time
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        )
+
+        # Read stderr in a background thread to avoid deadlock
+        stderr_lines: list = []
+        def _read_stderr():
+            assert proc.stderr
+            for line in proc.stderr:
+                stderr_lines.append(line)
+                if user_id and duration_sec and b"time=" in line:
+                    m = re.search(rb"time=(\d+):(\d+):(\d+)\.(\d+)", line)
+                    if m:
+                        t = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+                        pct = min(99, int(t * 100 / duration_sec))
+                        _notify_compression_progress(user_id, pct)
+
+        reader = threading.Thread(target=_read_stderr, daemon=True)
+        reader.start()
+
+        # Wait with timeout
+        proc.wait(timeout=600)
+        reader.join(timeout=5)
+
+        if proc.returncode != 0:
+            stderr_data = b"".join(stderr_lines)
+            logger.error(f"ffmpeg failed: {stderr_data.decode(errors='replace')[:500]}")
             tmp_out.unlink(missing_ok=True)
             return
 
@@ -261,7 +391,7 @@ def _do_compress(src: Path, user_id: Optional[str]) -> None:
         tmp_out.rename(final_path)
 
         logger.info(
-            f"Video compressed: {original_size // 1024}KB -> {compressed_size // 1024}KB "
+            f"Video compressed ({encoder}): {original_size // 1024}KB -> {compressed_size // 1024}KB "
             f"({100 - compressed_size * 100 // max(original_size, 1)}% reduction)"
         )
 
@@ -274,6 +404,8 @@ def _do_compress(src: Path, user_id: Optional[str]) -> None:
             _notify_file_ready(user_id)
 
     except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=5)
         logger.error(f"ffmpeg timeout (600s) for {src} ({src.stat().st_size // 1024}KB)")
         tmp_out.unlink(missing_ok=True)
         if user_id:
@@ -345,6 +477,40 @@ def _update_video_urls_in_db(old_path: str, new_path: str) -> None:
             db.close()
     except Exception as e:
         logger.warning(f"_update_video_urls_in_db failed: {e}")
+
+
+def _get_duration(file_path: str) -> Optional[float]:
+    """Get video duration in seconds via ffprobe."""
+    try:
+        cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", file_path]
+        result = subprocess.run(cmd, capture_output=True, timeout=10)
+        if result.returncode == 0:
+            import json
+            data = json.loads(result.stdout)
+            return float(data.get("format", {}).get("duration", 0))
+    except Exception:
+        pass
+    return None
+
+
+def _notify_compression_progress(user_id: str, pct: int) -> None:
+    """Send compression progress via WebSocket."""
+    try:
+        from app.services.websocket_manager import manager
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop and loop.is_running():
+            loop.call_soon_threadsafe(
+                asyncio.ensure_future,
+                manager.send_to_user(user_id, {
+                    "type": "compression_progress",
+                    "data": {"progress": pct},
+                })
+            )
+    except Exception:
+        pass
 
 
 def _notify_file_ready(user_id: str) -> None:

@@ -1,6 +1,16 @@
 import React from 'react';
 import { useUpload } from '../services/UploadContext';
 
+function formatSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function formatEta(seconds: number): string {
+  if (seconds < 60) return `${Math.ceil(seconds)}초`;
+  return `${Math.floor(seconds / 60)}분 ${Math.ceil(seconds % 60)}초`;
+}
+
 export const UploadIndicator: React.FC = () => {
   const { uploads } = useUpload();
   if (uploads.length === 0) return null;
@@ -20,13 +30,40 @@ export const UploadIndicator: React.FC = () => {
 
         {uploads.map(u => {
           const isCompressing = u.phase === 'compressing';
+
+          // Calculate speed and ETA
+          let speedText = '';
+          let etaText = '';
+          let sizeText = '';
+          if (u.fileSize) {
+            sizeText = formatSize(u.fileSize);
+            if (u.startedAt && u.progress > 0 && !isCompressing) {
+              const elapsed = (Date.now() - u.startedAt) / 1000;
+              const bytesUploaded = u.fileSize * u.progress / 100;
+              const speed = bytesUploaded / elapsed;
+              speedText = `${formatSize(speed)}/s`;
+              const remaining = (u.fileSize - bytesUploaded) / speed;
+              if (remaining > 0 && remaining < 3600) {
+                etaText = formatEta(remaining);
+              }
+            }
+          }
+
           return (
             <div key={u.id} className="bg-white border border-slate-200 rounded-xl shadow-lg p-3 animate-fade-in">
               <div className="flex items-center gap-2 mb-1.5">
                 <div className={`w-4 h-4 border-2 border-slate-300 rounded-full animate-spin shrink-0 ${isCompressing ? 'border-t-purple-500' : 'border-t-brand-500'}`} />
                 <div className="flex-1 min-w-0">
                   <span className="text-xs font-bold text-slate-700 truncate block">{u.label}</span>
-                  <span className="text-[10px] font-medium text-brand-500">업로드 중...</span>
+                  <span className="text-[10px] font-medium text-slate-400">
+                    {isCompressing ? '서버 압축 중...' : (
+                      <>
+                        업로드 중{sizeText ? ` · ${sizeText}` : ''}
+                        {speedText ? ` · ${speedText}` : ''}
+                        {etaText ? ` · 약 ${etaText} 남음` : ''}
+                      </>
+                    )}
+                  </span>
                 </div>
                 <span className={`text-xs font-bold ml-auto ${isCompressing ? 'text-purple-600' : 'text-brand-600'}`}>{u.progress}%</span>
               </div>

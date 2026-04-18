@@ -43,6 +43,47 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+// --- Upload state tracking ---
+let _activeUpload = null; // { id, label, startedAt }
+let _uploadCheckTimer = null;
+
+self.addEventListener('message', (event) => {
+  const { type, id, label } = event.data || {};
+  if (type === 'upload_start') {
+    _activeUpload = { id, label, startedAt: Date.now() };
+    if (_uploadCheckTimer) clearTimeout(_uploadCheckTimer);
+    _uploadCheckTimer = null;
+  } else if (type === 'upload_progress') {
+    if (_activeUpload) _activeUpload.lastProgress = Date.now();
+  } else if (type === 'upload_complete') {
+    _activeUpload = null;
+    if (_uploadCheckTimer) { clearTimeout(_uploadCheckTimer); _uploadCheckTimer = null; }
+  }
+});
+
+// When all clients disconnect, check if upload was in progress
+self.addEventListener('clientdisconnect', () => {
+  _checkOrphanedUpload();
+});
+
+// Fallback: periodically check if page is still alive during upload
+function _checkOrphanedUpload() {
+  if (!_activeUpload) return;
+  self.clients.matchAll({ type: 'window' }).then((clients) => {
+    if (clients.length === 0 && _activeUpload) {
+      // Page died during upload — notify user
+      self.registration.showNotification('SOL-ACT', {
+        body: `"${_activeUpload.label || '영상'}" 업로드가 중단되었을 수 있습니다. 앱을 열어 확인하세요.`,
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        tag: 'upload-interrupted',
+        data: { url: '/' },
+      });
+      _activeUpload = null;
+    }
+  });
+}
+
 // --- Web Push Notifications ---
 self.addEventListener('push', (event) => {
   let data = { title: 'SOL-ACT', body: '새 알림이 있습니다.' };

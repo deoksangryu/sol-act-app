@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { User, UserRole, Evaluation, PortfolioItem, PortfolioComment, CompetitionEvent, ChecklistItem, Subject, SUBJECT_LABELS, ClassInfo } from '../types';
 import toast from 'react-hot-toast';
 import { evaluationApi, portfolioApi, auditionApi, uploadApi, API_URL, getToken } from '../services/api';
-import { useDataRefresh } from '../services/useWebSocket';
+import { useDataRefresh, useCompressionProgress } from '../services/useWebSocket';
 import { ConfirmDialog } from './ConfirmDialog';
 import { useUpload } from '../services/UploadContext';
 import { useAppData } from '../services/AppContext';
@@ -67,7 +67,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [newPfVideoFiles, setNewPfVideoFiles] = useState<File[]>([]);
   const [pfUploadMode, setPfUploadMode] = useState<'individual' | 'single'>('individual'); // individual=영상별 포트폴리오, single=하나에 모아서
   // Per-portfolio upload tracking
-  const [activeUploads, setActiveUploads] = useState<Record<string, { progress: number | null; error: string | null; file: File }>>({});
+  const [activeUploads, setActiveUploads] = useState<Record<string, { progress: number | null; error: string | null; file: File; clientThumb?: string }>>({});
   const uploadAbortRefs = useRef<Record<string, () => void>>({});
   const pfVideoInputRef = useRef<HTMLInputElement>(null);
   // Compat aliases
@@ -161,6 +161,23 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   }, [user.id]);
 
   useDataRefresh(['evaluations', 'portfolios', 'auditions'], loadData);
+
+  // Update compression progress from server WebSocket
+  useCompressionProgress((pct) => {
+    // Apply to any upload currently in compressing phase, or the most recent upload
+    setActiveUploads(prev => {
+      const entries = Object.entries(prev);
+      if (entries.length === 0) return prev;
+      const updated = { ...prev };
+      for (const [id, entry] of entries) {
+        if (entry.progress === null) { // null progress = compressing phase
+          updated[id] = { ...entry, progress: pct };
+          globalUpdatePhase(id, 'compressing', pct);
+        }
+      }
+      return updated;
+    });
+  });
 
   // Load journal feed when tab is active
   const loadJournalFeed = useCallback(async () => {
@@ -348,9 +365,35 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     });
   };
 
+  const extractClientThumb = (file: File, portfolioId: string) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.src = url;
+    const cleanup = () => { URL.revokeObjectURL(url); video.src = ''; };
+    const timeout = setTimeout(cleanup, 10000); // 10s safety timeout
+    video.onloadeddata = () => { video.currentTime = 1; };
+    video.onseeked = () => {
+      clearTimeout(timeout);
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.min(video.videoWidth || 320, 320);
+        canvas.height = Math.round(canvas.width * (video.videoHeight || 180) / (video.videoWidth || 320));
+        canvas.getContext('2d')?.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const thumb = canvas.toDataURL('image/jpeg', 0.6);
+        setActiveUploads(prev => prev[portfolioId] ? { ...prev, [portfolioId]: { ...prev[portfolioId], clientThumb: thumb } } : prev);
+      } catch { /* cross-origin or other error, ignore */ }
+      cleanup();
+    };
+    video.onerror = () => { clearTimeout(timeout); cleanup(); };
+  };
+
   const startPfVideoUpload = (file: File, portfolioId: string): Promise<void> => {
     setActiveUploads(prev => ({ ...prev, [portfolioId]: { progress: 0, error: null, file } }));
-    globalStartUpload(portfolioId, `영상: ${file.name}`);
+    globalStartUpload(portfolioId, `영상: ${file.name}`, file.size);
+    extractClientThumb(file, portfolioId);
 
     const uploadPromise = uploadApi.upload(
       file,
@@ -1054,10 +1097,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                           </button>
                         </div>
                       ) : activeUploads[pf.id] ? (
-                        <div className="flex flex-col items-center gap-2 text-slate-400 w-full px-6">
-                          <svg className="w-6 h-6 animate-spin shrink-0" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
+                        <div className="flex flex-col items-center gap-2 text-slate-400 w-full px-6 relative">
+                          {activeUploads[pf.id].clientThumb && (
+                            <img src={activeUploads[pf.id].clientThumb} alt="" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                          )}
+                          <svg className="w-6 h-6 animate-spin shrink-0 relative z-10" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/></svg>
                           {activeUploads[pf.id].progress !== null ? (
-                            <div className="w-full flex flex-col items-center gap-1">
+                            <div className="w-full flex flex-col items-center gap-1 relative z-10">
                               <span className="text-xs font-bold text-brand-600">{activeUploads[pf.id].progress}%</span>
                               <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
                                 <div className="h-full bg-brand-500 rounded-full transition-all duration-300" style={{ width: `${activeUploads[pf.id].progress}%` }} />
@@ -1070,7 +1116,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                               </button>
                             </div>
                           ) : (
-                            <span className="text-xs font-medium">영상 압축/업로드 중</span>
+                            <span className="text-xs font-medium relative z-10">영상 압축/업로드 중</span>
                           )}
                         </div>
                       ) : (
