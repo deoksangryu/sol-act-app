@@ -13,6 +13,9 @@ from app.utils.auth import get_current_user
 from app.services.ai import analyze_portfolio
 from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_teacher_ids_for_student, get_teacher_student_ids
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
