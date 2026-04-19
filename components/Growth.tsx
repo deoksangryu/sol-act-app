@@ -494,20 +494,34 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
         if (files.length > 0) {
           // Upload videos sequentially to avoid mobile memory issues
           const pfId = newPf.id;
+          const uploadKey = `${pfId}_multi`;
           (async () => {
+            // Show global progress for entire batch
+            globalStartUpload(uploadKey, `영상 ${files.length}개 업로드`, files.reduce((s, f) => s + f.size, 0));
+
             // First video → main videoUrl
             await startPfVideoUpload(files[0], pfId);
-            // Additional videos → portfolio_videos, one at a time
+
+            // Additional videos → portfolio_videos, one at a time with progress
             let failCount = 0;
             for (let i = 1; i < files.length; i++) {
               try {
-                const result = await uploadApi.upload(files[i], undefined, 'portfolios');
+                globalUpdatePhase(uploadKey, 'uploading', Math.round(((i) / files.length) * 100));
+                const result = await uploadApi.upload(
+                  files[i],
+                  (pct) => {
+                    const overall = Math.round(((i + pct / 100) / files.length) * 100);
+                    globalUpdateProgress(uploadKey, overall);
+                  },
+                  'portfolios',
+                );
                 await portfolioApi.addVideo(pfId, result.url);
               } catch {
                 failCount++;
                 toast.error(`영상 ${i + 1} 업로드에 실패했습니다.`);
               }
             }
+            globalFinishUpload(uploadKey);
             if (files.length > 1) {
               try {
                 const updated = await portfolioApi.get(pfId);
