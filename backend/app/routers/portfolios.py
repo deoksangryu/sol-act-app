@@ -262,7 +262,7 @@ async def create_portfolio(
     mode_info = ""
     if data.upload_mode:
         mode_info = f" [mode={data.upload_mode}, videos={data.total_videos or '?'}, idx={data.video_index or '?'}]"
-    logger.info(f"Portfolio create by {current_user.name}({current_user.id}): '{data.title}'{mode_info}")
+    logger.warning(f"Portfolio create by {current_user.name}({current_user.id}): '{data.title}'{mode_info}")
 
     portfolio = Portfolio(
         id=f"ptf{uuid.uuid4().hex[:7]}",

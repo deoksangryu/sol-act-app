@@ -822,8 +822,10 @@ const CHUNKED_THRESHOLD = 1 * 1024 * 1024;
 // Initial chunk size: 2MB, adapts up to 8MB based on speed
 const INITIAL_CHUNK_SIZE = 2 * 1024 * 1024;
 const MAX_CHUNK_SIZE = 8 * 1024 * 1024;
-// Parallel chunk uploads
+// Parallel chunk uploads (reduced for large files to avoid mobile OOM)
 const PARALLEL_CHUNKS = 5;
+const LARGE_FILE_PARALLEL = 3; // for files > 100MB
+const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024;
 // localStorage key for resumable uploads
 const UPLOAD_STATE_KEY = 'sol_act_pending_upload';
 
@@ -1119,10 +1121,11 @@ function _chunkedUpload(
         }
       }
 
-      // Build batch with correct byte offsets
+      // Build batch with correct byte offsets (fewer parallel for large files)
+      const parallel = file.size > LARGE_FILE_THRESHOLD ? LARGE_FILE_PARALLEL : PARALLEL_CHUNKS;
       const batch = [];
       let batchOffset = bytesSent;
-      for (let j = 0; j < PARALLEL_CHUNKS && batchOffset < file.size; j++) {
+      for (let j = 0; j < parallel && batchOffset < file.size; j++) {
         const offset = batchOffset;
         const idx = chunkIdx++;
         batch.push(sendChunkAt(offset, idx));
