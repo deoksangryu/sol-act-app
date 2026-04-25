@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sol-act-v7';
+const CACHE_NAME = 'sol-act-v8';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(

@@ -1042,7 +1042,7 @@ function _chunkedUpload(
 
     // 2. Send chunks with adaptive sizing (byte-offset based to avoid index*size miscalculation)
     let chunkSize = INITIAL_CHUNK_SIZE;
-    let bytesSent = startChunk * INITIAL_CHUNK_SIZE;
+    let bytesSent = savedState?.bytesSent ?? 0;
     let chunkIdx = startChunk;
     const uploadStartTime = Date.now();
     let firstBatchDone = false;
@@ -1095,6 +1095,7 @@ function _chunkedUpload(
         filename: file.name,
         fileSize: file.size,
         chunkIndex: idx + 1,
+        bytesSent,
         subfolder: subfolder || 'assignments',
         targetType,
         targetId,
@@ -1167,6 +1168,7 @@ interface UploadState {
   filename: string;
   fileSize: number;
   chunkIndex: number;
+  bytesSent: number;
   subfolder: string;
   targetType?: string;
   targetId?: string;
@@ -1197,7 +1199,7 @@ function _loadUploadState(
       state.subfolder !== (subfolder || 'assignments') ||
       state.targetType !== targetType ||
       state.targetId !== targetId ||
-      Date.now() - state.timestamp > 60 * 60 * 1000
+      Date.now() - state.timestamp > 2 * 60 * 60 * 1000
     ) {
       _clearUploadState();
       return null;

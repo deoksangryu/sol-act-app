@@ -70,6 +70,9 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   const [activeUploads, setActiveUploads] = useState<Record<string, { progress: number | null; error: string | null; file: File; clientThumb?: string }>>({});
   const uploadAbortRefs = useRef<Record<string, () => void>>({});
   const pfVideoInputRef = useRef<HTMLInputElement>(null);
+  // Resume interrupted upload
+  const [pendingResume, setPendingResume] = useState<{ filename: string; targetType?: string; targetId?: string } | null>(null);
+  const resumeFileInputRef = useRef<HTMLInputElement>(null);
   // Compat aliases
   const isPfVideoUploading = Object.keys(activeUploads).length > 0;
   const pendingVideoPortfolioIdRef = useRef<string | null>(null);
@@ -161,6 +164,12 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   }, [user.id]);
 
   useDataRefresh(['evaluations', 'portfolios', 'auditions'], loadData);
+
+  // Check for interrupted uploads on mount
+  useEffect(() => {
+    const pending = uploadApi.getPendingUpload();
+    if (pending) setPendingResume(pending);
+  }, []);
 
   // Update compression progress from server WebSocket
   useCompressionProgress((pct) => {
@@ -448,6 +457,27 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       // Cancel all
       Object.values(uploadAbortRefs.current).forEach(abort => abort?.());
     }
+  };
+
+  const handleResumeUpload = (file: File) => {
+    const pending = uploadApi.getPendingUpload();
+    if (!pending) return;
+    setPendingResume(null);
+
+    const portfolioId = pending.targetId;
+    if (!portfolioId) {
+      uploadApi.clearPendingUpload();
+      toast.error('업로드를 이어할 수 없습니다. 다시 시도해주세요.');
+      return;
+    }
+
+    toast.success('업로드를 이어서 진행합니다...');
+    startPfVideoUpload(file, portfolioId);
+  };
+
+  const handleDismissResume = () => {
+    uploadApi.clearPendingUpload();
+    setPendingResume(null);
   };
 
   const handleCreatePortfolio = async () => {
@@ -1073,6 +1103,41 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                   </button>
                 )}
+              </div>
+            </div>
+          )}
+
+          {/* Resume interrupted upload banner */}
+          {pendingResume && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4 animate-fade-in">
+              <div className="flex items-start gap-3">
+                <svg className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" /></svg>
+                <div className="flex-1">
+                  <p className="text-sm font-bold text-amber-800 mb-1">중단된 업로드가 있습니다</p>
+                  <p className="text-xs text-amber-600 mb-3">"{pendingResume.filename}" 파일을 다시 선택하면 이어서 업로드할 수 있습니다.</p>
+                  <div className="flex gap-2">
+                    <label className="text-xs font-bold text-white bg-amber-500 hover:bg-amber-600 px-4 py-2 rounded-xl cursor-pointer transition-colors">
+                      파일 다시 선택
+                      <input
+                        ref={resumeFileInputRef}
+                        type="file"
+                        className="hidden"
+                        accept="video/*"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleResumeUpload(file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <button
+                      onClick={handleDismissResume}
+                      className="text-xs font-bold text-amber-600 hover:text-amber-800 px-4 py-2 rounded-xl border border-amber-300 hover:border-amber-400 transition-colors"
+                    >
+                      무시
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -20,8 +20,8 @@ logger = logging.getLogger(__name__)
 # In-memory registry of active chunked uploads {upload_id: metadata}
 _chunked_uploads: dict[str, dict] = {}
 
-# TTL for abandoned upload sessions (30 minutes)
-_UPLOAD_SESSION_TTL = 30 * 60
+# TTL for abandoned upload sessions (2 hours — enough for resume after phone sleep)
+_UPLOAD_SESSION_TTL = 2 * 60 * 60
 
 
 def _cleanup_expired_uploads():
