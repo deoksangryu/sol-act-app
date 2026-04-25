@@ -415,7 +415,7 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       portfolioId,
       (phase, pct) => {
         globalUpdatePhase(portfolioId, phase, pct);
-        if (phase === 'compressing') {
+        if (phase === 'compressing' || phase === 'client_compressing') {
           setActiveUploads(prev => prev[portfolioId] ? { ...prev, [portfolioId]: { ...prev[portfolioId], progress: null } } : prev);
         }
       },

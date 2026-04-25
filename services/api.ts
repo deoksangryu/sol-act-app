@@ -830,8 +830,11 @@ const LARGE_FILE_THRESHOLD = 100 * 1024 * 1024;
 const UPLOAD_STATE_KEY = 'sol_act_pending_upload';
 
 // Upload phase for UI display
-export type UploadPhase = 'compressing' | 'uploading';
+export type UploadPhase = 'client_compressing' | 'uploading' | 'compressing';
 export type UploadPhaseCallback = (phase: UploadPhase, pct: number) => void;
+
+// Client-side compression threshold (100MB+)
+const CLIENT_COMPRESS_THRESHOLD = 100 * 1024 * 1024;
 
 // Wake Lock: prevent screen sleep during upload (critical for mobile)
 let _wakeLock: any = null;
@@ -888,7 +891,25 @@ export const uploadApi = {
     const promise = (async () => {
       let fileToUpload = file;
 
-      // Skip client-side compression — upload original, backend compresses after
+      // Client-side compression for large videos (100MB+)
+      if (isVideo && file.size > CLIENT_COMPRESS_THRESHOLD) {
+        try {
+          const { compressVideo, isCompressionSupported } = await import('./videoCompress');
+          if (isCompressionSupported()) {
+            onPhase?.('client_compressing', 0);
+            fileToUpload = await compressVideo(file, (phase, pct) => {
+              if (phase === 'loading') {
+                onPhase?.('client_compressing', Math.round(pct * 0.1)); // 0~10%
+              } else {
+                onPhase?.('client_compressing', 10 + Math.round(pct * 0.9)); // 10~100%
+              }
+            });
+          }
+        } catch {
+          // Compression failed — continue with original file
+          fileToUpload = file;
+        }
+      }
 
       if (aborted) throw new Error('업로드가 취소되었습니다.');
 

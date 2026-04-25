@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
-export type UploadPhase = 'compressing' | 'uploading';
+export type UploadPhase = 'client_compressing' | 'uploading' | 'compressing';
 
 interface UploadEntry {
   id: string;
