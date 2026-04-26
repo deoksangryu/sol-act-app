@@ -36,6 +36,7 @@ class Portfolio(Base):
     student = relationship("User", back_populates="portfolios")
     comments = relationship("PortfolioComment", back_populates="portfolio", cascade="all, delete-orphan")
     videos = relationship("PortfolioVideo", back_populates="portfolio", cascade="all, delete-orphan", order_by="PortfolioVideo.sort_order")
+    attachments = relationship("PortfolioAttachment", back_populates="portfolio", cascade="all, delete-orphan")
 
 
 class PortfolioVideo(Base):
@@ -65,6 +66,20 @@ class PortfolioComment(Base):
     # Relationships
     portfolio = relationship("Portfolio", back_populates="comments")
     author = relationship("User", back_populates="portfolio_comments")
+
+
+class PortfolioAttachment(Base):
+    __tablename__ = "portfolio_attachments"
+
+    id = Column(String, primary_key=True, index=True)
+    portfolio_id = Column(String, ForeignKey("portfolios.id"), nullable=False, index=True)
+    file_url = Column(String, nullable=False)
+    file_name = Column(String, nullable=False)  # Original filename for display
+    file_size = Column(Integer, nullable=True)  # bytes
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    portfolio = relationship("Portfolio", back_populates="attachments")
 
 
 class PracticeJournal(Base):

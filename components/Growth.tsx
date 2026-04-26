@@ -362,12 +362,24 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
     } catch { toast.error('평가 삭제에 실패했습니다.'); }
   };
 
+  const [showResolutionTip, setShowResolutionTip] = useState(false);
+
   const handlePfVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
     // Copy files before clearing input (iOS may invalidate FileList)
     const fileArray = Array.from(files);
     setNewPfVideoFiles(fileArray);
+
+    // Warn if any file is > 300MB
+    const largeFiles = fileArray.filter(f => f.size > 300 * 1024 * 1024);
+    if (largeFiles.length > 0) {
+      const maxSize = Math.max(...largeFiles.map(f => f.size));
+      const sizeStr = `${(maxSize / (1024 * 1024)).toFixed(0)}MB`;
+      toast(`영상 용량이 큽니다 (${sizeStr}). 업로드에 시간이 오래 걸릴 수 있습니다.\n\n빠른 업로드를 위해 카메라 해상도를 720p로 설정해보세요.`, { duration: 8000, icon: '💡' });
+      setShowResolutionTip(true);
+    }
+
     // Reset input after state is set (allow re-selecting same files)
     requestAnimationFrame(() => {
       if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
@@ -1954,6 +1966,56 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
 
             <p className="text-sm text-slate-600 mb-6 leading-relaxed">{selectedPortfolio.description}</p>
 
+            {/* Attachments */}
+            <div className="border-t border-slate-100 pt-4 mb-4">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-bold text-slate-700">첨부파일 ({selectedPortfolio.attachments?.length || 0})</h4>
+                {(isStudent && selectedPortfolio.studentId === user.id || isStaff) && (
+                  <label className="text-xs font-bold text-brand-500 hover:text-brand-600 cursor-pointer flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    파일 추가
+                    <input type="file" className="hidden" accept=".pdf,.doc,.docx,.txt,.hwp,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png" onClick={(e) => { (e.target as HTMLInputElement).value = ''; }} onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !selectedPortfolioId) return;
+                      try {
+                        toast.success('파일 업로드 중...');
+                        const result = await uploadApi.upload(file, undefined, 'portfolios');
+                        await portfolioApi.addAttachment(selectedPortfolioId, result.url, file.name, file.size);
+                        const updated = await portfolioApi.get(selectedPortfolioId);
+                        setPortfolios(prev => prev.map(p => p.id === selectedPortfolioId ? updated : p));
+                        toast.success('파일이 첨부되었습니다.');
+                      } catch { toast.error('파일 첨부에 실패했습니다.'); }
+                    }} />
+                  </label>
+                )}
+              </div>
+              {(selectedPortfolio.attachments?.length || 0) > 0 ? (
+                <div className="space-y-2">
+                  {selectedPortfolio.attachments!.map(a => (
+                    <div key={a.id} className="flex items-center gap-3 bg-slate-50 rounded-xl p-3 border border-slate-100">
+                      <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                      <a href={a.fileUrl.startsWith('/') ? `${API_URL}${a.fileUrl}` : a.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-brand-600 hover:text-brand-700 truncate flex-1">{a.fileName}</a>
+                      {a.fileSize && <span className="text-[10px] text-slate-400 shrink-0">{(a.fileSize / 1024).toFixed(0)}KB</span>}
+                      {(isStudent && selectedPortfolio.studentId === user.id || isStaff) && (
+                        <button onClick={async (e) => {
+                          e.preventDefault();
+                          try {
+                            await portfolioApi.deleteAttachment(selectedPortfolioId!, a.id);
+                            setPortfolios(prev => prev.map(p => p.id === selectedPortfolioId ? { ...p, attachments: p.attachments?.filter(at => at.id !== a.id) } : p));
+                            toast.success('파일이 삭제되었습니다.');
+                          } catch { toast.error('삭제에 실패했습니다.'); }
+                        }} className="text-slate-300 hover:text-red-400 shrink-0">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">첨부된 파일이 없습니다.</p>
+              )}
+            </div>
+
             {/* Comments */}
             <div className="border-t border-slate-100 pt-4">
               <h4 className="text-sm font-bold text-slate-700 mb-3">댓글 ({selectedPortfolio.comments.length})</h4>
@@ -2019,7 +2081,18 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
             <button onClick={() => setIsPortfolioModalOpen(false)} aria-label="닫기" className="absolute top-4 right-4 text-slate-400 hover:text-slate-600">
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
-            <h3 className="text-xl font-bold text-slate-800 mb-6">포트폴리오 등록</h3>
+            <h3 className="text-xl font-bold text-slate-800 mb-3">포트폴리오 등록</h3>
+            <details className="mb-4 group">
+              <summary className="text-[11px] text-slate-400 cursor-pointer hover:text-slate-600 flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                영상 용량이 크다면? (업로드 팁)
+              </summary>
+              <div className="mt-2 bg-slate-50 rounded-xl p-3 text-[11px] text-slate-500 leading-relaxed">
+                <p className="font-bold text-slate-600 mb-1">📱 카메라 해상도 낮추기</p>
+                <p className="mb-2">iPhone: 설정 &gt; 카메라 &gt; 비디오 녹화 &gt; <strong>720p HD</strong></p>
+                <p>해상도를 낮추면 영상 용량이 5~10배 줄어들어 업로드가 훨씬 빠릅니다. 연습 영상 확인 용도로는 720p면 충분합니다.</p>
+              </div>
+            </details>
             <div className="space-y-4">
               {/* Video files (multiple) */}
               <div>
@@ -2034,7 +2107,13 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                         <span className="text-[10px] text-brand-400">{(f.size / 1024 / 1024).toFixed(0)}MB</span>
                       </div>
                     ))}
-                    <button onClick={() => setNewPfVideoFiles([])} className="text-xs text-red-400 hover:text-red-600">전체 삭제</button>
+                    <button onClick={() => { setNewPfVideoFiles([]); setShowResolutionTip(false); }} className="text-xs text-red-400 hover:text-red-600">전체 삭제</button>
+                    {showResolutionTip && (
+                      <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mt-2">
+                        <p className="text-xs font-bold text-blue-700 mb-1">💡 업로드가 오래 걸리나요?</p>
+                        <p className="text-[11px] text-blue-600 leading-relaxed">iPhone: 설정 &gt; 카메라 &gt; 비디오 녹화 &gt; <strong>720p HD</strong>로 변경하면 영상 용량이 크게 줄어듭니다.</p>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <button

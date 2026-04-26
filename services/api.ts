@@ -713,6 +713,14 @@ export const portfolioApi = {
   deleteVideo(portfolioId: string, videoId: string): Promise<void> {
     return apiRequest(`/api/portfolios/${portfolioId}/videos/${videoId}`, { method: 'DELETE' });
   },
+  async addAttachment(portfolioId: string, fileUrl: string, fileName: string, fileSize?: number): Promise<Record<string, unknown>> {
+    const params = new URLSearchParams({ file_url: fileUrl, file_name: fileName });
+    if (fileSize) params.set('file_size', String(fileSize));
+    return apiRequest(`/api/portfolios/${portfolioId}/attachments?${params}`, { method: 'POST' });
+  },
+  deleteAttachment(portfolioId: string, attachmentId: string): Promise<void> {
+    return apiRequest(`/api/portfolios/${portfolioId}/attachments/${attachmentId}`, { method: 'DELETE' });
+  },
 };
 
 // --- Audition API ---

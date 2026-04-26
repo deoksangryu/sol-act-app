@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from app.database import get_db
-from app.models.portfolio import Portfolio, PortfolioComment, PortfolioVideo, PracticeJournal, PortfolioCategory
+from app.models.portfolio import Portfolio, PortfolioComment, PortfolioVideo, PortfolioAttachment, PracticeJournal, PortfolioCategory
 from app.models.user import User, UserRole
 from app.schemas.portfolio import (
     PortfolioCreate, PortfolioUpdate, PortfolioResponse,
@@ -54,6 +54,16 @@ def portfolio_to_response(p: Portfolio) -> dict:
                 "created_at": v.created_at,
             }
             for v in (p.videos if p.videos else [])
+        ],
+        "attachments": [
+            {
+                "id": a.id,
+                "file_url": a.file_url,
+                "file_name": a.file_name,
+                "file_size": a.file_size,
+                "created_at": a.created_at,
+            }
+            for a in (p.attachments if p.attachments else [])
         ],
         "created_at": p.created_at,
     }
@@ -174,6 +184,7 @@ def list_practice_groups(
         joinedload(Portfolio.student),
         joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
         joinedload(Portfolio.videos),
+        joinedload(Portfolio.attachments),
     ).filter(Portfolio.practice_group.isnot(None))
     # Teacher: only see portfolios for students in their classes
     if current_user.role == UserRole.TEACHER:
@@ -208,6 +219,7 @@ def list_portfolios(
         joinedload(Portfolio.student),
         joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
         joinedload(Portfolio.videos),
+        joinedload(Portfolio.attachments),
     )
     # Teacher: only see portfolios for students in their classes
     if current_user.role == UserRole.TEACHER:
@@ -531,3 +543,69 @@ async def delete_portfolio_video(
 
     await emit_data_changed([p.student_id], "portfolios")
     return {"message": "Video deleted"}
+
+
+# ── Portfolio Attachments ──
+
+@router.post("/{portfolio_id}/attachments", status_code=status.HTTP_201_CREATED)
+async def add_portfolio_attachment(
+    portfolio_id: str,
+    file_url: str = Query(...),
+    file_name: str = Query(...),
+    file_size: int = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Add a file attachment to an existing portfolio."""
+    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if p.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    attachment = PortfolioAttachment(
+        id=f"pa{uuid.uuid4().hex[:8]}",
+        portfolio_id=portfolio_id,
+        file_url=file_url,
+        file_name=file_name,
+        file_size=file_size,
+    )
+    db.add(attachment)
+    db.commit()
+
+    logger.warning(f"Attachment added to {portfolio_id} by {current_user.name}({current_user.id}): {file_name}")
+    return {
+        "id": attachment.id,
+        "file_url": attachment.file_url,
+        "file_name": attachment.file_name,
+        "file_size": attachment.file_size,
+        "created_at": attachment.created_at,
+    }
+
+
+@router.delete("/{portfolio_id}/attachments/{attachment_id}")
+async def delete_portfolio_attachment(
+    portfolio_id: str,
+    attachment_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete a file attachment from a portfolio."""
+    p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Portfolio not found")
+    if p.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+
+    att = db.query(PortfolioAttachment).filter(
+        PortfolioAttachment.id == attachment_id,
+        PortfolioAttachment.portfolio_id == portfolio_id
+    ).first()
+    if not att:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    db.delete(att)
+    db.commit()
+
+    await emit_data_changed([p.student_id], "portfolios")
+    return {"message": "Attachment deleted"}

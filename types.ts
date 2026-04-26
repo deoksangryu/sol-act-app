@@ -241,7 +241,16 @@ export interface PortfolioItem {
   videoDuration?: number;
   comments: PortfolioComment[];
   videos?: PortfolioVideoItem[];
+  attachments?: PortfolioAttachmentItem[];
   date: string;
+}
+
+export interface PortfolioAttachmentItem {
+  id: string;
+  fileUrl: string;
+  fileName: string;
+  fileSize?: number;
+  createdAt: string;
 }
 
 export interface ChecklistItem {
