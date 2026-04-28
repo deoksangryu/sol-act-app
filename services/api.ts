@@ -908,7 +908,7 @@ export const uploadApi = {
             if (token) {
               onPhase?.('client_compressing', 0);
               const result = await nativeCompressAndUpload(
-                URL.createObjectURL(file), API_URL, token,
+                file, API_URL, token,
                 {
                   subfolder: subfolder || 'portfolios',
                   targetType: targetType || undefined,
