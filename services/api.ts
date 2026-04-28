@@ -899,7 +899,42 @@ export const uploadApi = {
     const promise = (async () => {
       let fileToUpload = file;
 
-      // Client-side compression for large videos (100MB+)
+      // Native upload path (Capacitor Android/iOS app)
+      if (isVideo) {
+        try {
+          const { isNativeUploadAvailable, nativeCompressAndUpload } = await import('./nativeUpload');
+          if (isNativeUploadAvailable()) {
+            const token = getToken();
+            if (token) {
+              onPhase?.('client_compressing', 0);
+              const result = await nativeCompressAndUpload(
+                URL.createObjectURL(file), API_URL, token,
+                {
+                  subfolder: subfolder || 'portfolios',
+                  targetType: targetType || undefined,
+                  targetId: targetId || undefined,
+                  onProgress: (phase, pct) => {
+                    if (phase === 'compressing') {
+                      onPhase?.('client_compressing', pct);
+                    } else {
+                      onPhase?.('uploading', pct);
+                      onProgress?.(pct);
+                    }
+                  },
+                },
+              );
+              if (result) return result;
+            }
+          }
+        } catch (e) {
+          // Native upload failed — fall through to web upload
+          console.warn('Native upload failed, falling back to web:', e);
+        }
+      }
+
+      // Web upload path (PWA / browser)
+
+      // Client-side wasm compression for large videos (100MB+)
       if (isVideo && file.size > CLIENT_COMPRESS_THRESHOLD) {
         try {
           const { compressVideo, isCompressionSupported } = await import('./videoCompress');
@@ -907,9 +942,9 @@ export const uploadApi = {
             onPhase?.('client_compressing', 0);
             fileToUpload = await compressVideo(file, (phase, pct) => {
               if (phase === 'loading') {
-                onPhase?.('client_compressing', Math.round(pct * 0.1)); // 0~10%
+                onPhase?.('client_compressing', Math.round(pct * 0.1));
               } else {
-                onPhase?.('client_compressing', 10 + Math.round(pct * 0.9)); // 10~100%
+                onPhase?.('client_compressing', 10 + Math.round(pct * 0.9));
               }
             });
           }

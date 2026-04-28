@@ -363,24 +363,58 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
   };
 
   const [showResolutionTip, setShowResolutionTip] = useState(false);
+  const [resolutionWarning, setResolutionWarning] = useState<string | null>(null);
 
-  const handlePfVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const checkVideoResolution = (file: File): Promise<{ width: number; height: number } | null> => {
+    return new Promise((resolve) => {
+      const url = URL.createObjectURL(file);
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      video.muted = true;
+      video.src = url;
+      const cleanup = () => { URL.revokeObjectURL(url); video.src = ''; };
+      const timeout = setTimeout(() => { cleanup(); resolve(null); }, 5000);
+      video.onloadedmetadata = () => {
+        clearTimeout(timeout);
+        const result = { width: video.videoWidth, height: video.videoHeight };
+        cleanup();
+        resolve(result);
+      };
+      video.onerror = () => { clearTimeout(timeout); cleanup(); resolve(null); };
+    });
+  };
+
+  const handlePfVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    // Copy files before clearing input (iOS may invalidate FileList)
     const fileArray = Array.from(files);
-    setNewPfVideoFiles(fileArray);
+    setResolutionWarning(null);
+    setShowResolutionTip(false);
 
-    // Warn if any file is > 300MB
+    // Check resolution of first video
+    const res = await checkVideoResolution(fileArray[0]);
+    if (res) {
+      const maxDim = Math.max(res.width, res.height);
+      if (maxDim > 1080) {
+        const label = maxDim >= 2160 ? '4K' : maxDim >= 1440 ? '2K' : `${maxDim}p`;
+        setResolutionWarning(`선택한 영상이 ${label} (${res.width}x${res.height}) 고해상도입니다. 업로드 중 앱이 종료될 수 있습니다.`);
+        setShowResolutionTip(true);
+        toast(`${label} 고해상도 영상입니다. 카메라 설정을 720p로 낮추면 빠르고 안정적으로 업로드할 수 있습니다.`, { duration: 10000, icon: '⚠️' });
+      }
+    }
+
+    // Also warn if file is large
     const largeFiles = fileArray.filter(f => f.size > 300 * 1024 * 1024);
-    if (largeFiles.length > 0) {
+    if (largeFiles.length > 0 && !resolutionWarning) {
       const maxSize = Math.max(...largeFiles.map(f => f.size));
       const sizeStr = `${(maxSize / (1024 * 1024)).toFixed(0)}MB`;
-      toast(`영상 용량이 큽니다 (${sizeStr}). 업로드에 시간이 오래 걸릴 수 있습니다.\n\n빠른 업로드를 위해 카메라 해상도를 720p로 설정해보세요.`, { duration: 8000, icon: '💡' });
+      toast(`영상 용량이 큽니다 (${sizeStr}). 카메라 해상도를 720p로 설정해보세요.`, { duration: 8000, icon: '💡' });
       setShowResolutionTip(true);
     }
 
-    // Reset input after state is set (allow re-selecting same files)
+    setNewPfVideoFiles(fileArray);
+
+    // Reset input after state is set
     requestAnimationFrame(() => {
       if (pfVideoInputRef.current) pfVideoInputRef.current.value = '';
     });
@@ -2107,8 +2141,15 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
                         <span className="text-[10px] text-brand-400">{(f.size / 1024 / 1024).toFixed(0)}MB</span>
                       </div>
                     ))}
-                    <button onClick={() => { setNewPfVideoFiles([]); setShowResolutionTip(false); }} className="text-xs text-red-400 hover:text-red-600">전체 삭제</button>
-                    {showResolutionTip && (
+                    <button onClick={() => { setNewPfVideoFiles([]); setShowResolutionTip(false); setResolutionWarning(null); }} className="text-xs text-red-400 hover:text-red-600">전체 삭제</button>
+                    {resolutionWarning && (
+                      <div className="bg-red-50 border border-red-200 rounded-xl p-3 mt-2">
+                        <p className="text-xs font-bold text-red-700 mb-1">⚠️ 고해상도 영상</p>
+                        <p className="text-[11px] text-red-600 leading-relaxed mb-2">{resolutionWarning}</p>
+                        <p className="text-[11px] text-red-600 leading-relaxed"><strong>iPhone</strong>: 설정 &gt; 카메라 &gt; 비디오 녹화 &gt; <strong>720p HD</strong>로 변경 후 다시 촬영해주세요.</p>
+                      </div>
+                    )}
+                    {showResolutionTip && !resolutionWarning && (
                       <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mt-2">
                         <p className="text-xs font-bold text-blue-700 mb-1">💡 업로드가 오래 걸리나요?</p>
                         <p className="text-[11px] text-blue-600 leading-relaxed">iPhone: 설정 &gt; 카메라 &gt; 비디오 녹화 &gt; <strong>720p HD</strong>로 변경하면 영상 용량이 크게 줄어듭니다.</p>
