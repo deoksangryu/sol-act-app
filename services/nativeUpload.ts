@@ -22,6 +22,7 @@ interface NativeUploadPlugin {
   }>;
   isAvailable(): Promise<{ available: boolean }>;
   addListener(event: string, callback: (data: any) => void): Promise<{ remove: () => void }>;
+  requestNotificationPermission(): Promise<{ granted: boolean }>;
 }
 
 const NativeUpload = registerPlugin<NativeUploadPlugin>('NativeUpload');
@@ -85,6 +86,9 @@ export async function nativeCompressAndUpload(
   } catch {
     return null;
   }
+
+  // Request notification permission (first time only)
+  try { await NativeUpload.requestNotificationPermission(); } catch { /* ignore */ }
 
   // Save file to native-accessible path
   let fileUri: string;

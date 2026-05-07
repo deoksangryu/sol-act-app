@@ -60,10 +60,14 @@ def list_lessons(
         joinedload(Lesson.class_info),
         joinedload(Lesson.teacher)
     )
-    # Teacher: only see lessons for their classes
+    # Teacher: see lessons for their classes + their own private lessons
     if current_user.role == UserRole.TEACHER:
+        from sqlalchemy import or_
         my_class_ids = get_teacher_class_ids(db, current_user.id)
-        query = query.filter(Lesson.class_id.in_(my_class_ids))
+        query = query.filter(or_(
+            Lesson.class_id.in_(my_class_ids),
+            Lesson.teacher_id == current_user.id
+        ))
     if class_id:
         query = query.filter(Lesson.class_id == class_id)
     if teacher_id:
