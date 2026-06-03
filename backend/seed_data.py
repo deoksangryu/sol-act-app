@@ -25,6 +25,7 @@ from app.models.evaluation import Evaluation
 from app.models.portfolio import Portfolio, PortfolioComment, PortfolioCategory
 from app.models.audition import Audition, AuditionChecklist, AuditionType, AuditionStatus
 from app.models.private_lesson import PrivateLessonRequest, RequestStatus
+from app.models.music import Track
 from app.utils.auth import get_password_hash
 
 
@@ -532,6 +533,83 @@ def seed_private_lesson_requests():
     db.close()
 
 
+def _ffprobe_duration(path: str) -> str | None:
+    """Return duration as 'M:SS' using ffprobe, or None if unavailable."""
+    import subprocess
+    try:
+        out = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", path],
+            capture_output=True, text=True, timeout=15,
+        )
+        secs = float(out.stdout.strip())
+        m, s = divmod(int(round(secs)), 60)
+        return f"{m}:{s:02d}"
+    except Exception:
+        return None
+
+
+def seed_music():
+    """Scan the external SSD `music` folder and create one Track per mp3 file.
+
+    Filename pattern: {번호}_{장르}_{제목}_{변주}.mp3
+    category = 장르(genre) token, file_url = /music-files/{filename}.
+    """
+    import os
+    from app.config import settings
+    db = SessionLocal()
+    try:
+        # Remove old placeholder demo tracks if present
+        db.query(Track).filter(Track.id.in_([f"trk{i}" for i in range(1, 6)])).delete(synchronize_session=False)
+        db.commit()
+
+        drive = settings.EXTERNAL_DRIVE_NAME
+        music_dir = f"/Volumes/{drive}/music" if drive else None
+        if not music_dir or not os.path.isdir(music_dir):
+            print(f"⚠️  Music folder not found ({music_dir}). Skipping music seed.")
+            return
+        if db.query(Track).filter(Track.id.like("trk%_%")).first():
+            print("⚠️  Scanned music tracks already exist. Skipping seed.")
+            return
+
+        files = sorted(f for f in os.listdir(music_dir)
+                       if f.lower().endswith(".mp3") and not f.startswith("._"))
+        print(f"🌱 Seeding music tracks from {music_dir} ({len(files)} files)...")
+
+        # Count variations per composition to decide whether to suffix the title
+        def parse(fname):
+            stem = fname[:-4]  # strip .mp3
+            parts = stem.split("_")
+            num = parts[0] if parts else ""
+            genre = parts[1] if len(parts) > 1 else "기타"
+            variation = parts[-1] if len(parts) > 2 and parts[-1].isdigit() else ""
+            title = "_".join(parts[2:-1]) if len(parts) > 3 else (parts[2] if len(parts) > 2 else stem)
+            return num, genre, title, variation
+
+        group_counts = {}
+        for f in files:
+            num, genre, title, variation = parse(f)
+            group_counts[(num, genre, title)] = group_counts.get((num, genre, title), 0) + 1
+
+        tracks = []
+        for f in files:
+            num, genre, title, variation = parse(f)
+            display = f"{title} {variation}".strip() if group_counts[(num, genre, title)] > 1 and variation else title
+            tracks.append(Track(
+                id=f"trk{num}_{variation or '1'}",
+                title=display or f,
+                category=genre,
+                mood=None,
+                duration=_ffprobe_duration(os.path.join(music_dir, f)),
+                file_url=f"/music-files/{f}",
+            ))
+        db.add_all(tracks)
+        db.commit()
+        print(f"✅ Created {len(tracks)} music tracks")
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     print("🚀 SOL-ACT Database Seeder")
     print("=" * 50)
@@ -555,5 +633,6 @@ if __name__ == "__main__":
     seed_portfolios()
     seed_auditions()
     seed_private_lesson_requests()
+    seed_music()
 
     print("\n✨ Seeding complete!")

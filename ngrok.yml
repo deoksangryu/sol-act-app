@@ -5,10 +5,10 @@ version: 2
 tunnels:
   frontend:
     proto: http
-    addr: 3001
+    addr: 3000
     domain: sol-manager.ngrok.app
     inspect: true
-    # Vite dev server를 외부에 노출 (포트 3001)
+    # Vite dev server를 외부에 노출 (포트 3000 — vite.config.ts와 정합)
 
   backend:
     proto: http

@@ -3,6 +3,7 @@ import type {
   Assignment, DietLog, Evaluation, Question, Answer,
   ChatMessage, Notice, Notification, PortfolioItem, PortfolioComment,
   CompetitionEvent, ChecklistItem, PrivateLessonRequest,
+  JournalComment, Track, MusicDownloadRequest,
 } from '../types';
 
 // --- Config ---
@@ -18,6 +19,7 @@ import {
   demoDietApi, demoNoticeApi, demoNotificationApi, demoJournalApi,
   demoAttendanceApi, demoQnaApi, demoEvaluationApi, demoPortfolioApi,
   demoAuditionApi, demoChatApi, demoPrivateLessonApi, demoUploadApi,
+  demoMusicApi,
 } from './demoApi';
 
 // --- Token Management ---
@@ -146,10 +148,12 @@ export const authApi = {
     return res;
   },
 
-  async register(data: { name: string; email: string; password: string; role: string; inviteCode: string }) {
+  async register(data: { name: string; email: string; password: string; role: string; inviteCode?: string }) {
+    const body: Record<string, unknown> = { name: data.name, email: data.email, password: data.password, role: data.role };
+    if (data.inviteCode) body.invite_code = data.inviteCode;
     return apiRequest<{ accessToken: string; user: User }>('/api/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name: data.name, email: data.email, password: data.password, role: data.role, invite_code: data.inviteCode }),
+      body: JSON.stringify(body),
     });
   },
 
@@ -373,6 +377,16 @@ export const journalApi = {
   delete(id: string): Promise<void> {
     return apiRequest(`/api/journals/${id}`, { method: 'DELETE' });
   },
+  // 선생님 코칭 댓글
+  addComment(journalId: string, content: string): Promise<JournalComment> {
+    return apiRequest(`/api/journals/${journalId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  },
+  deleteComment(journalId: string, commentId: string): Promise<void> {
+    return apiRequest(`/api/journals/${journalId}/comments/${commentId}`, { method: 'DELETE' });
+  },
 };
 
 // --- Assignment API ---
@@ -464,11 +478,51 @@ export const dietApi = {
   createWeight(data: { weight: number; date: string; memo?: string; body_fat?: number; muscle_mass?: number; visceral_fat?: number }): Promise<Record<string, unknown>> {
     return apiRequest('/api/diet/weight', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(toSnake(data)),
     });
   },
   deleteWeight(id: string): Promise<void> {
     return apiRequest(`/api/diet/weight/${id}`, { method: 'DELETE' });
+  },
+};
+
+// --- Music API (무용 음악 라이브러리 + 다운로드 요청/승인) ---
+export const musicApi = {
+  listTracks(category?: string): Promise<Track[]> {
+    const q = category && category !== 'all' ? `?category=${encodeURIComponent(category)}` : '';
+    return apiRequest(`/api/music/tracks${q}`);
+  },
+  getTrack(id: string): Promise<Track> {
+    return apiRequest(`/api/music/tracks/${id}`);
+  },
+  createTrack(data: { title: string; category: string; mood?: string; duration?: string; fileUrl?: string; thumbnailUrl?: string }): Promise<Track> {
+    return apiRequest('/api/music/tracks', {
+      method: 'POST',
+      body: JSON.stringify(toSnake(data)),
+    });
+  },
+  deleteTrack(id: string): Promise<void> {
+    return apiRequest(`/api/music/tracks/${id}`, { method: 'DELETE' });
+  },
+  // 다운로드 권한이 있는 경우에만 파일 URL 반환 (없으면 403)
+  getDownload(id: string): Promise<{ url: string; filename: string }> {
+    return apiRequest(`/api/music/tracks/${id}/download`);
+  },
+  listRequests(params?: { status?: string }): Promise<MusicDownloadRequest[]> {
+    const q = params?.status ? `?status=${params.status}` : '';
+    return apiRequest(`/api/music/requests${q}`);
+  },
+  createRequest(data: { trackId: string; purpose: string }): Promise<MusicDownloadRequest> {
+    return apiRequest('/api/music/requests', {
+      method: 'POST',
+      body: JSON.stringify(toSnake(data)),
+    });
+  },
+  respondRequest(id: string, data: { status: 'approved' | 'rejected'; responseNote?: string }): Promise<MusicDownloadRequest> {
+    return apiRequest(`/api/music/requests/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(toSnake(data)),
+    });
   },
 };
 
@@ -1401,5 +1455,6 @@ if (DEMO_MODE) {
   Object.assign(chatApi, demoChatApi);
   Object.assign(privateLessonApi, demoPrivateLessonApi);
   Object.assign(uploadApi, demoUploadApi);
+  Object.assign(musicApi, demoMusicApi);
   console.log('%c[SOL-ACT] Demo mode active — using mock data', 'color: #F59E0B; font-weight: bold;');
 }

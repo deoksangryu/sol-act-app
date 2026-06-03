@@ -15,6 +15,7 @@ from .audition import Audition, AuditionChecklist
 from .private_lesson import PrivateLessonRequest
 from .push_subscription import PushSubscription
 from .praise_sticker import PraiseSticker
+from .music import Track, MusicDownloadRequest
 
 __all__ = [
     "User",
@@ -38,4 +39,6 @@ __all__ = [
     "PrivateLessonRequest",
     "PushSubscription",
     "PraiseSticker",
+    "Track",
+    "MusicDownloadRequest",
 ]

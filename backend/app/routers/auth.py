@@ -35,19 +35,27 @@ router = APIRouter()
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def register(user_data: UserCreate, db: Session = Depends(get_db)):
-    # Validate invite code
-    invite = db.query(InviteCode).filter(InviteCode.code == user_data.invite_code.upper()).first()
-    if not invite:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="유효하지 않은 인증코드입니다.")
-    if invite.used:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용된 인증코드입니다.")
-    # 90일 만료 체크
-    if invite.created_at:
-        from datetime import datetime, timedelta
-        if datetime.utcnow() - invite.created_at > timedelta(days=90):
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="만료된 인증코드입니다. (90일 초과)")
-    if invite.role != user_data.role:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="인증코드의 역할이 일치하지 않습니다.")
+    # Invite code is OPTIONAL — the academy shares the signup link internally.
+    # If a code is provided it is still validated (backward compatible);
+    # otherwise the requested role is used directly.
+    invite = None
+    if user_data.invite_code:
+        invite = db.query(InviteCode).filter(InviteCode.code == user_data.invite_code.upper()).first()
+        if not invite:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="유효하지 않은 인증코드입니다.")
+        if invite.used:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="이미 사용된 인증코드입니다.")
+        # 90일 만료 체크
+        if invite.created_at:
+            from datetime import datetime, timedelta
+            if datetime.utcnow() - invite.created_at > timedelta(days=90):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="만료된 인증코드입니다. (90일 초과)")
+        if invite.role != user_data.role:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="인증코드의 역할이 일치하지 않습니다.")
+
+    # Code-free self-registration must never grant the director (owner) role
+    if invite is None and user_data.role.value == "director":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="원장 계정은 직접 가입할 수 없어요. 관리자에게 문의하세요.")
 
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
@@ -71,9 +79,10 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.flush()
 
-    # Mark invite code as used
-    invite.used = True
-    invite.used_by = new_user.id
+    # Mark invite code as used (only when one was supplied)
+    if invite:
+        invite.used = True
+        invite.used_by = new_user.id
     db.commit()
     db.refresh(new_user)
 

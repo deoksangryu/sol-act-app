@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sol-act-v10';
+const CACHE_NAME = 'sol-act-v11';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -24,7 +24,30 @@ self.addEventListener('fetch', (event) => {
   // Never cache API requests or WebSocket upgrades
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/ws/')) return;
 
-  // Static assets (JS/CSS/images): stale-while-revalidate
+  const sameOrigin = url.origin === self.location.origin;
+
+  // Entry point (navigation / index.html): NETWORK-FIRST so a new deploy is picked up
+  // immediately without bumping the cache version. Falls back to cache only when offline.
+  const isEntry =
+    event.request.mode === 'navigate' ||
+    (sameOrigin && (url.pathname === '/' || url.pathname.endsWith('/index.html')));
+  if (isEntry) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('/', clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((c) => c || caches.match('/')))
+    );
+    return;
+  }
+
+  // Hashed static assets (JS/CSS/images): cache-first w/ background refresh.
+  // Filenames are content-hashed, so new builds bust the cache automatically.
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request)

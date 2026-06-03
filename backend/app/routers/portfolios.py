@@ -332,6 +332,9 @@ async def update_portfolio(
 
     if current_user.id != p.student_id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if current_user.role == UserRole.TEACHER and current_user.id != p.student_id:
+        if p.student_id not in get_teacher_student_ids(db, current_user.id):
+            raise HTTPException(status_code=403, detail="담당 학생의 영상만 수정할 수 있어요")
 
     for field, value in update_data.model_dump(exclude_unset=True).items():
         setattr(p, field, value)
@@ -362,6 +365,8 @@ async def request_ai_feedback(
     # Students can only request AI feedback on their own portfolios
     if current_user.role == UserRole.STUDENT and p.student_id != current_user.id:
         raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
+    if current_user.role == UserRole.TEACHER and p.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
 
     feedback = analyze_portfolio(p.title, p.description, p.category.value)
     p.ai_feedback = feedback
@@ -387,6 +392,14 @@ async def add_comment(
     p = db.query(Portfolio).filter(Portfolio.id == portfolio_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Portfolio not found")
+
+    # Only teachers/directors may leave feedback; teachers only for their own students
+    if current_user.role == UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="선생님만 영상 피드백을 남길 수 있어요")
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        if p.student_id not in my_student_ids:
+            raise HTTPException(status_code=403, detail="담당 학생의 영상에만 피드백할 수 있어요")
 
     comment = PortfolioComment(
         id=f"pcmt{uuid.uuid4().hex[:7]}",
@@ -456,6 +469,9 @@ async def delete_portfolio(
 
     if current_user.id != p.student_id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if current_user.role == UserRole.TEACHER and current_user.id != p.student_id:
+        if p.student_id not in get_teacher_student_ids(db, current_user.id):
+            raise HTTPException(status_code=403, detail="담당 학생의 영상만 삭제할 수 있어요")
 
     student_id = p.student_id
     db.delete(p)

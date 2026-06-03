@@ -126,6 +126,8 @@ async def update_diet_log(
 
     if current_user.role == UserRole.STUDENT and d.student_id != current_user.id:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if current_user.role == UserRole.TEACHER and d.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 식단에만 피드백할 수 있어요")
 
     updates = update_data.model_dump(exclude_unset=True)
     # Teachers can only add comments, not modify the diet entry itself
@@ -260,8 +262,8 @@ def delete_weight_log(
     log = db.query(WeightLog).filter(WeightLog.id == log_id).first()
     if not log:
         raise HTTPException(status_code=404, detail="Weight log not found")
-    if log.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if log.student_id != current_user.id and current_user.role != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="본인 또는 원장만 삭제할 수 있어요")
     db.delete(log)
     db.commit()
     return {"message": "Weight log deleted"}

@@ -155,6 +155,8 @@ async def update_assignment(
     a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    if current_user.role == UserRole.TEACHER and a.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 과제만 수정할 수 있어요")
 
     for field, value in update_data.model_dump(exclude_unset=True).items():
         setattr(a, field, value)
@@ -255,6 +257,8 @@ async def grade_assignment(
     a = db.query(Assignment).options(joinedload(Assignment.student)).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    if current_user.role == UserRole.TEACHER and a.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 과제만 채점할 수 있어요")
 
     if a.status == AssignmentStatus.PENDING:
         raise HTTPException(status_code=400, detail="Cannot grade an assignment that has not been submitted")
@@ -313,6 +317,8 @@ async def delete_assignment(
     a = db.query(Assignment).filter(Assignment.id == assignment_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="Assignment not found")
+    if current_user.role == UserRole.TEACHER and a.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 과제만 삭제할 수 있어요")
 
     student_id = a.student_id
     db.delete(a)

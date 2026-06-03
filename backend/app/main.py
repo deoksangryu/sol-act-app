@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 from app.routers import (
     auth, users, assignments, diet, classes, chat, qna, notices, notifications,
     lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
-    ws, upload, admin, push, praise_stickers
+    ws, upload, admin, push, praise_stickers, music
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -123,6 +123,7 @@ app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin (localhost only)"])
 app.include_router(push.router, prefix="/api/push", tags=["Push Notifications"])
 app.include_router(praise_stickers.router, prefix="/api/praise-stickers", tags=["Praise Stickers"])
+app.include_router(music.router, prefix="/api/music", tags=["Music"])
 
 # Static file serving for uploads — with security headers + Range support
 # Serves from external SSD if available, falls back to local directory
@@ -192,6 +193,65 @@ async def serve_uploads(request: Request, call_next):
         return resp
 
     return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+
+@app.middleware("http")
+async def serve_music_files(request: Request, call_next):
+    """Serve /music-files/ audio from the external SSD `music` folder.
+
+    Explicit HTTP Range support (206 Partial Content) — iOS WKWebView requires
+    Range/Accept-Ranges to play and seek <audio> reliably.
+    """
+    path = request.url.path
+    if not path.startswith("/music-files/"):
+        return await call_next(request)
+
+    import mimetypes
+    from starlette.responses import Response, FileResponse as SFileResponse
+
+    rel = path[len("/music-files/"):]  # already percent-decoded by Starlette
+    name = settings.EXTERNAL_DRIVE_NAME
+    if not name:
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+    base = os.path.realpath(f"/Volumes/{name}/music")
+    music_file = os.path.realpath(os.path.join(base, rel))
+    # Path-traversal guard: resolved file must stay inside the music folder
+    if not (music_file == base or music_file.startswith(base + os.sep)) or not os.path.isfile(music_file):
+        return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+    media_type = mimetypes.guess_type(music_file)[0] or "audio/mpeg"
+    common = {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": "public, max-age=86400",
+        "x-content-type-options": "nosniff",
+    }
+
+    range_header = request.headers.get("range")
+    if range_header and range_header.startswith("bytes="):
+        file_size = os.path.getsize(music_file)
+        try:
+            start_s, end_s = range_header[len("bytes="):].split("-", 1)
+            start = int(start_s) if start_s else 0
+            end = int(end_s) if end_s else file_size - 1
+        except ValueError:
+            start, end = 0, file_size - 1
+        start = max(0, start)
+        end = min(end, file_size - 1)
+        if start > end:
+            return Response(status_code=416, headers={**common, "Content-Range": f"bytes */{file_size}"})
+        with open(music_file, "rb") as f:
+            f.seek(start)
+            data = f.read(end - start + 1)
+        return Response(
+            content=data, status_code=206, media_type=media_type,
+            headers={**common, "Content-Range": f"bytes {start}-{end}/{file_size}", "Content-Length": str(len(data))},
+        )
+
+    resp = SFileResponse(music_file, media_type=media_type)
+    for k, v in common.items():
+        resp.headers[k] = v
+    return resp
 
 
 # Admin dashboard (local access only)

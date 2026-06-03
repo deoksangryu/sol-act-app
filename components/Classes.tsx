@@ -1,397 +1,393 @@
-
-import React, { useState } from 'react';
-import { User, ClassInfo, UserRole, Subject, SUBJECT_LABELS, ScheduleSlot } from '../types';
-import { classApi, resolveFileUrl } from '../services/api';
+import React, { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { ConfirmDialog } from './ConfirmDialog';
+import { User, UserRole, Lesson, LessonJournal, AttendanceRecord } from '../types';
+import { lessonApi, journalApi, attendanceApi } from '../services/api';
 import { useAppData } from '../services/AppContext';
+import { useDataRefresh } from '../services/useWebSocket';
+import { TOSS, CategoryIcon } from '../services/category';
+import {
+  Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag, Avatar,
+  Cta, Empty, InfoBox, ChipSelect, Chevron,
+} from './toss/kit';
 
-const DAY_OPTIONS = ['월', '화', '수', '목', '금', '토', '일'];
-
-function formatSchedule(schedule: ScheduleSlot[] | string): string {
-  if (typeof schedule === 'string') return schedule || '일정 미정';
-  if (!Array.isArray(schedule) || schedule.length === 0) return '일정 미정';
-  return schedule.map(s => `${s.day} ${s.startTime}~${s.endTime}`).join(' | ');
+function todayStr(): string {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+const md = (iso: string) => (iso || '').slice(5, 10).replace('-', '/');
 
-interface ClassesProps {
-  user: User;
-}
+const CONDITIONS = [
+  { value: 'present', label: '좋아요' },
+  { value: 'present_ok', label: '보통이에요' },
+  { value: 'late', label: '지쳤어요' },
+];
 
-export const Classes: React.FC<ClassesProps> = ({ user }) => {
-  const { allUsers, classes, setClasses } = useAppData();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingClass, setEditingClass] = useState<ClassInfo | null>(null);
-  const [saving, setSaving] = useState(false);
+type View =
+  | { name: 'home' }
+  | { name: 'attend'; lessonId: string }
+  | { name: 'journalWrite'; lessonId: string; type: 'student' | 'teacher'; journalId?: string }
+  | { name: 'journalView'; journalId: string }
+  | { name: 'teacherLesson'; lessonId: string };
 
-  // Form State
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [scheduleSlots, setScheduleSlots] = useState<ScheduleSlot[]>([]);
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  const [teacherId, setTeacherId] = useState('');
-  const [subject, setSubject] = useState<Subject>(Subject.ACTING);
+export const Classes: React.FC<{ user: User }> = ({ user }) => {
+  const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
+  const { allUsers, classes } = useAppData();
+  const [lessons, setLessons] = useState<Lesson[]>([]);
+  const [journals, setJournals] = useState<LessonJournal[]>([]);
+  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState<View>({ name: 'home' });
 
-  if (user.role === UserRole.STUDENT) {
-    return <div className="p-4 text-center text-slate-500">접근 권한이 없습니다.</div>;
+  const load = async () => {
+    try {
+      const [ls, js, at] = await Promise.all([
+        lessonApi.list(),
+        journalApi.list(),
+        isStaff ? attendanceApi.list() : attendanceApi.list({ studentId: user.id }),
+      ]);
+      setLessons(ls);
+      setJournals(js);
+      setAttendance(at);
+    } catch (e: any) {
+      toast.error(e.message || '수업을 불러오지 못했어요');
+    }
+  };
+  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
+  useDataRefresh(['lessons', 'journals', 'attendance'], load);
+
+  const classStudents = (classId?: string) => {
+    const cls = classes.find(c => c.id === classId);
+    if (!cls) return [];
+    return allUsers.filter(u => cls.studentIds.includes(u.id));
+  };
+  const lessonOf = (id: string) => lessons.find(l => l.id === id);
+  const myStudentJournal = (lessonId: string) => journals.find(j => j.lessonId === lessonId && j.journalType === 'student' && j.authorId === user.id);
+  const teacherJournal = (lessonId: string) => journals.find(j => j.lessonId === lessonId && j.journalType === 'teacher');
+  const studentJournalsFor = (lessonId: string) => journals.filter(j => j.lessonId === lessonId && j.journalType === 'student');
+  const myAttendance = (lessonId: string) => attendance.find(a => a.lessonId === lessonId && a.studentId === user.id);
+
+  if (loading) return <Empty>불러오는 중…</Empty>;
+
+  // ── sub-screens ──
+  if (view.name === 'attend') {
+    const l = lessonOf(view.lessonId);
+    if (l) return <AttendScreen lesson={l} userId={user.id} onBack={() => setView({ name: 'home' })} onDone={async () => { setView({ name: 'home' }); await load(); }} />;
+  }
+  if (view.name === 'journalWrite') {
+    const l = lessonOf(view.lessonId);
+    const editJournal = view.journalId ? journals.find(x => x.id === view.journalId) : undefined;
+    if (l) return <JournalWrite lesson={l} type={view.type} journal={editJournal} onBack={() => setView({ name: 'home' })} onDone={async () => { setView({ name: 'home' }); await load(); }} />;
+  }
+  if (view.name === 'journalView') {
+    const j = journals.find(x => x.id === view.journalId);
+    if (j) return (
+      <JournalView
+        journal={j}
+        lesson={lessonOf(j.lessonId)}
+        canComment={isStaff}
+        canEdit={!isStaff && j.journalType === 'student' && j.authorId === user.id}
+        onEdit={() => setView({ name: 'journalWrite', lessonId: j.lessonId, type: 'student', journalId: j.id })}
+        onBack={() => setView({ name: 'home' })}
+        onReload={load}
+      />
+    );
+  }
+  if (view.name === 'teacherLesson') {
+    const l = lessonOf(view.lessonId);
+    if (l) return (
+      <TeacherLessonDetail
+        lesson={l}
+        students={classStudents(l.classId)}
+        teacherJournal={teacherJournal(l.id)}
+        studentJournals={studentJournalsFor(l.id)}
+        onBack={() => setView({ name: 'home' })}
+        onWriteJournal={() => setView({ name: 'journalWrite', lessonId: l.id, type: 'teacher' })}
+        onOpenStudentJournal={(jid) => setView({ name: 'journalView', journalId: jid })}
+        onReload={load}
+      />
+    );
   }
 
-  const isDirector = user.role === UserRole.DIRECTOR;
+  // ── home ──
+  const upcoming = lessons.filter(l => l.status === 'scheduled');
+  const past = lessons.filter(l => l.status === 'completed');
+  const todays = upcoming.filter(l => l.date === todayStr());
+  const future = upcoming.filter(l => l.date !== todayStr());
 
-  // Teacher sees their own classes, Director sees all
-  const displayedClasses = isDirector
-      ? classes
-      : classes.filter(c => Object.values(c.subjectTeachers).includes(user.id));
+  if (!isStaff) {
+    return (
+      <Screen>
+        <BigTitle title={<>수업을<br />준비하고 돌아봐요</>} />
+        <Scroll className="px-1">
+          <SectionLabel>오늘 · 예정 수업</SectionLabel>
+          {todays.length + future.length === 0 && <Empty>예정된 수업이 없어요</Empty>}
+          {todays.map(l => {
+            const att = myAttendance(l.id);
+            return (
+              <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className}
+                sub={`${l.startTime}${att ? ' · 출석 완료' : ' · ' + l.teacherName}`}
+                right={att ? <Tag bg={TOSS.successBg} fg={TOSS.success}>출석함</Tag> : <Tag bg={TOSS.blueBg} fg={TOSS.blue}>출석하기</Tag>}
+                onClick={att ? undefined : () => setView({ name: 'attend', lessonId: l.id })} />
+            );
+          })}
+          {future.map(l => (
+            <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className}
+              sub={`${md(l.date)} · ${l.startTime}`} right={<Tag>예정</Tag>} />
+          ))}
 
-  const students = allUsers.filter(u => u.role === UserRole.STUDENT);
-  const teachers = allUsers.filter(u => u.role === UserRole.TEACHER || u.role === UserRole.DIRECTOR);
+          <SectionLabel>지난 수업 · 일지</SectionLabel>
+          {past.length === 0 && <Empty>지난 수업이 없어요</Empty>}
+          {past.map(l => {
+            const j = myStudentJournal(l.id);
+            return (
+              <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={md(l.date)}
+                right={j ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>일지 쓰기</Tag>}
+                onClick={j ? () => setView({ name: 'journalView', journalId: j.id }) : () => setView({ name: 'journalWrite', lessonId: l.id, type: 'student' })} />
+            );
+          })}
+        </Scroll>
+      </Screen>
+    );
+  }
 
-  const handleOpenModal = (cls?: ClassInfo) => {
-    if (cls) {
-      setEditingClass(cls);
-      setName(cls.name);
-      setDescription(cls.description);
-      // Handle both legacy string and new array format
-      if (Array.isArray(cls.schedule)) {
-        setScheduleSlots(cls.schedule);
-      } else {
-        setScheduleSlots([]);
-      }
-      setSelectedStudentIds(cls.studentIds);
-      const entries = Object.entries(cls.subjectTeachers || {});
-      if (entries.length > 0) {
-        setSubject(entries[0][0] as Subject);
-        setTeacherId(entries[0][1]);
-      } else {
-        setSubject(Subject.ACTING);
-        setTeacherId('');
-      }
-    } else {
-      setEditingClass(null);
-      setName('');
-      setDescription('');
-      setScheduleSlots([]);
-      setSelectedStudentIds([]);
-      setTeacherId('');
-      setSubject(Subject.ACTING);
-    }
-    setIsModalOpen(true);
-  };
+  // teacher home
+  return (
+    <Screen>
+      <BigTitle title={<>수업을<br />운영하고 기록해요</>} />
+      <Scroll className="px-1">
+        <SectionLabel>오늘 · 예정 수업</SectionLabel>
+        {todays.length + future.length === 0 && <Empty>예정된 수업이 없어요</Empty>}
+        {todays.map(l => {
+          const present = attendance.filter(a => a.lessonId === l.id).length;
+          return (
+            <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={`${l.startTime} · 진행 중`}
+              right={<Tag>출석 {present}/{classStudents(l.classId).length}</Tag>}
+              onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
+          );
+        })}
+        {future.map(l => (
+          <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={`${md(l.date)} · ${l.startTime}`} right={<Tag>예정</Tag>}
+            onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
+        ))}
 
-  const handleSave = async () => {
-    if (!name.trim()) return;
-    setSaving(true);
+        <SectionLabel>지난 수업 · 수업일지</SectionLabel>
+        {past.length === 0 && <Empty>지난 수업이 없어요</Empty>}
+        {past.map(l => {
+          const tj = teacherJournal(l.id);
+          return (
+            <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={md(l.date)}
+              right={tj ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>일지 쓰기</Tag>}
+              onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
+          );
+        })}
+      </Scroll>
+    </Screen>
+  );
+};
+
+// 학생 출석 체크
+const AttendScreen: React.FC<{ lesson: Lesson; userId: string; onBack: () => void; onDone: () => Promise<void> }> = ({ lesson, userId, onBack, onDone }) => {
+  const [cond, setCond] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!cond) return;
+    setBusy(true);
     try {
-      if (editingClass) {
-        const subjectTeachers = teacherId ? { [subject]: teacherId } : {};
-        const updated = await classApi.update(editingClass.id, {
-          name, description, schedule: scheduleSlots, subjectTeachers, studentIds: selectedStudentIds,
-        });
-        setClasses(classes.map(c => c.id === editingClass.id ? updated : c));
-        const count = (updated as any).generatedLessonsCount;
-        toast.success(count ? `클래스가 수정되었습니다. 수업 ${count}개 재생성됨.` : '클래스가 수정되었습니다.');
-      } else {
-        const subjectTeachers = teacherId ? { [subject]: teacherId } : {};
-        const newClass = await classApi.create({
-          name, description, schedule: scheduleSlots, subjectTeachers, studentIds: selectedStudentIds,
-        });
-        setClasses([...classes, newClass]);
-        const count = (newClass as any).generatedLessonsCount;
-        toast.success(count ? `클래스가 생성되었습니다. 수업 ${count}개 자동 등록됨.` : '새 클래스가 생성되었습니다.');
-      }
-      setIsModalOpen(false);
-    } catch {
-      toast.error('클래스 저장에 실패했습니다.');
+      const status = cond === 'late' ? 'late' : 'present';
+      await attendanceApi.create({ lessonId: lesson.id, studentId: userId, status } as any);
+      toast.success('출석을 마쳤어요');
+      await onDone();
+    } catch (e: any) {
+      toast.error(e.message || '출석하지 못했어요');
     } finally {
-      setSaving(false);
+      setBusy(false);
     }
   };
+  return (
+    <Screen>
+      <BackHeader title="출석 체크" onBack={onBack} />
+      <Scroll className="px-1">
+        <div className="text-[21px] font-bold leading-[1.4] text-toss-ink mt-2">출석하고<br />컨디션을 알려줘요</div>
+        <div className="rounded-2xl p-3.5 mt-4 flex items-center gap-3" style={{ background: TOSS.surf }}>
+          <CategoryIcon cat={lesson.subject} />
+          <div>
+            <div className="text-[15px] font-semibold text-toss-ink">{lesson.className}</div>
+            <div className="text-[13px] mt-0.5" style={{ color: TOSS.success }}>{lesson.startTime} · {lesson.teacherName}</div>
+          </div>
+        </div>
+        <div className="text-[13px] font-medium text-toss-sub mt-[18px] mb-2.5">오늘 컨디션은 어때요?</div>
+        <ChipSelect options={CONDITIONS} value={cond} onChange={setCond} />
+      </Scroll>
+      <Cta onClick={submit} disabled={!cond} loading={busy}>출석 완료하기</Cta>
+    </Screen>
+  );
+};
 
-  const [deleteClassId, setDeleteClassId] = useState<string | null>(null);
-
-  const handleDeleteConfirm = async () => {
-    if (!deleteClassId) return;
+// 일지 작성/수정 (학생/선생님)
+const JournalWrite: React.FC<{ lesson: Lesson; type: 'student' | 'teacher'; journal?: LessonJournal; onBack: () => void; onDone: () => Promise<void> }> = ({ lesson, type, journal, onBack, onDone }) => {
+  const [content, setContent] = useState(journal?.content || '');
+  const [busy, setBusy] = useState(false);
+  const editing = !!journal;
+  const submit = async () => {
+    if (!content.trim()) return;
+    setBusy(true);
     try {
-      await classApi.delete(deleteClassId);
-      setClasses(classes.filter(c => c.id !== deleteClassId));
-      toast.success('클래스가 삭제되었습니다.');
-    } catch {
-      toast.error('클래스 삭제에 실패했습니다.');
-    }
-    setDeleteClassId(null);
-  };
-
-  const toggleStudent = (id: string) => {
-    if (selectedStudentIds.includes(id)) {
-      setSelectedStudentIds(prev => prev.filter(sid => sid !== id));
-    } else {
-      setSelectedStudentIds(prev => [...prev, id]);
+      if (editing) await journalApi.update(journal!.id, { content: content.trim() } as any);
+      else await journalApi.create({ lessonId: lesson.id, journalType: type, content: content.trim() } as any);
+      toast.success(editing ? '일지를 수정했어요' : '일지를 저장했어요');
+      await onDone();
+    } catch (e: any) {
+      toast.error(e.message || '저장하지 못했어요');
+    } finally {
+      setBusy(false);
     }
   };
+  const isTeacher = type === 'teacher';
+  return (
+    <Screen>
+      <BackHeader title={isTeacher ? '수업일지' : '수업 일지'} onBack={onBack} />
+      <Scroll className="px-1">
+        <div className="text-[21px] font-bold leading-[1.4] text-toss-ink mt-2">
+          {isTeacher ? <>이 수업,<br />어떻게 진행됐나요?</> : <>이 수업,<br />어땠어요?</>}
+        </div>
+        <div className="text-sm text-toss-sub mt-1.5">{lesson.className} · {md(lesson.date)}</div>
+        <textarea value={content} onChange={e => setContent(e.target.value)}
+          placeholder={isTeacher ? '수업 진행, 진도, 운영 메모를 적어요' : '잘된 점, 보완할 점을 편하게 적어요'}
+          className="w-full min-h-[120px] mt-4 rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-toss-blue resize-none" />
+        {isTeacher && <div className="mt-4"><InfoBox tone="purple">이 일지는 선생님과 관리자만 볼 수 있어요</InfoBox></div>}
+      </Scroll>
+      <Cta onClick={submit} disabled={!content.trim()} loading={busy}>{editing ? '일지 수정하기' : isTeacher ? '수업일지 저장하기' : '일지 저장하기'}</Cta>
+    </Screen>
+  );
+};
 
-  // Schedule slot helpers
-  const addScheduleSlot = () => {
-    setScheduleSlots(prev => [...prev, { day: '월', startTime: '18:00', endTime: '20:00' }]);
+// 일지 보기 + 선생님 댓글
+const JournalView: React.FC<{ journal: LessonJournal; lesson?: Lesson; canComment: boolean; canEdit?: boolean; onEdit?: () => void; onBack: () => void; onReload: () => Promise<void> }> = ({ journal, lesson, canComment, canEdit, onEdit, onBack, onReload }) => {
+  const [text, setText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const comments = journal.comments || [];
+  const add = async () => {
+    if (!text.trim()) return;
+    setBusy(true);
+    try {
+      await journalApi.addComment(journal.id, text.trim());
+      toast.success('댓글을 남겼어요');
+      setText('');
+      await onReload();
+    } catch (e: any) {
+      toast.error(e.message || '남기지 못했어요');
+    } finally {
+      setBusy(false);
+    }
   };
-  const removeScheduleSlot = (idx: number) => {
-    setScheduleSlots(prev => prev.filter((_, i) => i !== idx));
-  };
-  const updateScheduleSlot = (idx: number, field: keyof ScheduleSlot, value: string) => {
-    setScheduleSlots(prev => prev.map((s, i) => i === idx ? { ...s, [field]: value } : s));
+  return (
+    <Screen>
+      <BackHeader title="수업 일지" onBack={onBack} right={canEdit ? (
+        <button onClick={onEdit} className="text-[13px] font-semibold text-toss-blue px-1">다시 쓰기</button>
+      ) : undefined} />
+      <Scroll className="px-1">
+        <div className="text-[20px] font-bold text-toss-ink mt-2">{lesson?.className || '수업'}</div>
+        <div className="text-[13px] text-toss-sub mt-1.5">{journal.authorName} · {md(journal.date)}</div>
+        <div className="text-[15px] leading-[1.8] mt-3.5 text-toss-ink whitespace-pre-wrap">{journal.content}</div>
+        <div className="h-px my-4" style={{ background: TOSS.line }} />
+        <div className="text-[13px] font-medium text-toss-sub">선생님 댓글 {comments.length}개</div>
+        {comments.map(c => (
+          <div key={c.id} className="flex gap-2.5 mt-3.5">
+            <Avatar name={c.authorName} size={34} bg={TOSS.purpleBg} fg={TOSS.purple} />
+            <div className="flex-1 rounded-[4px_13px_13px_13px] p-3" style={{ background: TOSS.surf }}>
+              <div className="text-xs font-semibold text-toss-ink">{c.authorName}</div>
+              <div className="text-sm leading-relaxed mt-0.5 text-toss-ink">{c.content}</div>
+            </div>
+          </div>
+        ))}
+        {canComment && (
+          <div className="flex gap-2 mt-4">
+            <input value={text} onChange={e => setText(e.target.value)} placeholder="코칭 댓글을 남겨요" className="flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-toss-blue" />
+            <button onClick={add} disabled={busy || !text.trim()} className="rounded-xl px-4 text-sm font-semibold text-white" style={{ background: TOSS.blue }}>등록</button>
+          </div>
+        )}
+      </Scroll>
+    </Screen>
+  );
+};
+
+// 선생님 수업 상세: 출결 + 수업일지 + 학생 일지
+const TeacherLessonDetail: React.FC<{
+  lesson: Lesson; students: User[]; teacherJournal?: LessonJournal; studentJournals: LessonJournal[];
+  onBack: () => void; onWriteJournal: () => void; onOpenStudentJournal: (id: string) => void; onReload: () => Promise<void>;
+}> = ({ lesson, students, teacherJournal, studentJournals, onBack, onWriteJournal, onOpenStudentJournal, onReload }) => {
+  const isToday = lesson.status === 'scheduled' && lesson.date === todayStr();
+  const [marks, setMarks] = useState<Record<string, boolean>>({});
+  const [att, setAtt] = useState<AttendanceRecord[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    attendanceApi.list({ lessonId: lesson.id }).then(a => {
+      setAtt(a);
+      const m: Record<string, boolean> = {};
+      a.forEach(r => { m[r.studentId] = r.status === 'present' || r.status === 'late'; });
+      setMarks(m);
+    }).catch(() => {});
+  }, [lesson.id]);
+
+  const saveAttendance = async () => {
+    setBusy(true);
+    try {
+      await attendanceApi.bulkCreate(lesson.id, students.map(s => ({ studentId: s.id, status: marks[s.id] ? 'present' : 'absent' })));
+      toast.success('출결을 저장했어요');
+      await onReload();
+    } catch (e: any) {
+      toast.error(e.message || '저장하지 못했어요');
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-           <h2 className="text-2xl font-bold text-slate-800">클래스 관리</h2>
-           <p className="text-sm text-slate-500">수업 일정과 수강생을 관리하세요.</p>
-        </div>
-        {isDirector && (
-          <button
-            onClick={() => handleOpenModal()}
-            className="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-all flex items-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            새 클래스
-          </button>
-        )}
-      </div>
-
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-        {displayedClasses.map(cls => (
-          <div key={cls.id} className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow group relative">
-             {isDirector && (
-               <div className="absolute top-4 right-4 flex gap-2 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={() => handleOpenModal(cls)}
-                    aria-label="수정"
-                    className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
-                  </button>
-                  <button
-                    onClick={() => setDeleteClassId(cls.id)}
-                    aria-label="삭제"
-                    className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
-               </div>
-             )}
-
-             <div className="mb-4">
-                <span className="inline-block px-2 py-1 bg-brand-50 text-brand-600 text-xs font-bold rounded mb-2">
-                  {formatSchedule(cls.schedule)}
-                </span>
-                <h3 className="text-xl font-bold text-slate-800">{cls.name}</h3>
-                <p className="text-sm text-slate-500 mt-1 line-clamp-2 min-h-[40px]">{cls.description}</p>
-             </div>
-
-             {Object.keys(cls.subjectTeachers || {}).length > 0 && (
-               <div className="mb-3">
-                 <p className="text-xs text-slate-400">
-                   {(() => {
-                     const [subj, tid] = Object.entries(cls.subjectTeachers)[0] || [];
-                     const teacher = allUsers.find(u => u.id === tid);
-                     return teacher ? `${SUBJECT_LABELS[subj as Subject]} | ${teacher.name} 선생님` : null;
-                   })()}
-                 </p>
-               </div>
-             )}
-
-             <div className="pt-4 border-t border-slate-50">
-               <p className="text-xs font-bold text-slate-400 mb-2">수강생 ({cls.studentIds.length})</p>
-               <div className="flex -space-x-2 overflow-hidden">
-                 {cls.studentIds.map(sid => {
-                    const student = students.find(s => s.id === sid);
-                    if (!student) return null;
-                    return (
-                      <img
-                        key={sid}
-                        className="inline-block h-8 w-8 rounded-full ring-2 ring-white bg-slate-200"
-                        src={resolveFileUrl(student.avatar)}
-                        alt={student.name}
-                        title={student.name}
-                      />
-                    );
-                 })}
-                 {cls.studentIds.length === 0 && <span className="text-xs text-slate-300">등록된 학생 없음</span>}
-               </div>
-             </div>
-          </div>
-        ))}
-
-        {displayedClasses.length === 0 && (
-            <div className="col-span-full py-12 text-center text-slate-400">
-                관리 중인 클래스가 없습니다.
-            </div>
-        )}
-      </div>
-
-      {/* Modal — full screen on mobile */}
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-end md:items-center justify-center backdrop-blur-sm animate-fade-in">
-          <div role="dialog" aria-modal="true" className="bg-white w-full md:rounded-3xl md:max-w-lg md:max-h-[90vh] h-full md:h-auto flex flex-col shadow-2xl relative">
-             {/* Header */}
-             <div className="flex items-center justify-between px-6 pt-6 pb-3 border-b border-slate-100 shrink-0">
-               <h3 className="text-xl font-bold text-slate-800">
-                 {editingClass ? '클래스 수정' : '새 클래스 등록'}
-               </h3>
-               <button
-                 onClick={() => setIsModalOpen(false)}
-                 aria-label="닫기"
-                 className="text-slate-400 hover:text-slate-600 p-2"
-               >
-                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-               </button>
-             </div>
-
-             {/* Scrollable Content */}
-             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
-                <div>
-                   <label htmlFor="input-class-name" className="block text-xs font-bold text-slate-500 mb-1">클래스 이름 <span className="text-red-400">*</span></label>
-                   <input
-                     id="input-class-name"
-                     value={name}
-                     onChange={(e) => setName(e.target.value)}
-                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors"
-                     placeholder="예: 입시 A반"
-                   />
-                </div>
-
-                <div>
-                   <label htmlFor="input-class-desc" className="block text-xs font-bold text-slate-500 mb-1">설명</label>
-                   <textarea
-                     id="input-class-desc"
-                     value={description}
-                     onChange={(e) => setDescription(e.target.value)}
-                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 outline-none focus:border-brand-500 transition-colors resize-none h-20"
-                     placeholder="클래스에 대한 설명을 입력하세요."
-                   />
-                </div>
-
-                {/* Schedule — structured day+time picker */}
-                <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-2">수업 일정</label>
-                   <div className="space-y-2">
-                     {scheduleSlots.map((slot, idx) => (
-                       <div key={idx} className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2.5">
-                         <select
-                           value={slot.day}
-                           onChange={(e) => updateScheduleSlot(idx, 'day', e.target.value)}
-                           className="p-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 outline-none focus:border-brand-500 w-16 shrink-0"
-                         >
-                           {DAY_OPTIONS.map(d => (
-                             <option key={d} value={d}>{d}</option>
-                           ))}
-                         </select>
-                         <input
-                           type="time"
-                           value={slot.startTime}
-                           onChange={(e) => updateScheduleSlot(idx, 'startTime', e.target.value)}
-                           className="p-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 outline-none focus:border-brand-500 flex-1 min-w-0"
-                         />
-                         <span className="text-slate-400 text-sm shrink-0">~</span>
-                         <input
-                           type="time"
-                           value={slot.endTime}
-                           onChange={(e) => updateScheduleSlot(idx, 'endTime', e.target.value)}
-                           className="p-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 outline-none focus:border-brand-500 flex-1 min-w-0"
-                         />
-                         <button
-                           onClick={() => removeScheduleSlot(idx)}
-                           aria-label="일정 삭제"
-                           className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-slate-400 hover:text-red-500 shrink-0"
-                         >
-                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                         </button>
-                       </div>
-                     ))}
-                   </div>
-                   <button
-                     onClick={addScheduleSlot}
-                     className="mt-2 text-sm text-brand-500 hover:text-brand-600 font-bold flex items-center gap-1"
-                   >
-                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                     일정 추가
-                   </button>
-                </div>
-
-                <div>
-                   <label htmlFor="input-class-subject" className="block text-xs font-bold text-slate-500 mb-2">과목</label>
-                   <select
-                     id="input-class-subject"
-                     value={subject}
-                     onChange={(e) => setSubject(e.target.value as Subject)}
-                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-500 transition-colors"
-                   >
-                     {Object.values(Subject).map(s => (
-                       <option key={s} value={s}>{SUBJECT_LABELS[s]}</option>
-                     ))}
-                   </select>
-                </div>
-
-                <div>
-                   <label htmlFor="input-class-teacher" className="block text-xs font-bold text-slate-500 mb-2">담당 선생님</label>
-                   <select
-                     id="input-class-teacher"
-                     value={teacherId}
-                     onChange={(e) => setTeacherId(e.target.value)}
-                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:border-brand-500 transition-colors"
-                   >
-                     <option value="">선생님을 선택하세요</option>
-                     {teachers.map(t => (
-                       <option key={t.id} value={t.id}>{t.name}</option>
-                     ))}
-                   </select>
-                </div>
-
-                <div>
-                   <label className="block text-xs font-bold text-slate-500 mb-2">수강생 편집</label>
-                   <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 max-h-52 overflow-y-auto space-y-1">
-                     {students.length === 0 && (
-                       <p className="text-sm text-slate-400 text-center py-2">등록된 수강생이 없습니다.</p>
-                     )}
-                     {students.map(s => (
-                       <label key={s.id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white cursor-pointer transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={selectedStudentIds.includes(s.id)}
-                            onChange={() => toggleStudent(s.id)}
-                            className="w-5 h-5 text-brand-500 rounded focus:ring-brand-500 border-gray-300"
-                          />
-                          <img src={resolveFileUrl(s.avatar)} alt={s.name} className="w-8 h-8 rounded-full bg-slate-200" />
-                          <span className="text-sm font-medium text-slate-700">{s.name}</span>
-                       </label>
-                     ))}
-                   </div>
-                </div>
-             </div>
-
-             {/* Sticky Save Button */}
-             <div className="px-6 py-4 border-t border-slate-100 shrink-0 bg-white md:rounded-b-3xl" style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))' }}>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="w-full bg-brand-500 text-white py-3 rounded-xl font-bold hover:bg-brand-600 transition-colors shadow-lg shadow-brand-200 disabled:opacity-50"
-                >
-                  {saving ? '저장 중...' : '저장하기'}
-                </button>
-             </div>
+    <Screen>
+      <BackHeader title="수업" onBack={onBack} />
+      <Scroll className="px-1">
+        <div className="flex items-center gap-3 mt-2">
+          <CategoryIcon cat={lesson.subject} />
+          <div>
+            <div className="text-[19px] font-bold text-toss-ink">{lesson.className}</div>
+            <div className="text-[13px] text-toss-sub mt-0.5">{md(lesson.date)} · {lesson.startTime}</div>
           </div>
         </div>
-      )}
 
-      {deleteClassId && (
-        <ConfirmDialog
-          title="클래스 삭제"
-          message="정말로 이 클래스를 삭제하시겠습니까? 소속 학생과 수업 데이터에 영향을 줄 수 있습니다."
-          confirmLabel="삭제"
-          onConfirm={handleDeleteConfirm}
-          onCancel={() => setDeleteClassId(null)}
-        />
-      )}
-    </div>
+        {isToday ? (
+          <>
+            <SectionLabel>학생 출결</SectionLabel>
+            {students.length === 0 ? <Empty>등록된 학생이 없어요</Empty> : students.map(s => (
+              <ListRow key={s.id} left={<Avatar name={s.name} bg={marks[s.id] ? TOSS.successBg : TOSS.surf} fg={marks[s.id] ? TOSS.success : TOSS.sub} />}
+                title={s.name} sub={marks[s.id] ? '출석' : '미출석'}
+                right={<button onClick={() => setMarks(m => ({ ...m, [s.id]: !m[s.id] }))} className="text-xs font-semibold px-3 py-1.5 rounded-md"
+                  style={{ background: marks[s.id] ? TOSS.successBg : TOSS.surf, color: marks[s.id] ? TOSS.success : TOSS.sub }}>
+                  {marks[s.id] ? '출석' : '미출석'}
+                </button>} />
+            ))}
+          </>
+        ) : (
+          <>
+            <SectionLabel>수업일지</SectionLabel>
+            <div className="mb-2"><InfoBox tone="purple">선생님과 관리자만 볼 수 있어요</InfoBox></div>
+            {teacherJournal
+              ? <div className="rounded-xl border p-3.5 text-sm leading-relaxed text-toss-ink whitespace-pre-wrap" style={{ borderColor: TOSS.line }}>{teacherJournal.content}</div>
+              : <InfoBox tone="warn">이 수업의 수업일지를 아직 안 썼어요</InfoBox>}
+
+            <SectionLabel>학생 일지 {studentJournals.length}개</SectionLabel>
+            {studentJournals.length === 0 ? <Empty>아직 학생 일지가 없어요</Empty> : studentJournals.map(j => (
+              <ListRow key={j.id} left={<Avatar name={j.authorName} bg={TOSS.blueBg} fg={TOSS.blue} />} title={j.authorName} sub={j.content}
+                right={(j.comments?.length ?? 0) > 0 ? <Tag bg={TOSS.blueBg} fg={TOSS.blue}>댓글 {j.comments!.length}</Tag> : <Chevron />}
+                onClick={() => onOpenStudentJournal(j.id)} />
+            ))}
+          </>
+        )}
+      </Scroll>
+      {isToday
+        ? <Cta onClick={saveAttendance} loading={busy}>출결 저장하기</Cta>
+        : <Cta onClick={onWriteJournal}>{teacherJournal ? '수업일지 다시 쓰기' : '이 수업의 수업일지 쓰기'}</Cta>}
+    </Screen>
   );
 };

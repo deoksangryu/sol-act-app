@@ -11,7 +11,7 @@ from app.schemas.attendance import (
     AttendanceResponse, AttendanceStats
 )
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_user, emit_data_changed, get_teacher_class_ids, get_teacher_student_ids
+from app.services.notification_service import notify_user, emit_data_changed, get_teacher_class_ids, get_teacher_student_ids, get_class_student_ids, validate_class_access
 import uuid
 
 router = APIRouter()
@@ -118,11 +118,14 @@ async def bulk_create_attendance(
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
 
-    # Teacher: validate lesson belongs to their class
-    if current_user.role == UserRole.TEACHER and lesson.class_id:
-        my_class_ids = get_teacher_class_ids(db, current_user.id)
-        if lesson.class_id not in my_class_ids:
-            raise HTTPException(status_code=403, detail="Cannot mark attendance for classes you don't teach")
+    # Teacher: validate lesson belongs to their class (or private lesson they teach)
+    if current_user.role == UserRole.TEACHER:
+        if lesson.class_id:
+            my_class_ids = get_teacher_class_ids(db, current_user.id)
+            if lesson.class_id not in my_class_ids:
+                raise HTTPException(status_code=403, detail="Cannot mark attendance for classes you don't teach")
+        elif lesson.is_private and lesson.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="담당 수업의 출결만 기록할 수 있어요")
 
     created = []
     for record in data.records:
@@ -174,16 +177,29 @@ async def create_attendance(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    # Student: may self check-in only (own record, own lesson — class or private they belong to)
+    if current_user.role == UserRole.STUDENT:
+        if data.student_id != current_user.id:
+            raise HTTPException(status_code=403, detail="본인 출석만 체크할 수 있어요")
+        lesson = db.query(Lesson).filter(Lesson.id == data.lesson_id).first()
+        if not lesson:
+            raise HTTPException(status_code=404, detail="Lesson not found")
+        if lesson.class_id:
+            if not validate_class_access(db, lesson.class_id, current_user):
+                raise HTTPException(status_code=403, detail="이 수업의 학생이 아니에요")
+        elif lesson.is_private:
+            if current_user.id not in (lesson.private_student_ids or []):
+                raise HTTPException(status_code=403, detail="이 수업의 학생이 아니에요")
 
-    # Teacher: validate lesson belongs to their class
-    if current_user.role == UserRole.TEACHER:
+    # Teacher: validate lesson belongs to their class (or private lesson they teach)
+    elif current_user.role == UserRole.TEACHER:
         lesson = db.query(Lesson).filter(Lesson.id == data.lesson_id).first()
         if lesson and lesson.class_id:
             my_class_ids = get_teacher_class_ids(db, current_user.id)
             if lesson.class_id not in my_class_ids:
                 raise HTTPException(status_code=403, detail="Cannot mark attendance for classes you don't teach")
+        elif lesson and lesson.is_private and lesson.teacher_id != current_user.id:
+            raise HTTPException(status_code=403, detail="담당 수업의 출결만 기록할 수 있어요")
 
     # Check for duplicate: upsert if already exists
     existing = db.query(Attendance).filter(

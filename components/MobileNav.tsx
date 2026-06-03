@@ -1,53 +1,36 @@
-
 import React from 'react';
-import { UserRole, ViewState } from '../types';
+import { ViewState } from '../types';
 
 interface MobileNavProps {
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
-  userRole: UserRole;
 }
 
-export const MobileNav: React.FC<MobileNavProps> = ({ currentView, onChangeView, userRole }) => {
-  const isStaff = userRole === UserRole.TEACHER || userRole === UserRole.DIRECTOR;
+// v8 프로토타입 5탭 — 역할 무관 동일 (내용만 역할별 분기)
+const TABS: { id: ViewState; label: string; icon: string }[] = [
+  { id: 'classes', label: '수업', icon: 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.42a12 12 0 01.34 5.84A12 12 0 0112 21a12 12 0 01-6.5-4.58 12 12 0 01.34-5.84L12 14z' },
+  { id: 'assignments', label: '과제', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+  { id: 'video', label: '영상', icon: 'M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z' },
+  { id: 'diet', label: '식단', icon: 'M4 3v6a2 2 0 002 2h0a2 2 0 002-2V3M6 11v10M18 3c-1.66 0-3 2-3 5s1.34 4 3 4m0 0v9' },
+  { id: 'music', label: '음악', icon: 'M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z' },
+];
 
-  // 역할별 완전 분리된 모바일 네비 (5슬롯)
-  const communityItem = { id: 'community', label: '소통', icon: 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z' };
-
-  const studentNav = [
-    { id: 'dashboard', label: '홈', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-    { id: 'lessons', label: '수업', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-    { id: 'assignments', label: '과제', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    communityItem,
-    { id: 'growth', label: '성장', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
-    { id: 'diet', label: '식단', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' },
-  ];
-
-  const staffNav = [
-    { id: 'dashboard', label: '홈', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6' },
-    { id: 'lessons', label: '수업', icon: 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z' },
-    { id: 'assignments', label: '과제', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-    communityItem,
-    { id: 'growth', label: '성장', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6' },
-    { id: 'academy', label: '관리', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-  ];
-
-  const menuItems = isStaff ? staffNav : studentNav;
-
-  return (
-    <div className="flex justify-between items-center h-16 px-4 pb-2">
-      {menuItems.map((item) => (
+export const MobileNav: React.FC<MobileNavProps> = ({ currentView, onChangeView }) => (
+  <div className="flex justify-between items-center h-16 px-3 pb-1">
+    {TABS.map((item) => {
+      const active = currentView === item.id;
+      return (
         <button
           key={item.id}
-          onClick={() => onChangeView(item.id as ViewState)}
-          className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${
-            currentView === item.id ? 'text-brand-500' : 'text-slate-400 hover:text-slate-600'
-          }`}
+          onClick={() => onChangeView(item.id)}
+          className={`flex flex-col items-center justify-center w-full h-full gap-1 ${active ? 'text-toss-ink' : 'text-toss-faint'}`}
         >
-          <svg className={`w-5 h-5 ${currentView === item.id ? 'stroke-2' : 'stroke-1.5'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={item.icon} /></svg>
-          <span className="text-xs font-medium">{item.label}</span>
+          <svg className="w-[22px] h-[22px]" fill="none" stroke="currentColor" strokeWidth={active ? 2 : 1.6} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+          </svg>
+          <span className={`text-[10px] ${active ? 'font-semibold' : 'font-normal'}`}>{item.label}</span>
         </button>
-      ))}
-    </div>
-  );
-};
+      );
+    })}
+  </div>
+);

@@ -3,6 +3,7 @@ import React from 'react';
 interface Props {
   children: React.ReactNode;
   fallbackLabel?: string;
+  onReset?: () => void;
 }
 
 interface State {
@@ -37,12 +38,20 @@ export class ErrorBoundary extends React.Component<Props, State> {
           <p className="text-sm text-slate-500 mb-4">
             {this.props.fallbackLabel || '페이지를 불러오는 중 오류가 발생했습니다.'}
           </p>
-          <button
-            onClick={() => this.setState({ hasError: false, error: null })}
-            className="px-4 py-2 bg-brand-500 text-white rounded-lg text-sm font-medium hover:bg-brand-600 transition-colors"
-          >
-            다시 시도
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { this.props.onReset?.(); this.setState({ hasError: false, error: null }); }}
+              className="px-4 py-2 bg-toss-blue text-white rounded-xl text-sm font-semibold"
+            >
+              다시 시도
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-toss-surf text-toss-ink rounded-xl text-sm font-semibold"
+            >
+              앱 새로고침
+            </button>
+          </div>
         </div>
       );
     }

@@ -68,6 +68,18 @@ def list_lessons(
             Lesson.class_id.in_(my_class_ids),
             Lesson.teacher_id == current_user.id
         ))
+    # Student: see lessons for their enrolled classes + private lessons they're in.
+    # (Private membership lives in a JSON column, so it is filtered in Python below for cross-DB portability.)
+    elif current_user.role == UserRole.STUDENT:
+        from sqlalchemy import or_
+        from app.models.class_info import class_students
+        my_class_ids = [r[0] for r in db.query(class_students.c.class_id).filter(
+            class_students.c.student_id == current_user.id
+        ).all()]
+        query = query.filter(or_(
+            Lesson.class_id.in_(my_class_ids),
+            Lesson.is_private == True,
+        ))
     if class_id:
         query = query.filter(Lesson.class_id == class_id)
     if teacher_id:
@@ -83,6 +95,12 @@ def list_lessons(
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
     lessons = query.order_by(Lesson.date.asc(), Lesson.start_time.asc()).all()
+    # Drop private lessons the student is not a participant of (JSON membership check)
+    if current_user.role == UserRole.STUDENT:
+        lessons = [
+            l for l in lessons
+            if not l.is_private or current_user.id in (l.private_student_ids or [])
+        ]
     return [lesson_to_response(l) for l in lessons]
 
 
@@ -94,6 +112,19 @@ def get_lesson(lesson_id: str, db: Session = Depends(get_db), current_user: User
     ).filter(Lesson.id == lesson_id).first()
     if not l:
         raise HTTPException(status_code=404, detail="Lesson not found")
+    # Object-level authorization (prevent reading lessons of classes you're not in)
+    if current_user.role == UserRole.STUDENT:
+        from app.models.class_info import class_students
+        my_class_ids = [r[0] for r in db.query(class_students.c.class_id).filter(
+            class_students.c.student_id == current_user.id).all()]
+        ok = (l.class_id in my_class_ids) or (l.is_private and current_user.id in (l.private_student_ids or []))
+        if not ok:
+            raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
+    elif current_user.role == UserRole.TEACHER:
+        my_class_ids = get_teacher_class_ids(db, current_user.id)
+        ok = (l.class_id in my_class_ids) or (l.teacher_id == current_user.id)
+        if not ok:
+            raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
     return lesson_to_response(l)
 
 

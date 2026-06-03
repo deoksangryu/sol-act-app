@@ -28,3 +28,22 @@ class LessonJournal(Base):
     # Relationships
     lesson = relationship("Lesson", back_populates="journals")
     author = relationship("User", back_populates="lesson_journals")
+    comments = relationship(
+        "LessonJournalComment", back_populates="journal",
+        cascade="all, delete-orphan", order_by="LessonJournalComment.created_at",
+    )
+
+
+class LessonJournalComment(Base):
+    """학생 일지에 대한 선생님 코칭 댓글."""
+    __tablename__ = "lesson_journal_comments"
+
+    id = Column(String, primary_key=True, index=True)
+    journal_id = Column(String, ForeignKey("lesson_journals.id"), nullable=False, index=True)
+    author_id = Column(String, ForeignKey("users.id"), nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    journal = relationship("LessonJournal", back_populates="comments")
+    author = relationship("User", foreign_keys=[author_id])

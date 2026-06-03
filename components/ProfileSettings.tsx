@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 interface ProfileSettingsProps {
   user: User;
   onUserUpdate: (user: User) => void;
+  onBack?: () => void;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -16,7 +17,7 @@ const ROLE_LABELS: Record<string, string> = {
   director: '원장님',
 };
 
-export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUpdate }) => {
+export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUpdate, onBack }) => {
   // Profile edit
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -147,7 +148,14 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
 
   return (
     <div className="max-w-lg mx-auto space-y-6 animate-fade-in-up">
-      <h1 className="text-2xl font-bold text-slate-800">프로필 설정</h1>
+      <div className="flex items-center gap-1.5">
+        {onBack && (
+          <button onClick={onBack} className="p-1.5 -ml-1.5 flex items-center" aria-label="뒤로">
+            <svg className="w-6 h-6 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+          </button>
+        )}
+        <h1 className="text-2xl font-bold text-slate-800">프로필 설정</h1>
+      </div>
 
       {/* Avatar Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">

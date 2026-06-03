@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>쏠연기뮤지컬학원 모바일 앱 — v8 (Class Icons)</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+<style>
+:root {
+  --color-background-secondary: #F2F4F6;
+  --color-border-secondary: #E5E8EB;
+  --border-radius-lg: 16px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 32px 16px;
+  background: #FAFBFC;
+  font-family: -apple-system, BlinkMacSystemFont, 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+</style>
+</head>
+<body>
+
+<div style="background:var(--color-background-secondary);border-radius:var(--border-radius-lg);padding:1.1rem;display:flex;justify-content:center">
+<div style="width:340px;background:#fff;border-radius:30px;border:0.5px solid var(--color-border-secondary);overflow:hidden">
+<div id="A" style="position:relative;min-height:628px;display:flex;flex-direction:column;font-size:14px;color:#191F28"><div style="padding:40px 24px;text-align:center;color:#8B95A1">화면을 준비하고 있어요…</div></div>
+</div></div>
+
+<script>
+(function(){
+try{
+var B='#3182F6',BB='#EAF2FF',I='#191F28',S='#8B95A1',F='#C4CCD4',SF='#F2F4F6',L='#EEF0F2',O='#1B8A4B',OB='#E7F4EC',W='#C2410C',WB='#FFF1E6',P='#6D5BD0',PB='#EEEBFA',PINK='#E84F8B',PINKBG='#FCE7F0';
+var ST=[{i:'s1',n:'김민서'},{i:'s2',n:'이준호'},{i:'s3',n:'박서윤'}];
+function nm(i){for(var k=0;k<ST.length;k++)if(ST[k].i===i)return ST[k].n;return '학생';}
+
+var SVGIc={
+acting:function(c,z){var s=Math.round(z*0.66);return '<svg viewBox="0 0 100 100" width="'+s+'" height="'+s+'" xmlns="http://www.w3.org/2000/svg"><path d="M 50 16 C 65 16 75 28 75 42 L 75 56 C 75 72 65 84 50 86 C 35 84 25 72 25 56 L 25 42 C 25 28 35 16 50 16 Z" fill="none" stroke="'+c+'" stroke-width="5" stroke-linejoin="round"/><circle cx="40" cy="46" r="4.5" fill="'+c+'"/><circle cx="60" cy="46" r="4.5" fill="'+c+'"/><path d="M 36 62 Q 50 72 64 62" stroke="'+c+'" stroke-width="4.5" fill="none" stroke-linecap="round"/></svg>';},
+musical:function(c,z){var s=Math.round(z*0.66);return '<svg viewBox="0 0 100 100" width="'+s+'" height="'+s+'" xmlns="http://www.w3.org/2000/svg"><rect x="36" y="18" width="28" height="38" rx="14" fill="none" stroke="'+c+'" stroke-width="5"/><line x1="50" y1="58" x2="50" y2="72" stroke="'+c+'" stroke-width="6" stroke-linecap="round"/><path d="M 36 76 Q 50 81 64 76" stroke="'+c+'" stroke-width="5" fill="none" stroke-linecap="round"/><circle cx="76" cy="32" r="4" fill="'+c+'"/><line x1="80" y1="31" x2="80" y2="18" stroke="'+c+'" stroke-width="3" stroke-linecap="round"/></svg>';},
+dance:function(c,z){var s=Math.round(z*0.66);return '<svg viewBox="0 0 100 100" width="'+s+'" height="'+s+'" xmlns="http://www.w3.org/2000/svg"><circle cx="50" cy="22" r="8" fill="'+c+'"/><path d="M 52 30 Q 62 22 74 12" stroke="'+c+'" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M 48 32 Q 36 35 28 50" stroke="'+c+'" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M 50 30 L 48 54" stroke="'+c+'" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M 48 54 L 46 84" stroke="'+c+'" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M 50 54 Q 65 56 78 62" stroke="'+c+'" stroke-width="6.5" fill="none" stroke-linecap="round"/></svg>';}};
+function catC(c){if(c==='acting')return {bg:BB,fg:B};if(c==='musical')return {bg:PB,fg:P};if(c==='dance')return {bg:PINKBG,fg:PINK};return {bg:SF,fg:S};}
+
+var D={r:'student',me:'s1',mc:'all',d:{},sq:200,
+ss:[{i:'c5',c:'독백 연기 클래스',cat:'acting',dy:'11/18 화',tm:'오후 3:00',w:'today'},
+{i:'c6',c:'뮤지컬 넘버 레슨',cat:'musical',dy:'11/19 수',tm:'오후 5:00',w:'up'},
+{i:'c7',c:'자유무용 클래스',cat:'dance',dy:'11/21 금',tm:'오후 6:30',w:'up'},
+{i:'c4',c:'독백 연기 클래스',cat:'acting',dy:'11/14 금',tm:'오후 5:00',w:'past'},
+{i:'c3',c:'자유무용 클래스',cat:'dance',dy:'11/12 수',tm:'오후 3:00',w:'past'}],
+at:{c5:{s2:true}},
+sl:{c4:{s1:{d:'11/14',t:'감정의 흐름은 좋았어요. 호흡을 더 천천히.',cm:[{w:'김연기 선생님',t:'호흡을 의식한 게 느껴졌어요'}]}},
+c3:{s2:{d:'11/12',t:'음악과 호흡 맞추는 게 어려웠어요.',cm:[]}}},
+cl:{c4:{d:'11/14',a:'6/7',t:'전반적으로 집중도 좋았음. 자유연기 진도 절반까지.'}},
+tk:[{i:11,n:'자유연기 독백 외우기',du:'11/18',ds:'지정 대본 3분 분량',sb:{s2:'11/16'}},
+{i:12,n:'발성 연습 영상 녹화',du:'11/20',ds:'복식호흡 3분',sb:{}}],
+vd:[{i:21,s:'s1',n:'자유연기 3차',d:'11/14',dr:'2:18',fb:'시선 처리가 좋아졌어요'},
+{i:22,s:'s1',n:'뮤지컬 넘버 연습',d:'11/12',dr:'3:05',fb:null},
+{i:23,s:'s2',n:'독백 1차 녹화',d:'11/13',dr:'1:47',fb:null}],
+ml:[{i:31,s:'s1',ty:'아침',n:'오트밀과 바나나',tm:'8:10',fb:null},
+{i:32,s:'s1',ty:'점심',n:'닭가슴살 샐러드',tm:'12:40',fb:'단백질을 잘 챙겼어요'},
+{i:33,s:'s2',ty:'점심',n:'김밥과 어묵국',tm:'13:00',fb:null}],
+wt:{s1:[{d:'11/12',w:58.9},{d:'11/14',w:58.6},{d:'11/16',w:58.3},{d:'11/18',w:58.2}],s2:[],s3:[]},
+tr:[{i:41,t:'잔잔한 피아노 No.3',c:'현대무용',m:'차분한',dr:'2:48'},
+{i:42,t:'드라마틱 스트링 A',c:'발레',m:'강렬한',dr:'3:12'},
+{i:43,t:'재즈 그루브 5',c:'재즈댄스',m:'밝은',dr:'2:34'},
+{i:44,t:'한국적 선율 II',c:'한국무용',m:'차분한',dr:'3:55'},
+{i:45,t:'경쾌한 왈츠',c:'발레',m:'밝은',dr:'2:55'}],
+mr:{41:{s1:{st:'approved',p:'자유무용 입시 연습',d:'11/14'}},
+42:{s2:{st:'pending',p:'콩쿠르 준비',d:'11/17'}},
+44:{s1:{st:'pending',p:'수업 복습',d:'11/16'}}},
+nf:{student:[
+{i:101,t:'영상 피드백이 도착했어요',b:'자유연기 3차 코멘트',g:{s:'vv',p:21},c:'ti-video',z:'v',r:true,m:'어제'},
+{i:102,t:'식단 피드백이 도착했어요',b:'점심 닭가슴살 샐러드',g:{s:'mv',p:32},c:'ti-salad',z:'m',r:true,m:'어제'}],
+teacher:[
+{i:111,t:'이준호님이 영상을 올렸어요',b:'독백 1차 녹화 · 1:47',g:{s:'vv',p:23},c:'ti-video',z:'v',r:false,m:'2시간 전'},
+{i:112,t:'이준호님이 음원 요청을 보냈어요',b:'드라마틱 스트링 A · 콩쿠르 준비',g:{s:'mm',p:'42|s2'},c:'ti-music',z:'u',r:false,m:'3시간 전'},
+{i:113,t:'김민서님이 음원 요청을 보냈어요',b:'한국적 선율 II · 수업 복습',g:{s:'mm',p:'44|s1'},c:'ti-music',z:'u',r:false,m:'어제'}]}};
+
+var T={n:null,sh:false,tm:null};
+function ur(r){var a=D.nf[r]||[],n=0;for(var i=0;i<a.length;i++)if(!a[i].r)n++;return n;}
+function pn(r,o){o.i=++D.sq;o.r=false;o.m='방금 전';if(!D.nf[r])D.nf[r]=[];D.nf[r].unshift(o);}
+function stT(n){T.n=n;T.sh=false;if(T.tm)clearTimeout(T.tm);T.tm=setTimeout(function(){T.n=null;T.sh=false;dr();},4500);}
+function nU(r){var a=D.nf[r]||[];for(var i=0;i<a.length;i++)if(!a[i].r)return a[i];return null;}
+
+var TB=[['cs','ti-school','수업'],['tk','ti-checklist','과제'],['vd','ti-video','영상'],['bd','ti-salad','식단'],['mu','ti-headphones','음악']];
+var SK=[{s:'cs'}];
+function tp(){return SK[SK.length-1];}
+function iT(x){for(var i=0;i<TB.length;i++)if(TB[i][0]===x)return true;return false;}
+function cT(){for(var i=SK.length-1;i>=0;i--)if(iT(SK[i].s))return SK[i].s;return 'cs';}
+function go(n){SK.push(n);dr();}
+function bk(){if(SK.length>1)SK.pop();dr();}
+function sO(i){for(var k=0;k<D.ss.length;k++)if(D.ss[k].i===i)return D.ss[k];return null;}
+function tO(i){i=parseInt(i,10);for(var k=0;k<D.tr.length;k++)if(D.tr[k].i===i)return D.tr[k];return null;}
+function rO(t,s){return D.mr[t]&&D.mr[t][s];}
+function tab(s){if(iT(s))return s;if(s==='cd'||s==='at'||s.indexOf('sl')===0||s.indexOf('cl')===0)return 'cs';
+if(s==='tn'||s==='tv'||s==='tm'||s==='sb')return 'tk';if(s.indexOf('v')===0)return 'vd';
+if(s==='mv'||s==='mu2'||s==='wt')return 'bd';if(s.indexOf('m')===0)return 'mu';return cT();}
+function nav(t){if(!t)return;if(iT(t.s))SK=[{s:t.s}];else SK=[{s:tab(t.s)},{s:t.s,p:t.p}];}
+
+function e(x){return (''+x).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function H(t,s){return '<div style="padding:14px 20px"><div style="font-size:23px;font-weight:700;line-height:1.34;letter-spacing:-.02em">'+t+'</div>'+(s?'<div style="font-size:14px;color:'+S+';margin-top:6px">'+s+'</div>':'')+'</div>';}
+function ic(n,bg,fg,z){z=z||44;var inner;if(n&&n.indexOf('ti-')===0){inner='<i class="ti '+n+'" style="font-size:'+Math.round(z*0.47)+'px;color:'+fg+'"></i>';}else if(SVGIc[n]){inner=SVGIc[n](fg,z);}else{inner='';}return '<div style="width:'+z+'px;height:'+z+'px;border-radius:13px;background:'+bg+';display:flex;align-items:center;justify-content:center;flex-shrink:0">'+inner+'</div>';}
+function av(n,bg,fg,z){z=z||36;return '<div style="width:'+z+'px;height:'+z+'px;border-radius:50%;background:'+bg+';display:flex;align-items:center;justify-content:center;font-size:'+Math.round(z*0.38)+'px;font-weight:600;color:'+fg+';flex-shrink:0">'+e(n.charAt(0))+'</div>';}
+function tg(x,bg,fg){return '<span style="font-size:12px;font-weight:500;padding:4px 9px;border-radius:7px;background:'+bg+';color:'+fg+';white-space:nowrap">'+e(x)+'</span>';}
+function ch(){return '<i class="ti ti-chevron-right" style="font-size:18px;color:'+F+'"></i>';}
+function lb(x){return '<div style="font-size:13px;font-weight:500;color:'+S+';padding:18px 20px 6px">'+x+'</div>';}
+function rw(a,l,m,sb,r){return '<div '+(a?'data-go="'+a+'"':'')+' style="display:flex;align-items:center;gap:13px;padding:12px 20px;'+(a?'cursor:pointer':'')+'">'+l+
+'<div style="flex:1;min-width:0"><div style="font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+m+'</div>'+
+(sb?'<div style="font-size:13px;color:'+S+';margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+sb+'</div>':'')+'</div>'+(r||'')+'</div>';}
+function bH(t){return '<div style="display:flex;align-items:center;gap:6px;padding:8px 14px;flex-shrink:0"><button data-back="1" style="background:none;border:none;padding:6px;cursor:pointer;display:flex"><i class="ti ti-arrow-left" style="font-size:22px;color:'+I+'"></i></button><span style="font-size:16px;font-weight:600">'+t+'</span></div>';}
+function bt(t,a,off){return '<div style="padding:12px 20px 16px;flex-shrink:0"><button '+(off?'':'data-act="'+a+'"')+' style="width:100%;background:'+(off?SF:B)+';color:'+(off?F:'#fff')+';border:none;border-radius:14px;padding:15px;font-size:16px;font-weight:600;cursor:'+(off?'default':'pointer')+'">'+t+'</button></div>';}
+function sc(x){return '<div style="flex:1;overflow-y:auto">'+x+'</div>';}
+
+function sb(){var u=ur(D.r);
+return '<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 18px 4px;font-size:12px;color:'+I+';font-weight:500;flex-shrink:0"><span>9:41</span>'+
+'<span style="display:flex;gap:6px;align-items:center"><i class="ti ti-signal-4g"></i><i class="ti ti-wifi"></i><i class="ti ti-battery-3"></i>'+
+'<button data-act="onf" style="position:relative;background:none;border:none;padding:0 0 0 6px;cursor:pointer;display:flex"><i class="ti ti-bell" style="font-size:15px;color:'+I+'"></i>'+
+(u?'<span style="position:absolute;top:-4px;right:-4px;background:'+W+';color:#fff;font-size:9px;font-weight:700;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;padding:0 2px">'+u+'</span>':'')+'</button></span></div>';}
+
+function tH(){if(!T.n)return '';var n=T.n,tr=T.sh?'translateY(0)':'translateY(-130%)';
+var co=n.z==='v'?B:n.z==='m'?O:n.z==='u'?P:n.z==='t'?W:B;
+return '<div data-act="tt" id="aT" style="position:absolute;top:34px;left:10px;right:10px;background:'+I+';border-radius:14px;padding:11px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 6px 20px rgba(0,0,0,0.22);z-index:50;cursor:pointer;transform:'+tr+';transition:transform .35s cubic-bezier(.34,1.56,.64,1)">'+
+'<div style="width:30px;height:30px;border-radius:9px;background:'+co+';display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti '+(n.c||'ti-bell')+'" style="font-size:16px;color:#fff"></i></div>'+
+'<div style="flex:1;min-width:0;color:#fff"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e(n.t)+'</div>'+
+'<div style="font-size:12px;color:rgba(255,255,255,0.72);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+e(n.b)+'</div></div>'+
+'<button data-act="tc" style="background:none;border:none;color:rgba(255,255,255,0.55);padding:4px 2px;cursor:pointer;flex-shrink:0;display:flex"><i class="ti ti-x" style="font-size:15px"></i></button></div>';}
+
+function rb(){var o=[['student','학생','ti-school'],['teacher','선생님','ti-chalkboard']];
+return '<div style="display:flex;gap:4px;padding:8px 14px 4px;flex-shrink:0">'+o.map(function(x){var on=D.r===x[0];
+return '<button data-role="'+x[0]+'" style="flex:1;background:'+(on?I:SF)+';border:none;border-radius:9px;padding:8px 4px;display:flex;align-items:center;justify-content:center;gap:5px;cursor:pointer"><i class="ti '+x[2]+'" style="font-size:15px;color:'+(on?'#fff':S)+'"></i><span style="font-size:12px;font-weight:600;color:'+(on?'#fff':S)+'">'+x[1]+'로 보기</span></button>';}).join('')+'</div>';}
+
+function tb(cu){var b={};
+if(D.r==='teacher'){b.vd=D.vd.filter(function(v){return !v.fb;}).length;b.bd=D.ml.filter(function(m){return !m.fb;}).length;
+var p=0;for(var t in D.mr)for(var s in D.mr[t])if(D.mr[t][s].st==='pending')p++;b.mu=p;}
+else b.tk=D.tk.filter(function(t){return !t.sb[D.me];}).length;
+return '<nav style="display:flex;border-top:0.5px solid '+L+';flex-shrink:0">'+TB.map(function(t){var on=t[0]===cu,bn=b[t[0]];
+return '<button data-tab="'+t[0]+'" style="flex:1;background:none;border:none;padding:9px 2px 11px;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer"><div style="position:relative"><i class="ti '+t[1]+'" style="font-size:22px;color:'+(on?I:F)+'"></i>'+
+(bn?'<span style="position:absolute;top:-4px;right:-9px;background:'+W+';color:#fff;font-size:9px;font-weight:700;min-width:14px;height:14px;border-radius:7px;display:flex;align-items:center;justify-content:center;padding:0 2px">'+bn+'</span>':'')+'</div><span style="font-size:10px;color:'+(on?I:F)+';font-weight:'+(on?600:400)+'">'+t[2]+'</span></button>';}).join('')+'</nav>';}
+
+function sNf(){var ls=D.nf[D.r]||[],b='';
+if(!ls.length)b='<div style="padding:40px 24px;text-align:center;color:'+S+';font-size:13px">받은 알림이 없어요</div>';
+ls.forEach(function(n){var bg=n.z==='v'?BB:n.z==='m'?OB:n.z==='u'?PB:n.z==='t'?WB:SF;
+var fg=n.z==='v'?B:n.z==='m'?O:n.z==='u'?P:n.z==='t'?W:S;
+b+='<div data-act="nt:'+n.i+'" style="display:flex;gap:12px;padding:13px 20px;border-bottom:0.5px solid '+L+';cursor:pointer;background:'+(n.r?'#fff':BB)+'">'+
+ic(n.c||'ti-bell',bg,fg,42)+
+'<div style="flex:1;min-width:0"><div style="display:flex;align-items:flex-start;gap:6px"><span style="font-size:14px;font-weight:'+(n.r?500:600)+';flex:1;line-height:1.4">'+e(n.t)+'</span>'+
+(n.r?'':'<span style="width:7px;height:7px;border-radius:50%;background:'+B+';margin-top:6px;flex-shrink:0"></span>')+'</div>'+
+'<div style="font-size:13px;color:'+S+';margin-top:3px;line-height:1.5">'+e(n.b)+'</div>'+
+'<div style="font-size:11px;color:'+F+';margin-top:4px">'+n.m+'</div></div></div>';});
+var u=ur(D.r);
+return bH('알림')+sc(b)+(ls.length?'<div style="padding:10px 20px 16px;flex-shrink:0"><button '+(u?'data-act="nma"':'')+' style="width:100%;background:#fff;border:1px solid #E5E8EB;color:'+(u?I:F)+';border-radius:13px;padding:12px;font-size:14px;font-weight:600;cursor:'+(u?'pointer':'default')+'">'+(u?'모두 읽음 표시':'모두 읽었어요')+'</button></div>':'');}
+
+function sCs(){var up=D.ss.filter(function(c){return c.w!=='past';});var ps=D.ss.filter(function(c){return c.w==='past';});var b='';
+if(D.r==='student'){b+=lb('오늘 · 예정 수업');
+up.forEach(function(c){var cc=catC(c.cat);if(c.w==='today'){var dn=D.at[c.i]&&D.at[c.i][D.me];
+b+=rw(dn?'':'at:'+c.i,ic(c.cat,dn?OB:cc.bg,dn?O:cc.fg),e(c.c),c.tm+(dn?' · 출석 완료':' · 김연기 선생님'),dn?tg('출석함',OB,O):tg('출석하기',cc.bg,cc.fg));}
+else b+=rw('',ic(c.cat,cc.bg,cc.fg),e(c.c),c.dy+' · '+c.tm,tg('예정',SF,S));});
+b+=lb('지난 수업 · 일지');
+ps.forEach(function(c){var cc=catC(c.cat);var h=D.sl[c.i]&&D.sl[c.i][D.me];
+b+=rw('cd:'+c.i,ic(c.cat,cc.bg,cc.fg),e(c.c),c.dy,h?tg('일지 작성됨',OB,O):tg('일지 쓰기',WB,W));});
+return H('수업을<br>준비하고 돌아봐요')+sc(b);}
+b+=lb('오늘 · 예정 수업');
+up.forEach(function(c){var cc=catC(c.cat);if(c.w==='today'){var at=D.at[c.i]||{},dn=0;ST.forEach(function(s){if(at[s.i])dn++;});
+b+=rw('cd:'+c.i,ic(c.cat,cc.bg,cc.fg),e(c.c),c.tm+' · 진행 중',tg('출석 '+dn+'/'+ST.length,SF,S));}
+else b+=rw('',ic(c.cat,cc.bg,cc.fg),e(c.c),c.dy+' · '+c.tm,tg('예정',SF,S));});
+b+=lb('지난 수업 · 수업일지');
+ps.forEach(function(c){var cc=catC(c.cat);var h=!!D.cl[c.i];
+b+=rw('cd:'+c.i,ic(c.cat,cc.bg,cc.fg),e(c.c),c.dy,h?tg('일지 작성됨',OB,O):tg('일지 쓰기',WB,W));});
+return H('수업을<br>운영하고 기록해요')+sc(b);}
+
+function sCd(p){var c=sO(p);if(!c)return bH('수업')+'';
+var pa=c.w==='past';var cc=catC(c.cat);
+var b='<div style="padding:8px 20px 4px"><div style="display:flex;align-items:center;gap:12px">'+ic(c.cat,cc.bg,cc.fg)+
+'<div><div style="font-size:19px;font-weight:700;letter-spacing:-.02em">'+e(c.c)+'</div><div style="font-size:13px;color:'+S+';margin-top:3px">'+c.dy+' · '+c.tm+'</div></div></div></div>';
+if(D.r==='student'){if(pa){var l=D.sl[c.i]&&D.sl[c.i][D.me];
+if(l){b+=lb('내 수업 일지')+'<div data-go="sv:'+c.i+'|s1" style="margin:0 20px;padding:13px 15px;border:0.5px solid '+L+';border-radius:13px;cursor:pointer"><div style="font-size:14px;line-height:1.6">'+e(l.t)+'</div><div style="display:flex;align-items:center;gap:7px;margin-top:8px">'+(l.cm.length?tg('선생님 댓글 '+l.cm.length,BB,B):tg('일지 작성됨',OB,O))+'<span style="margin-left:auto;font-size:12px;color:'+S+'">자세히 보기</span></div></div>';
+return bH('수업')+'<div style="flex:1;overflow-y:auto;padding-bottom:6px">'+b+'</div>'+bt('일지 다시 쓰기','os:'+c.i);}
+b+='<div style="margin:18px 20px 0;background:'+WB+';border-radius:13px;padding:14px;font-size:13px;color:'+W+';line-height:1.6">이 수업의 일지를 아직 안 썼어요</div>';
+return bH('수업')+'<div style="flex:1;overflow-y:auto">'+b+'</div>'+bt('이 수업 일지 쓰기','os:'+c.i);}
+b+='<div style="margin:18px 20px 0;background:'+SF+';border-radius:13px;padding:14px;font-size:13px;color:'+I+';line-height:1.6">학원에 도착하면 출석 체크를 해주세요</div>';
+return bH('수업')+'<div style="flex:1;overflow-y:auto">'+b+'</div>'+bt('출석 체크하기','at:'+c.i);}
+if(c.w==='today'){var at=D.at[c.i]||{};b+=lb('학생 출결');
+b+=ST.map(function(s){var d=at[s.i];return rw('',av(s.n,d?OB:SF,d?O:S,40),s.n,d?'출석함':'아직 출석 전',d?tg('출석',OB,O):tg('미출석',SF,S));}).join('');
+return bH('수업')+'<div style="flex:1;overflow-y:auto;padding-bottom:10px">'+b+'</div>';}
+var cl=D.cl[c.i];b+=lb('수업일지');
+b+='<div style="margin:0 20px 8px;background:'+PB+';border-radius:11px;padding:9px 12px;display:flex;gap:7px;align-items:center"><i class="ti ti-lock" style="font-size:14px;color:'+P+'"></i><span style="font-size:12px;color:#473A9E">선생님과 관리자만 볼 수 있어요</span></div>';
+if(cl)b+='<div style="margin:0 20px;padding:13px 15px;border:0.5px solid '+L+';border-radius:13px"><div style="font-size:14px;line-height:1.6">'+e(cl.t)+'</div><div style="font-size:12px;color:'+S+';margin-top:8px">출석 '+cl.a+'</div></div>';
+else b+='<div style="margin:0 20px;background:'+WB+';border-radius:13px;padding:13px;font-size:13px;color:'+W+'">이 수업의 수업일지를 아직 안 썼어요</div>';
+var sl=D.sl[c.i]||{},ids=[];for(var k in sl)if(sl.hasOwnProperty(k))ids.push(k);
+b+=lb('학생 일지 '+ids.length+'개');
+ids.forEach(function(s){var lg=sl[s];b+=rw('sv:'+c.i+'|'+s,av(nm(s),BB,B,40),nm(s),lg.t,lg.cm.length?tg('댓글 '+lg.cm.length,BB,B):ch());});
+return bH('수업')+'<div style="flex:1;overflow-y:auto;padding-bottom:6px">'+b+'</div>'+bt(cl?'수업일지 다시 쓰기':'이 수업의 수업일지 쓰기','oc:'+c.i);}
+
+function sSv(p){var ps=(''+p).split('|'),ci=ps[0],si=ps[1]||D.me;
+var c=sO(ci),l=D.sl[ci]&&D.sl[ci][si];if(!c||!l)return bH('수업 일지')+'';
+var cm=l.cm.map(function(x){return '<div style="display:flex;gap:10px;margin-top:14px">'+av(x.w,PB,P,34)+'<div style="flex:1;background:'+SF+';border-radius:4px 13px 13px 13px;padding:11px 13px"><div style="font-size:12px;font-weight:600">'+e(x.w)+'</div><div style="font-size:14px;line-height:1.6;margin-top:3px">'+e(x.t)+'</div></div></div>';}).join('');
+return bH('수업 일지')+'<div style="flex:1;overflow-y:auto;padding:8px 20px 4px"><div style="font-size:20px;font-weight:700;margin-top:10px">'+e(c.c)+'</div><div style="font-size:13px;color:'+S+';margin-top:6px">'+e(nm(si))+' · '+l.d+'</div>'+
+'<div style="font-size:15px;line-height:1.8;margin-top:14px">'+e(l.t)+'</div>'+
+'<div style="height:1px;background:'+L+';margin:18px 0 2px"></div><div style="font-size:13px;font-weight:500;color:'+S+'">선생님 댓글 '+l.cm.length+'개</div>'+cm+
+(D.r==='teacher'?'<div style="display:flex;gap:8px;margin-top:16px"><input id="fcm" placeholder="코칭 댓글을 남겨요" style="flex:1;border:1px solid #E5E8EB;border-radius:11px;padding:11px;font-size:13px;font-family:inherit;color:'+I+'"/><button data-act="dcm:'+ci+'|'+si+'" style="background:'+B+';color:#fff;border:none;border-radius:11px;padding:0 16px;font-size:14px;font-weight:600;cursor:pointer">등록</button></div>':'')+
+'<div style="height:14px"></div></div>';}
+
+function sSw(p){var c=sO(p);if(!c)return bH('수업 일지')+'';
+return bH('수업 일지')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:21px;font-weight:700;line-height:1.4">이 수업,<br>어땠어요?</div><div style="font-size:14px;color:'+S+';margin-top:6px">'+e(c.c)+' · '+c.dy+'</div>'+
+'<textarea id="flog" placeholder="잘된 점, 보완할 점을 편하게 적어요" style="width:100%;box-sizing:border-box;margin-top:16px;min-height:120px;border:1px solid #E5E8EB;border-radius:13px;padding:12px;font-size:14px;font-family:inherit;resize:none;color:'+I+'"></textarea></div>'+bt('일지 저장하기','dsl:'+p);}
+
+function sCw(p){var c=sO(p);if(!c)return bH('수업일지')+'';
+return bH('수업일지')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:21px;font-weight:700;line-height:1.4">이 수업,<br>어떻게 진행됐나요?</div><div style="font-size:14px;color:'+S+';margin-top:6px">'+e(c.c)+' · '+c.dy+'</div>'+
+'<textarea id="flog" placeholder="수업 진행, 진도, 운영 메모를 적어요" style="width:100%;box-sizing:border-box;margin-top:16px;min-height:120px;border:1px solid #E5E8EB;border-radius:13px;padding:12px;font-size:14px;font-family:inherit;resize:none;color:'+I+'"></textarea>'+
+'<div style="margin-top:16px;background:'+PB+';border-radius:12px;padding:11px 13px;font-size:13px;color:#473A9E;line-height:1.6">이 일지는 선생님과 관리자만 볼 수 있어요</div></div>'+bt('수업일지 저장하기','dcl:'+p);}
+
+function sAt(p){var c=sO(p)||{c:'수업',cat:'acting'},cd=D.d.cn;var cc=catC(c.cat);
+function o(v,i,l){var on=cd===v;return '<button data-pick="cn:'+v+'" style="flex:1;background:'+(on?BB:'#fff')+';border:1.5px solid '+(on?B:'#E5E8EB')+';border-radius:14px;padding:13px 4px;display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer"><i class="ti '+i+'" style="font-size:23px;color:'+(on?B:S)+'"></i><span style="font-size:12px;font-weight:500;color:'+(on?B:S)+'">'+l+'</span></button>';}
+return bH('출석 체크')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:21px;font-weight:700;line-height:1.4">출석하고<br>컨디션을 알려줘요</div>'+
+'<div style="background:'+SF+';border-radius:14px;padding:14px;margin-top:16px;display:flex;align-items:center;gap:12px">'+ic(c.cat,cc.bg,cc.fg)+'<div><div style="font-size:15px;font-weight:600">'+e(c.c)+'</div><div style="font-size:13px;color:'+O+';margin-top:2px">학원 위치 확인됨</div></div></div>'+
+'<div style="font-size:13px;font-weight:500;color:'+S+';margin:18px 0 10px">오늘 컨디션은 어때요?</div>'+
+'<div style="display:flex;gap:8px">'+o('g','ti-mood-smile','좋아요')+o('s','ti-mood-neutral','보통이에요')+o('b','ti-mood-sad','지쳤어요')+'</div></div>'+bt('출석 완료하기','dat:'+p,!cd);}
+
+function sTk(){if(D.r==='student'){var td=D.tk.filter(function(t){return !t.sb[D.me];});var dn=D.tk.filter(function(t){return t.sb[D.me];});
+var b=lb('해야 할 과제 '+td.length+'개');
+td.forEach(function(t){b+=rw('tv:'+t.i,ic('ti-book-2',BB,B),e(t.n),'24시간 안에 피드백',tg(t.du+'까지',WB,W));});
+b+=lb('제출한 과제 '+dn.length+'개');
+dn.forEach(function(t){b+=rw('tv:'+t.i,ic('ti-check',OB,O),e(t.n),t.sb[D.me]+' 제출',ch());});
+return H(td.length?'과제 '+td.length+'개가<br>남아 있어요':'과제를 모두<br>끝냈어요')+sc(b);}
+var b2=lb('내가 낸 과제 '+D.tk.length+'개');
+D.tk.forEach(function(t){var n=0;for(var k in t.sb)if(t.sb.hasOwnProperty(k))n++;
+b2+=rw('tv:'+t.i,ic('ti-clipboard-list',PB,P),e(t.n),t.du+'까지',tg(n+'/'+ST.length+' 제출',n===ST.length?OB:SF,n===ST.length?O:S));});
+return H('과제를<br>관리해요')+sc(b2)+bt('새 과제 내기','otn');}
+
+function sTn(){var ds=['11/20','11/22','11/25'];if(!D.d.du)D.d.du=ds[0];
+return bH('새 과제')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:21px;font-weight:700;line-height:1.4">어떤 과제를<br>낼까요?</div>'+
+'<div style="font-size:13px;font-weight:500;color:'+S+';margin:16px 0 8px">과제 이름</div>'+
+'<input id="ftn" placeholder="예: 자유연기 독백 외우기" style="width:100%;box-sizing:border-box;border:1px solid #E5E8EB;border-radius:12px;padding:12px;font-size:14px;font-family:inherit;color:'+I+'"/>'+
+'<div style="font-size:13px;font-weight:500;color:'+S+';margin:16px 0 8px">제출 기한</div>'+
+'<div style="display:flex;gap:7px">'+ds.map(function(d){var on=D.d.du===d;
+return '<button data-pick="du:'+d+'" style="flex:1;background:'+(on?BB:'#fff')+';border:1.5px solid '+(on?B:'#E5E8EB')+';border-radius:11px;padding:10px 2px;font-size:13px;font-weight:500;color:'+(on?B:S)+';cursor:pointer">'+d+'</button>';}).join('')+'</div>'+
+'<div style="background:'+PB+';border-radius:12px;padding:12px;margin-top:16px;font-size:13px;color:#473A9E;line-height:1.6">학생 '+ST.length+'명에게 알림이 가요</div></div>'+bt('과제 내기','dtn');}
+
+function sTv(p){var t=null;for(var i=0;i<D.tk.length;i++)if(D.tk[i].i===p)t=D.tk[i];
+if(!t)return bH('과제')+'';
+if(D.r==='teacher'){var n=0;for(var k in t.sb)if(t.sb.hasOwnProperty(k))n++;
+return bH('과제 관리')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:20px;font-weight:700">'+e(t.n)+'</div><div style="font-size:13px;color:'+S+';margin-top:6px">'+t.du+'까지</div>'+
+'<div style="background:'+SF+';border-radius:14px;padding:14px 16px;margin-top:14px;display:flex;justify-content:space-between"><span style="color:'+S+'">제출 현황</span><span style="font-size:17px;font-weight:700">'+n+' <span style="font-size:13px;font-weight:500;color:'+S+'">/ '+ST.length+'명</span></span></div></div>'+
+'<div style="border-top:0.5px solid '+L+'">'+ST.map(function(s){var sb=t.sb[s.i];return rw('',av(s.n,sb?OB:SF,sb?O:S,40),s.n,sb?sb+' 제출':'아직 제출 전',sb?tg('제출함',OB,O):tg('대기',SF,S));}).join('')+'</div>';}
+var dn=!!t.sb[D.me];
+return bH('과제')+'<div style="flex:1;overflow-y:auto;padding:8px 20px">'+(dn?tg('제출 완료',OB,O):tg(t.du+'까지 제출',WB,W))+
+'<div style="font-size:21px;font-weight:700;line-height:1.4;margin-top:12px">'+e(t.n)+'</div>'+
+'<div style="font-size:15px;color:'+S+';line-height:1.7;margin-top:14px">'+e(t.ds)+'</div>'+
+'</div>'+(dn?bt('제출 완료','x',true):bt('지금 제출하기','ds:'+t.i));}
+
+function sVd(){if(D.r==='student'){var ls=D.vd.filter(function(v){return v.s===D.me;});
+var b=lb('내 연습 영상 '+ls.length+'개');
+ls.forEach(function(v){b+=rw('vv:'+v.i,'<div style="width:56px;height:56px;border-radius:12px;background:'+SF+';display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-player-play" style="font-size:20px;color:'+S+'"></i></div>',e(v.n),v.d+' · '+v.dr,v.fb?tg('피드백 완료',OB,O):tg('피드백 대기',WB,W));});
+return H('연습 영상을<br>'+ls.length+'개 모았어요')+sc(b)+bt('새 영상 올리기','ovu');}
+var pe=D.vd.filter(function(v){return !v.fb;}),dn=D.vd.filter(function(v){return v.fb;});
+var b3=lb('피드백 기다리는 영상 '+pe.length+'개');
+pe.concat(dn).forEach(function(v){b3+=rw('vv:'+v.i,'<div style="width:56px;height:56px;border-radius:12px;background:'+SF+';display:flex;align-items:center;justify-content:center;flex-shrink:0"><i class="ti ti-player-play" style="font-size:20px;color:'+S+'"></i></div>',e(v.n),e(nm(v.s))+' · '+v.d,v.fb?tg('완료',OB,O):tg('피드백 필요',WB,W));});
+return H('학생 영상에<br>피드백을 남겨요')+sc(b3);}
+
+function sVu(){var cats=['자유연기','독백','뮤지컬 넘버','발성 연습'];
+return bH('영상 올리기')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:21px;font-weight:700;line-height:1.4">어떤 연습<br>영상인가요?</div>'+
+'<div style="background:'+SF+';border-radius:16px;height:116px;margin-top:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px"><i class="ti ti-photo" style="font-size:30px;color:'+F+'"></i><span style="font-size:13px;color:'+S+'">영상을 불러왔어요 · 2:34</span></div>'+
+'<div style="font-size:13px;font-weight:500;color:'+S+';margin:16px 0 8px">카테고리</div>'+
+'<div style="display:flex;gap:7px;flex-wrap:wrap">'+cats.map(function(c){var on=D.d.cat===c;
+return '<button data-pick="cat:'+c+'" style="background:'+(on?BB:'#fff')+';border:1px solid '+(on?B:'#E5E8EB')+';border-radius:9px;padding:9px 12px;font-size:13px;color:'+(on?B:S)+';cursor:pointer">'+c+'</button>';}).join('')+'</div></div>'+bt('영상 올리기','dvu',!D.d.cat);}
+
+function sVv(p){var v=null;for(var i=0;i<D.vd.length;i++)if(D.vd[i].i===p)v=D.vd[i];
+if(!v)return bH('영상')+'';
+var inn='<div style="background:'+I+';height:184px;display:flex;align-items:center;justify-content:center"><i class="ti ti-player-play" style="font-size:44px;color:#fff"></i></div>'+
+'<div style="padding:16px 20px 0"><div style="font-size:19px;font-weight:700">'+e(v.n)+'</div><div style="font-size:13px;color:'+S+';margin-top:6px">'+e(nm(v.s))+' · '+v.d+' · '+v.dr+'</div>';
+if(v.fb)inn+='<div style="height:1px;background:'+L+';margin:16px 0"></div><div style="font-size:13px;font-weight:500;color:'+S+';margin-bottom:10px">강사 피드백</div><div style="background:'+SF+';border-radius:13px;padding:13px;font-size:14px;line-height:1.7">'+e(v.fb)+'</div><div style="height:14px"></div>';
+else if(D.r==='teacher')inn+='<div style="height:1px;background:'+L+';margin:16px 0"></div><div style="font-size:13px;font-weight:500;color:'+S+';margin-bottom:10px">피드백 남기기</div><textarea id="fvfb" placeholder="구체적으로 알려주세요" style="width:100%;box-sizing:border-box;min-height:90px;border:1px solid #E5E8EB;border-radius:13px;padding:12px;font-size:14px;font-family:inherit;resize:none;color:'+I+'"></textarea><div style="height:8px"></div>';
+else inn+='<div style="background:'+WB+';border-radius:12px;padding:12px;margin-top:16px;font-size:13px;color:'+W+';line-height:1.6">24시간 안에 피드백이 와요</div><div style="height:14px"></div>';
+inn+='</div>';
+return bH('영상')+'<div style="flex:1;overflow-y:auto">'+inn+'</div>'+(!v.fb&&D.r==='teacher'?bt('피드백 보내기','dvfb:'+v.i):'');}
+
+function sBd(){if(D.r==='student'){var ms=D.ml.filter(function(m){return m.s===D.me;});
+var w=D.wt[D.me]||[];var cur=w.length?w[w.length-1].w:null;
+var b=lb('체중 추이');
+b+='<div style="padding:0 20px"><div style="background:'+SF+';border-radius:14px;padding:14px"><div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:30px;font-weight:700;letter-spacing:-.02em">'+(cur==null?'–':cur.toFixed(1))+'</span><span style="font-size:14px;color:'+S+'">kg</span>'+
+(w.length>1?'<span style="margin-left:auto;font-size:12px;color:'+O+';font-weight:500">처음보다 '+Math.abs(w[w.length-1].w-w[0].w).toFixed(1)+'kg ↓</span>':'')+'</div>'+
+'<div style="display:flex;justify-content:space-between;margin-top:10px;font-size:11px;color:'+S+'">'+w.map(function(p){return '<span>'+p.d+' '+p.w+'</span>';}).join('')+'</div></div></div>';
+b+=lb('오늘 먹은 것 · '+ms.length+'/3끼');
+ms.forEach(function(m){b+=rw('mv:'+m.i,ic(m.ty==='아침'?'ti-bowl':m.ty==='점심'?'ti-salad':'ti-soup',BB,B),e(m.n),m.ty+' · '+m.tm,m.fb?tg('피드백',OB,O):ch());});
+return H('오늘도 잘<br>챙기고 있어요')+sc(b)+'<div style="display:flex;gap:8px;padding:12px 20px 16px;flex-shrink:0"><button data-act="owt" style="flex:1;background:#fff;border:1.5px solid '+B+';color:'+B+';border-radius:14px;padding:14px 6px;font-size:14px;font-weight:600;cursor:pointer">체중 기록</button><button data-act="omu" style="flex:1;background:'+B+';color:#fff;border:none;border-radius:14px;padding:14px 6px;font-size:14px;font-weight:600;cursor:pointer">식단 올리기</button></div>';}
+var b2=lb('학생 식단 · 피드백 필요 '+D.ml.filter(function(m){return !m.fb;}).length+'개');
+D.ml.forEach(function(m){b2+=rw('mv:'+m.i,ic('ti-tools-kitchen-2',m.fb?SF:WB,m.fb?S:W),e(m.n),e(nm(m.s))+' · '+m.ty,m.fb?tg('완료',OB,O):tg('피드백 필요',WB,W));});
+return H('학생 식단을<br>살펴봐요')+sc(b2);}
+
+function sMl(){var t=['아침','점심','저녁'];if(!D.d.mt)D.d.mt='저녁';
+return bH('식단 기록')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:21px;font-weight:700;line-height:1.4">사진 한 장이면<br>충분해요</div>'+
+'<div data-act="pp" style="background:'+(D.d.ph?'#D9E6CC':SF)+';border-radius:16px;height:138px;margin-top:16px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;cursor:pointer"><i class="ti '+(D.d.ph?'ti-check':'ti-camera')+'" style="font-size:30px;color:'+(D.d.ph?O:F)+'"></i><span style="font-size:13px;color:'+(D.d.ph?O:S)+'">'+(D.d.ph?'사진을 담았어요':'사진 찍거나 불러오기')+'</span></div>'+
+'<div style="font-size:13px;font-weight:500;color:'+S+';margin:16px 0 8px">어떤 끼니예요?</div>'+
+'<div style="display:flex;gap:7px;margin-bottom:14px">'+t.map(function(x){var on=D.d.mt===x;
+return '<button data-pick="mt:'+x+'" style="flex:1;background:'+(on?BB:'#fff')+';border:1.5px solid '+(on?B:'#E5E8EB')+';border-radius:11px;padding:10px 2px;font-size:14px;font-weight:500;color:'+(on?B:S)+';cursor:pointer">'+x+'</button>';}).join('')+'</div>'+
+'<input id="fml" placeholder="예: 닭가슴살 샐러드" style="width:100%;box-sizing:border-box;border:1px solid #E5E8EB;border-radius:12px;padding:12px;font-size:14px;font-family:inherit;color:'+I+'"/></div>'+bt('식단 올리기','dml',!D.d.ph);}
+
+function sWt(){var w=D.wt[D.me]||[];var bs=w.length?w[w.length-1].w:58.0;
+if(D.d.w==null)D.d.w=bs;var v=D.d.w;
+return bH('체중 기록')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:21px;font-weight:700;line-height:1.4">오늘 체중을<br>알려줘요</div>'+
+'<div style="display:flex;align-items:baseline;justify-content:center;gap:6px;margin:28px 0 12px"><span style="font-size:46px;font-weight:700;letter-spacing:-.03em;color:'+B+'">'+v.toFixed(1)+'</span><span style="font-size:18px;color:'+S+';font-weight:500">kg</span></div>'+
+'<div style="display:flex;align-items:center;gap:12px"><button data-act="wm" style="width:48px;height:48px;border-radius:50%;border:1px solid #E5E8EB;background:#fff;font-size:24px;color:'+I+';cursor:pointer">−</button>'+
+'<input type="range" min="35" max="110" step="0.1" value="'+v+'" data-range="w" style="flex:1"/>'+
+'<button data-act="wp" style="width:48px;height:48px;border-radius:50%;border:1px solid #E5E8EB;background:#fff;font-size:24px;color:'+I+';cursor:pointer">+</button></div></div>'+bt('체중 저장하기','dw');}
+
+function sMv(p){var m=null;for(var i=0;i<D.ml.length;i++)if(D.ml[i].i===p)m=D.ml[i];
+if(!m)return bH('식단')+'';
+var inn='<div style="height:140px;background:#D9E6CC;display:flex;align-items:center;justify-content:center"><i class="ti ti-salad" style="font-size:44px;color:'+O+'"></i></div>'+
+'<div style="padding:16px 20px 0"><div style="font-size:19px;font-weight:700">'+e(m.n)+'</div><div style="font-size:13px;color:'+S+';margin-top:6px">'+e(nm(m.s))+' · '+m.ty+' · '+m.tm+'</div>';
+if(m.fb)inn+='<div style="height:1px;background:'+L+';margin:16px 0"></div><div style="font-size:13px;font-weight:500;color:'+S+';margin-bottom:10px">선생님 피드백</div><div style="background:'+SF+';border-radius:13px;padding:13px;font-size:14px;line-height:1.7">'+e(m.fb)+'</div><div style="height:14px"></div>';
+else if(D.r==='teacher')inn+='<div style="height:1px;background:'+L+';margin:16px 0"></div><div style="font-size:13px;font-weight:500;color:'+S+';margin-bottom:10px">피드백 남기기</div><textarea id="fmfb" placeholder="조언해 주세요" style="width:100%;box-sizing:border-box;min-height:86px;border:1px solid #E5E8EB;border-radius:13px;padding:12px;font-size:14px;font-family:inherit;resize:none;color:'+I+'"></textarea><div style="height:8px"></div>';
+else inn+='<div style="background:'+WB+';border-radius:12px;padding:12px;margin-top:16px;font-size:13px;color:'+W+';line-height:1.6">피드백을 기다리고 있어요</div><div style="height:14px"></div>';
+inn+='</div>';
+return bH('식단')+'<div style="flex:1;overflow-y:auto">'+inn+'</div>'+(!m.fb&&D.r==='teacher'?bt('피드백 보내기','dmfb:'+m.i):'');}
+
+function pill(r){if(!r)return null;if(r.st==='pending')return tg('요청 대기',WB,W);if(r.st==='approved')return tg('다운로드 가능',OB,O);if(r.st==='rejected')return tg('거절됨',SF,S);return null;}
+function sMu(){var cats=['all','현대무용','발레','재즈댄스','한국무용'];
+if(D.r==='student'){var sl=D.mc;var ls=sl==='all'?D.tr:D.tr.filter(function(t){return t.c===sl;});
+var b='<div style="display:flex;gap:7px;padding:10px 20px 2px;overflow-x:auto">'+cats.map(function(c){var on=sl===c,l=c==='all'?'전체':c;
+return '<button data-mc="'+c+'" style="flex-shrink:0;background:'+(on?I:'#fff')+';border:1px solid '+(on?I:'#E5E8EB')+';border-radius:999px;padding:7px 13px;font-size:13px;font-weight:500;color:'+(on?'#fff':S)+';cursor:pointer">'+l+'</button>';}).join('')+'</div>';
+b+=lb('무용 음악 '+ls.length+'곡');
+ls.forEach(function(t){var r=rO(t.i,D.me);var p=pill(r);
+b+=rw('mp:'+t.i,ic('ti-music',BB,B),e(t.t),t.c+' · '+t.m+' · '+t.dr,p||ch());});
+return H('무용 음악을<br>들어봐요','연습실 안에서 자유롭게 들어요')+sc(b);}
+var pL=[];for(var t in D.mr)for(var s in D.mr[t])if(D.mr[t][s].st==='pending')pL.push({t:parseInt(t,10),s:s});
+var b2='';
+if(pL.length){b2+=lb('승인 대기 '+pL.length+'개');
+pL.forEach(function(r){var t=tO(r.t);if(!t)return;var rq=rO(r.t,r.s);
+b2+='<div data-go="mm:'+r.t+'|'+r.s+'" style="margin:0 20px 8px;padding:13px 14px;border:1.5px solid #FCD9B5;background:'+WB+';border-radius:13px;cursor:pointer"><div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+av(nm(r.s),'#fff',W,28)+'<span style="font-size:13px;font-weight:600">'+e(nm(r.s))+'님이 요청했어요</span></div><div style="font-size:14px;font-weight:500">'+e(t.t)+'</div><div style="font-size:12px;color:'+S+';margin-top:3px">목적: '+e(rq.p)+'</div></div>';});}
+else b2+='<div style="margin:14px 20px;padding:13px 15px;background:'+OB+';border-radius:13px;display:flex;gap:8px;align-items:center"><i class="ti ti-circle-check" style="font-size:18px;color:'+O+'"></i><span style="font-size:13px;color:#15662F">대기 중인 요청이 없어요</span></div>';
+b2+=lb('음악 라이브러리 '+D.tr.length+'곡');
+D.tr.forEach(function(t){b2+=rw('mp:'+t.i,ic('ti-music',SF,S),e(t.t),t.c+' · '+t.dr,ch());});
+return H('무용 음악을<br>관리해요')+sc(b2);}
+
+function sMp(p){var t=tO(p);if(!t)return bH('음악')+'';
+var r=D.r==='student'?rO(t.i,D.me):null;var ct='';
+if(D.r==='student'){if(!r)ct=bt('다운로드 권한 요청하기','omr:'+t.i);
+else if(r.st==='pending')ct=bt('승인을 기다리고 있어요','x',true);
+else if(r.st==='approved')ct=bt('다운로드하기','dd:'+t.i);
+else if(r.st==='rejected')ct=bt('다시 요청하기','omr:'+t.i);}
+return bH('음악')+'<div style="flex:1;overflow-y:auto"><div style="padding:8px 28px 0"><div style="width:100%;padding-bottom:100%;position:relative;background:linear-gradient(135deg,'+BB+' 0%,'+PB+' 100%);border-radius:24px;overflow:hidden"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><i class="ti ti-music" style="font-size:90px;color:'+B+';opacity:0.85"></i></div></div></div>'+
+'<div style="padding:18px 20px 0;text-align:center"><div style="font-size:22px;font-weight:700;letter-spacing:-.02em">'+e(t.t)+'</div><div style="font-size:13px;color:'+S+';margin-top:6px">'+t.c+' · '+t.m+'</div></div>'+
+'<div style="padding:24px 24px 0"><div style="height:4px;background:'+SF+';border-radius:2px"></div><div style="display:flex;justify-content:space-between;margin-top:7px;font-size:11px;color:'+S+'"><span>0:00</span><span>'+t.dr+'</span></div></div>'+
+'<div style="display:flex;justify-content:center;margin-top:16px;padding-bottom:16px"><button style="width:62px;height:62px;border-radius:50%;background:'+B+';border:none;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><i class="ti ti-player-play-filled" style="font-size:28px"></i></button></div>'+
+(r?'<div style="margin:4px 20px 14px;background:'+SF+';border-radius:12px;padding:12px;font-size:13px;color:'+S+';line-height:1.6">'+(r.st==='pending'?'다운로드 권한을 검토 중이에요':r.st==='approved'?'다운로드 권한이 승인됐어요':'이번 요청은 거절됐어요')+'</div>':'')+
+'</div>'+ct;}
+
+function sMr(p){var t=tO(p);if(!t)return bH('다운로드 요청')+'';
+var ps=['자유무용 입시 연습','워크숍 준비','콩쿠르 준비','수업 복습'];
+return bH('다운로드 권한 요청')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="font-size:21px;font-weight:700;line-height:1.4">왜 다운로드가<br>필요한가요?</div>'+
+'<div style="font-size:14px;color:'+S+';margin-top:6px">선생님이 사용 목적을 보고 승인해요</div>'+
+'<div style="background:'+SF+';border-radius:14px;padding:13px;margin-top:18px;display:flex;align-items:center;gap:12px">'+ic('ti-music',BB,B,40)+'<div><div style="font-size:14px;font-weight:600">'+e(t.t)+'</div><div style="font-size:12px;color:'+S+';margin-top:2px">'+t.c+' · '+t.dr+'</div></div></div>'+
+'<div style="font-size:13px;font-weight:500;color:'+S+';margin:18px 0 8px">사용 목적</div>'+
+'<div style="display:flex;gap:7px;flex-wrap:wrap">'+ps.map(function(pp){var on=D.d.pp===pp;
+return '<button data-pick="pp:'+pp+'" style="background:'+(on?BB:'#fff')+';border:1.5px solid '+(on?B:'#E5E8EB')+';border-radius:10px;padding:9px 12px;font-size:13px;color:'+(on?B:S)+';cursor:pointer">'+pp+'</button>';}).join('')+'</div>'+
+'<div style="background:'+BB+';border-radius:12px;padding:12px;margin-top:18px;font-size:13px;color:#1B4F8A;line-height:1.6">입시 연습 용도로만 써요. 외부 공유는 저작권 문제가 될 수 있어요</div></div>'+bt('요청 보내기','dmr:'+t.i,!D.d.pp);}
+
+function sMm(p){var ps=(''+p).split('|'),ti=parseInt(ps[0],10),si=ps[1];
+var t=tO(ti),r=rO(ti,si);if(!t||!r)return bH('다운로드 요청')+'';
+return bH('다운로드 요청')+'<div style="flex:1;overflow-y:auto;padding:8px 20px"><div style="display:flex;align-items:center;gap:13px;margin-bottom:18px">'+av(nm(si),BB,B,48)+'<div><div style="font-size:18px;font-weight:700">'+e(nm(si))+'</div><div style="font-size:13px;color:'+S+';margin-top:3px">'+r.d+'에 요청</div></div></div>'+
+'<div style="font-size:13px;font-weight:500;color:'+S+';margin-bottom:8px">요청한 음악</div>'+
+'<div style="background:'+SF+';border-radius:13px;padding:13px;display:flex;align-items:center;gap:12px">'+ic('ti-music',BB,B,42)+'<div style="flex:1"><div style="font-size:15px;font-weight:600">'+e(t.t)+'</div><div style="font-size:13px;color:'+S+';margin-top:2px">'+t.c+' · '+t.dr+'</div></div></div>'+
+'<div style="font-size:13px;font-weight:500;color:'+S+';margin:18px 0 8px">사용 목적</div>'+
+'<div style="background:'+SF+';border-radius:12px;padding:13px;font-size:14px;line-height:1.6">'+e(r.p)+'</div>'+
+'<div style="background:'+BB+';border-radius:12px;padding:12px;margin-top:14px;font-size:13px;color:#1B4F8A;line-height:1.6">결정하면 '+e(nm(si))+'님에게 즉시 알림이 가요</div></div>'+
+'<div style="display:flex;gap:8px;padding:12px 20px 16px;flex-shrink:0"><button data-act="dmj:'+ti+'|'+si+'" style="flex:1;background:#fff;border:1.5px solid #E5E8EB;color:'+S+';border-radius:14px;padding:14px;font-size:15px;font-weight:600;cursor:pointer">거절</button><button data-act="dma:'+ti+'|'+si+'" style="flex:2;background:'+B+';border:none;color:#fff;border-radius:14px;padding:14px;font-size:15px;font-weight:600;cursor:pointer">승인하기</button></div>';}
+
+function sDn(d){return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px 32px;text-align:center"><div id="chk" style="width:82px;height:82px;border-radius:50%;background:'+B+';display:flex;align-items:center;justify-content:center;transform:scale(.4);opacity:0;transition:transform .35s cubic-bezier(.34,1.56,.64,1),opacity .25s"><i class="ti ti-check" style="font-size:44px;color:#fff"></i></div><div style="font-size:20px;font-weight:700;margin-top:22px;line-height:1.4">'+d.b+'</div><div style="font-size:14px;color:'+S+';margin-top:8px;line-height:1.7;white-space:pre-line">'+d.m+'</div></div>'+bt('확인','dok');}
+
+function scr(n){var s=n.s,p=n.p;
+if(s==='cs')return sCs();if(s==='tk')return sTk();if(s==='vd')return sVd();if(s==='bd')return sBd();if(s==='mu')return sMu();
+if(s==='nf')return sNf();
+if(s==='cd')return sCd(p);if(s==='at')return sAt(p);
+if(s==='sw')return sSw(p);if(s==='cw')return sCw(p);if(s==='sv')return sSv(p);
+if(s==='tn')return sTn();if(s==='tv')return sTv(p);
+if(s==='vu')return sVu();if(s==='vv')return sVv(p);
+if(s==='mu2')return sMl();if(s==='wt')return sWt();if(s==='mv')return sMv(p);
+if(s==='mp')return sMp(p);if(s==='mr')return sMr(p);if(s==='mm')return sMm(p);
+if(s==='done')return sDn(p);return sCs();}
+
+function dr(){try{var n=tp();var h;
+if(n.s==='done')h=sb()+tH()+'<div style="flex:1;display:flex;flex-direction:column">'+scr(n)+'</div>';
+else if(iT(n.s))h=sb()+tH()+rb()+'<div style="flex:1;display:flex;flex-direction:column;min-height:0">'+scr(n)+'</div>'+tb(n.s);
+else h=sb()+tH()+'<div style="flex:1;display:flex;flex-direction:column;min-height:0">'+scr(n)+'</div>';
+document.getElementById('A').innerHTML=h;
+if(n.s==='done')setTimeout(function(){var c=document.getElementById('chk');if(c){c.style.transform='scale(1)';c.style.opacity='1';}},50);
+if(T.n&&!T.sh)setTimeout(function(){var el=document.getElementById('aT');if(el){el.style.transform='translateY(0)';T.sh=true;}},20);
+}catch(er){document.getElementById('A').innerHTML='<div style="padding:30px 24px;color:'+W+'">'+e(er&&er.message||er)+'</div>';}}
+
+function gv(id){var el=document.getElementById(id);return el?(''+el.value).trim():'';}
+function pi(a){var i=a.indexOf(':');return i<0?null:a.substring(i+1);}
+
+document.getElementById('A').addEventListener('input',function(ev){var el=ev.target.closest('[data-range]');if(!el)return;D.d.w=Math.round(parseFloat(el.value)*10)/10;dr();});
+document.getElementById('A').addEventListener('click',function(ev){try{var el;
+if(el=ev.target.closest('[data-role]')){var nr=el.getAttribute('data-role');
+if(nr!==D.r){D.r=nr;D.d={};SK=[{s:cT()}];var u=nU(nr);if(u)stT(u);}dr();return;}
+if(el=ev.target.closest('[data-tab]')){SK=[{s:el.getAttribute('data-tab')}];dr();return;}
+if(ev.target.closest('[data-back]')){bk();return;}
+if(el=ev.target.closest('[data-mc]')){D.mc=el.getAttribute('data-mc');dr();return;}
+if(el=ev.target.closest('[data-pick]')){var kv=el.getAttribute('data-pick').split(':');D.d[kv[0]]=kv.slice(1).join(':');dr();return;}
+if(el=ev.target.closest('[data-go]')){var g=el.getAttribute('data-go');var i=g.indexOf(':');
+go(i<0?{s:g}:{s:g.substring(0,i),p:g.substring(i+1)});return;}
+if(el=ev.target.closest('[data-act]')){at(el.getAttribute('data-act'));return;}
+}catch(er){document.getElementById('A').innerHTML='<div style="padding:30px 24px;color:'+W+'">'+e(er&&er.message||er)+'</div>';}});
+
+function fn(t,b,m){D.d={};SK=[{s:t},{s:'done',p:{b:b,m:m}}];dr();}
+
+function at(a){var P=pi(a),id=P!==null&&/^\d+$/.test(P)?parseInt(P,10):null;
+
+if(a==='onf'){go({s:'nf'});return;}
+if(a.indexOf('nt:')===0){var nid=parseInt(P,10);var ls=D.nf[D.r]||[];var tg2=null;
+for(var i=0;i<ls.length;i++)if(ls[i].i===nid){ls[i].r=true;tg2=ls[i].g;break;}
+if(tg2)nav(tg2);dr();return;}
+if(a==='nma'){var l=D.nf[D.r]||[];for(var j=0;j<l.length;j++)l[j].r=true;dr();return;}
+if(a==='tt'){if(T.tm){clearTimeout(T.tm);T.tm=null;}var n=T.n;T.n=null;T.sh=false;
+if(n){var ar=D.nf[D.r]||[];for(var z=0;z<ar.length;z++)if(ar[z].i===n.i)ar[z].r=true;if(n.g)nav(n.g);}dr();return;}
+if(a==='tc'){if(T.tm){clearTimeout(T.tm);T.tm=null;}T.n=null;T.sh=false;dr();return;}
+
+if(a.indexOf('at:')===0){D.d={};go({s:'at',p:P});return;}
+if(a.indexOf('dat')===0){if(!D.at[P])D.at[P]={};D.at[P][D.me]=true;fn('cs','출석을 마쳤어요','오늘도 와줘서 좋아요');return;}
+if(a.indexOf('os:')===0){D.d={};go({s:'sw',p:P});return;}
+if(a.indexOf('dsl')===0){var tx=gv('flog')||'오늘 수업을 기록했어요.';
+if(!D.sl[P])D.sl[P]={};D.sl[P][D.me]={d:'11/18',t:tx,cm:[]};
+var c=sO(P);pn('teacher',{t:nm(D.me)+'님이 일지를 남겼어요',b:(c?c.c:'수업')+' · '+tx.substring(0,30),g:{s:'sv',p:P+'|'+D.me},c:'ti-notebook',z:'l'});
+fn('cs','일지를 저장했어요','선생님께 알림이 갔어요');return;}
+if(a.indexOf('oc:')===0){D.d={};go({s:'cw',p:P});return;}
+if(a.indexOf('dcl')===0){var t2=gv('flog')||'수업 진행을 기록했어요.';D.cl[P]={d:'11/18',a:'7/7',t:t2};
+fn('cs','수업일지를 저장했어요','선생님과 관리자만 볼 수 있어요');return;}
+if(a.indexOf('dcm')===0){var ct=gv('fcm');if(!ct)return;var pr=P.split('|'),ci=pr[0],si=pr[1];
+if(D.sl[ci]&&D.sl[ci][si])D.sl[ci][si].cm.push({w:'김연기 선생님',t:ct});
+if(si===D.me){var cc=sO(ci);pn('student',{t:'선생님이 일지에 댓글을 남겼어요',b:(cc?cc.c:'수업')+' · '+ct.substring(0,30),g:{s:'sv',p:ci+'|'+si},c:'ti-message-circle',z:'l'});}
+dr();return;}
+
+if(a==='otn'){D.d={};go({s:'tn'});return;}
+if(a==='dtn'){var nd=++D.sq;var nn=gv('ftn')||'새 연기 과제';
+D.tk.push({i:nd,n:nn,du:D.d.du||'11/20',ds:'안내된 내용을 준비해 제출해요.',sb:{}});
+pn('student',{t:'새 과제가 도착했어요',b:nn+' · '+(D.d.du||'11/20')+'까지',g:{s:'tv',p:nd},c:'ti-clipboard-list',z:'t'});
+fn('tk','과제를 냈어요','학생 '+ST.length+'명에게 알림이 갔어요');return;}
+if(a.indexOf('ds:')===0){var tk=null;for(var jj=0;jj<D.tk.length;jj++)if(D.tk[jj].i===id){D.tk[jj].sb[D.me]='11/18';tk=D.tk[jj];}
+if(tk)pn('teacher',{t:nm(D.me)+'님이 과제를 제출했어요',b:tk.n,g:{s:'tv',p:tk.i},c:'ti-check',z:'t'});
+fn('tk','과제를 제출했어요','선생님께 알림이 갔어요');return;}
+
+if(a==='ovu'){D.d={};go({s:'vu'});return;}
+if(a==='dvu'){var vd=++D.sq;D.vd.unshift({i:vd,s:D.me,n:D.d.cat+' 새 영상',d:'11/18',dr:'2:34',fb:null});
+pn('teacher',{t:nm(D.me)+'님이 영상을 올렸어요',b:D.d.cat+' · 피드백 필요',g:{s:'vv',p:vd},c:'ti-video',z:'v'});
+fn('vd','영상을 올렸어요','선생님께 알림이 갔어요');return;}
+if(a.indexOf('dvfb')===0){var vf=gv('fvfb');if(!vf){alert('피드백을 입력해 주세요');return;}
+var vv=null;for(var kk=0;kk<D.vd.length;kk++)if(D.vd[kk].i===id){D.vd[kk].fb=vf;vv=D.vd[kk];}
+if(vv&&vv.s===D.me)pn('student',{t:'영상 피드백이 도착했어요',b:vv.n+' · '+vf.substring(0,30),g:{s:'vv',p:vv.i},c:'ti-video',z:'v'});
+fn('vd','피드백을 보냈어요','학생에게 알림이 갔어요');return;}
+
+if(a==='omu'){D.d={};go({s:'mu2'});return;}
+if(a==='pp'){D.d.ph=1;dr();return;}
+if(a==='dml'){var mid=++D.sq;var mn2=gv('fml')||'오늘의 식사';
+D.ml.push({i:mid,s:D.me,ty:D.d.mt||'식사',n:mn2,tm:'19:20',fb:null});
+pn('teacher',{t:nm(D.me)+'님이 식단을 올렸어요',b:(D.d.mt||'식사')+' · '+mn2,g:{s:'mv',p:mid},c:'ti-salad',z:'m'});
+fn('bd','식단을 올렸어요','선생님께 알림이 갔어요');return;}
+if(a.indexOf('dmfb')===0){var mf=gv('fmfb');if(!mf){alert('피드백을 입력해 주세요');return;}
+var md=null;for(var qq=0;qq<D.ml.length;qq++)if(D.ml[qq].i===id){D.ml[qq].fb=mf;md=D.ml[qq];}
+if(md&&md.s===D.me)pn('student',{t:'식단 피드백이 도착했어요',b:md.n+' · '+mf.substring(0,30),g:{s:'mv',p:md.i},c:'ti-salad',z:'m'});
+fn('bd','피드백을 보냈어요','학생에게 알림이 갔어요');return;}
+
+if(a==='owt'){D.d={};go({s:'wt'});return;}
+if(a==='wm'){var b=D.d.w==null?58:D.d.w;D.d.w=Math.round(Math.max(35,b-0.1)*10)/10;dr();return;}
+if(a==='wp'){var b2=D.d.w==null?58:D.d.w;D.d.w=Math.round(Math.min(110,b2+0.1)*10)/10;dr();return;}
+if(a==='dw'){var w=D.d.w==null?58:D.d.w;if(!D.wt[D.me])D.wt[D.me]=[];var ar=D.wt[D.me];
+if(ar.length&&ar[ar.length-1].d==='11/18')ar[ar.length-1].w=w;else ar.push({d:'11/18',w:w});
+fn('bd','체중을 기록했어요','꾸준히 재면 추이가 보여요');return;}
+
+if(a.indexOf('omr')===0){D.d={};go({s:'mr',p:P});return;}
+if(a.indexOf('dmr:')===0){var t2=id,trk=tO(t2);
+if(!D.mr[t2])D.mr[t2]={};
+D.mr[t2][D.me]={st:'pending',p:D.d.pp||'입시 연습',d:'11/18'};
+if(trk)pn('teacher',{t:nm(D.me)+'님이 음원 요청을 보냈어요',b:trk.t+' · '+(D.d.pp||'입시 연습'),g:{s:'mm',p:t2+'|'+D.me},c:'ti-music',z:'u'});
+D.d={};fn('mu','요청을 보냈어요','선생님께 알림이 갔어요');return;}
+if(a.indexOf('dma')===0){var ps3=P.split('|'),t3=parseInt(ps3[0],10),s3=ps3[1];
+if(D.mr[t3]&&D.mr[t3][s3])D.mr[t3][s3].st='approved';
+var tr3=tO(t3);
+if(tr3&&s3===D.me)pn('student',{t:'음원 다운로드가 승인됐어요',b:tr3.t,g:{s:'mp',p:t3},c:'ti-music',z:'u'});
+fn('mu','다운로드를 승인했어요',nm(s3)+'님에게 알림이 갔어요');return;}
+if(a.indexOf('dmj')===0){var ps4=P.split('|'),t4=parseInt(ps4[0],10),s4=ps4[1];
+if(D.mr[t4]&&D.mr[t4][s4])D.mr[t4][s4].st='rejected';
+var tr4=tO(t4);
+if(tr4&&s4===D.me)pn('student',{t:'음원 요청이 검토됐어요',b:tr4.t+' · 이번엔 어려워요',g:{s:'mp',p:t4},c:'ti-music',z:'u'});
+fn('mu','요청을 거절했어요',nm(s4)+'님은 앱에서 계속 들을 수 있어요');return;}
+if(a.indexOf('dd:')===0){fn('mu','다운로드를 완료했어요','연습실 밖에서도 들을 수 있어요');return;}
+
+if(a==='dok'){SK.pop();dr();return;}
+if(a==='x')return;}
+
+dr();
+}catch(er){var el=document.getElementById('A');if(el)el.innerHTML='<div style="padding:30px 24px;color:#C2410C">'+(er&&er.message||er)+'</div>';}
+})();
+</script>
+</body>
+</html>

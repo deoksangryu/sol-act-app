@@ -4,13 +4,11 @@ import { User, UserRole, ViewState, ClassInfo, Notification } from './types';
 import { Login } from './components/Login';
 import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
-import { Dashboard } from './components/Dashboard';
+import { Classes } from './components/Classes';
 import { Assignments } from './components/Assignments';
+import { Video } from './components/Video';
 import { Diet } from './components/Diet';
-import { Lessons } from './components/Lessons';
-import { Growth } from './components/Growth';
-import { Community } from './components/Community';
-import { AcademyManagement } from './components/AcademyManagement';
+import { Music } from './components/Music';
 import { ProfileSettings } from './components/ProfileSettings';
 import { Notifications } from './components/Notifications';
 import { InstallPrompt } from './components/InstallPrompt';
@@ -37,7 +35,7 @@ async function withRetry<T>(fn: () => Promise<T>, retries = 2, delay = 1000): Pr
 
 const AppInner: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [currentView, setCurrentView] = useState<ViewState>('dashboard');
+  const [currentView, setCurrentView] = useState<ViewState>('classes');
   const [allUsers, setAllUsers] = useState<User[]>([]);
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -119,7 +117,7 @@ const AppInner: React.FC = () => {
 
   const handleLogin = (loggedInUser: User) => {
     setUser(loggedInUser);
-    setCurrentView('dashboard');
+    setCurrentView('classes');
     setLoading(true);
     loadAppData(loggedInUser);
   };
@@ -161,38 +159,21 @@ const AppInner: React.FC = () => {
   };
 
   const renderView = () => {
-    // Redirect students away from staff-only views
-    if (currentView === 'academy' && user!.role === UserRole.STUDENT) {
-      setCurrentView('dashboard');
-      return null;
-    }
     switch (currentView) {
-      case 'dashboard':
-        return <Dashboard user={user!} onChangeView={setCurrentView} />;
-      case 'lessons':
-        return <Lessons user={user!} />;
+      case 'classes':
+        return <Classes user={user!} />;
       case 'assignments':
         return <Assignments user={user!} />;
-      case 'growth':
-        return <Growth user={user!} />;
+      case 'video':
+        return <Video user={user!} />;
       case 'diet':
         return <Diet user={user!} />;
-      case 'community':
-        return (
-          <Community
-            user={user!}
-          />
-        );
-      case 'academy':
-        return (
-          <AcademyManagement
-            user={user!}
-          />
-        );
+      case 'music':
+        return <Music user={user!} />;
       case 'profile':
-        return <ProfileSettings user={user!} onUserUpdate={(u) => setUser(u)} />;
+        return <ProfileSettings user={user!} onUserUpdate={(u) => setUser(u)} onBack={() => setCurrentView('classes')} />;
       default:
-        return <Dashboard user={user!} onChangeView={setCurrentView} />;
+        return <Classes user={user!} />;
     }
   };
 
@@ -218,7 +199,7 @@ const AppInner: React.FC = () => {
   }
 
   // Define views that need full height (App-like behavior) vs scrolling views (Page-like behavior)
-  const isAppView = ['assignments', 'diet', 'lessons', 'community', 'academy'].includes(currentView);
+  const isAppView = ['classes', 'assignments', 'video', 'diet', 'music'].includes(currentView);
 
   return (
     <AppDataProvider value={{ allUsers, classes, setClasses }}>
@@ -254,7 +235,7 @@ const AppInner: React.FC = () => {
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                   {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
                 </button>
-                {isNotifOpen && <Notifications notifications={notifications} onClose={() => setIsNotifOpen(false)} onMarkAllRead={handleMarkAllRead} />}
+                {isNotifOpen && <Notifications notifications={notifications} onClose={() => setIsNotifOpen(false)} onMarkAllRead={handleMarkAllRead} onNavigate={(v) => { setCurrentView(v); }} />}
              </div>
 
              <div className="text-right">
@@ -283,11 +264,11 @@ const AppInner: React.FC = () => {
                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
                  {unreadCount > 0 && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
               </button>
-              {isNotifOpen && <Notifications notifications={notifications} onClose={() => setIsNotifOpen(false)} onMarkAllRead={handleMarkAllRead} />}
+              {isNotifOpen && <Notifications notifications={notifications} onClose={() => setIsNotifOpen(false)} onMarkAllRead={handleMarkAllRead} onNavigate={(v) => { setCurrentView(v); }} />}
            </div>
         </div>
 
-        <div className={`flex-1 flex flex-col ${isAppView ? 'overflow-hidden pb-20 md:pb-8' : 'overflow-y-auto pb-24 md:pb-8'} p-4 md:p-8 scroll-smooth`}>
+        <div className={`flex-1 flex flex-col ${isAppView ? 'overflow-hidden' : 'overflow-y-auto'} p-4 md:p-8 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-8 scroll-smooth`}>
           <div className={`max-w-5xl mx-auto w-full flex-1 flex flex-col ${isAppView ? 'h-full min-h-0' : ''}`}>
             <ErrorBoundary key={currentView}>
               {renderView()}
@@ -297,7 +278,7 @@ const AppInner: React.FC = () => {
 
         {/* Mobile Bottom Nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-           <MobileNav currentView={currentView} onChangeView={setCurrentView} userRole={user.role} />
+           <MobileNav currentView={currentView} onChangeView={setCurrentView} />
         </nav>
       </main>
 

@@ -129,6 +129,26 @@ export const demoJournalApi = {
   async get(id: string) { await delay(100); return demoJournals.find(j => j.id === id) || {} as any; },
   async getAiFeedback(id: string) { await delay(500); return { aiFeedback: '수업 내용이 체계적으로 잘 정리되어 있습니다. 다음 시간에는 감정 표현에 더 집중해보세요.' }; },
   async delete(id: string) { await delay(); const i = demoJournals.findIndex(j => j.id === id); if (i >= 0) demoJournals.splice(i, 1); },
+  async addComment(_journalId: string, content: string) { await delay(); return { id: genId('jcmt'), authorId: currentUser?.id || '', authorName: currentUser?.name || '', content, createdAt: new Date().toISOString() } as any; },
+  async deleteComment(_journalId: string, _commentId: string) { await delay(); },
+};
+
+// 무용 음악 데모 데이터
+const DEMO_TRACKS: any[] = [
+  { id: 'trk1', title: '잔잔한 피아노', category: '현대무용', mood: '차분한', duration: '2:48', fileUrl: null, createdAt: new Date().toISOString(), myRequest: null, pendingCount: 0 },
+  { id: 'trk2', title: '드라마틱 스트링', category: '발레', mood: '강렬한', duration: '3:12', fileUrl: null, createdAt: new Date().toISOString(), myRequest: null, pendingCount: 0 },
+  { id: 'trk3', title: '재즈 그루브', category: '재즈댄스', mood: '밝은', duration: '2:34', fileUrl: null, createdAt: new Date().toISOString(), myRequest: null, pendingCount: 0 },
+];
+const DEMO_MUSIC_REQUESTS: any[] = [];
+export const demoMusicApi = {
+  async listTracks(category?: string) { await delay(100); return DEMO_TRACKS.filter(t => !category || category === 'all' || t.category === category); },
+  async getTrack(id: string) { await delay(100); return DEMO_TRACKS.find(t => t.id === id) || {} as any; },
+  async createTrack(data: any) { await delay(); const t = { id: genId('trk'), ...data, createdAt: new Date().toISOString(), myRequest: null, pendingCount: 0 }; DEMO_TRACKS.push(t); return t; },
+  async deleteTrack(id: string) { await delay(); const i = DEMO_TRACKS.findIndex(t => t.id === id); if (i >= 0) DEMO_TRACKS.splice(i, 1); },
+  async getDownload(id: string) { await delay(); const t = DEMO_TRACKS.find(t => t.id === id); return { url: t?.fileUrl || '', filename: (t?.title || 'track') + '.mp3' }; },
+  async listRequests(_params?: any) { await delay(100); return [...DEMO_MUSIC_REQUESTS]; },
+  async createRequest(data: any) { await delay(); const t = DEMO_TRACKS.find(t => t.id === data.trackId); const r = { id: genId('mreq'), trackId: data.trackId, trackTitle: t?.title || '', studentId: currentUser?.id || '', studentName: currentUser?.name || '', purpose: data.purpose, status: 'pending', createdAt: new Date().toISOString() } as any; DEMO_MUSIC_REQUESTS.unshift(r); if (t) t.myRequest = { id: r.id, status: 'pending', purpose: data.purpose, createdAt: r.createdAt }; return r; },
+  async respondRequest(id: string, data: any) { await delay(); const r = DEMO_MUSIC_REQUESTS.find(r => r.id === id); if (r) { r.status = data.status; r.responseNote = data.responseNote; const t = DEMO_TRACKS.find(t => t.id === r.trackId); if (t?.myRequest) t.myRequest.status = data.status; } return r as any; },
 };
 
 export const demoAttendanceApi = {

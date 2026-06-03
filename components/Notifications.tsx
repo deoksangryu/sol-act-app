@@ -1,14 +1,25 @@
 import React from 'react';
-import { Notification } from '../types';
+import { Notification, ViewState } from '../types';
 import { formatDateTimeShortKo } from '../services/dateUtils';
 
 interface NotificationsProps {
   notifications: Notification[];
   onClose: () => void;
   onMarkAllRead: () => void;
+  onNavigate?: (view: ViewState) => void;
 }
 
-export const Notifications: React.FC<NotificationsProps> = ({ notifications, onClose, onMarkAllRead }) => {
+/** 알림 메시지에서 이동할 탭을 추론 (Notification에 별도 타깃 필드가 없으므로 키워드 기반) */
+function inferView(message: string): ViewState | null {
+  if (/영상|포트폴리오/.test(message)) return 'video';
+  if (/과제/.test(message)) return 'assignments';
+  if (/식단/.test(message)) return 'diet';
+  if (/음원|음악/.test(message)) return 'music';
+  if (/일지|수업|출석|출결/.test(message)) return 'classes';
+  return null;
+}
+
+export const Notifications: React.FC<NotificationsProps> = ({ notifications, onClose, onMarkAllRead, onNavigate }) => {
   return (
     <div className="fixed top-16 left-4 right-4 md:absolute md:top-12 md:right-0 md:left-auto md:w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-fade-in-up shadow-slate-300 ring-1 ring-black/5">
       <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
@@ -22,10 +33,13 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onC
       </div>
       <div className="max-h-[60vh] md:max-h-80 overflow-y-auto">
         {notifications.length > 0 ? (
-          notifications.map((notif) => (
-            <div 
-              key={notif.id} 
-              className={`p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${notif.read ? 'opacity-60' : 'bg-brand-50/30'}`}
+          notifications.map((notif) => {
+            const view = inferView(notif.message);
+            return (
+            <div
+              key={notif.id}
+              onClick={() => { if (view && onNavigate) { onNavigate(view); onClose(); } }}
+              className={`p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${view ? 'cursor-pointer' : ''} ${notif.read ? 'opacity-60' : 'bg-brand-50/30'}`}
             >
               <div className="flex gap-3">
                 <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notif.read ? 'bg-slate-300' : notif.type === 'warning' ? 'bg-red-500' : notif.type === 'success' ? 'bg-green-500' : 'bg-brand-500'}`} />
@@ -35,7 +49,7 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onC
                 </div>
               </div>
             </div>
-          ))
+          );})
         ) : (
           <div className="p-8 text-center text-slate-400 text-xs">
             새로운 알림이 없습니다.

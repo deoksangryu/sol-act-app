@@ -12,6 +12,29 @@
   --color-brand-600: #D97706;
   --color-brand-700: #B45309;
 
+  /* Toss 디자인 토큰 (v8 프로토타입) */
+  --color-toss-blue: #3182F6;
+  --color-toss-blue-bg: #EAF2FF;
+  --color-toss-purple: #6D5BD0;
+  --color-toss-purple-bg: #EEEBFA;
+  --color-toss-pink: #E84F8B;
+  --color-toss-pink-bg: #FCE7F0;
+  --color-toss-ink: #191F28;
+  --color-toss-sub: #8B95A1;
+  --color-toss-faint: #C4CCD4;
+  --color-toss-surf: #F2F4F6;
+  --color-toss-line: #EEF0F2;
+  --color-toss-success: #1B8A4B;
+  --color-toss-success-bg: #E7F4EC;
+  --color-toss-warn: #C2410C;
+  --color-toss-warn-bg: #FFF1E6;
+
+  --animate-toast-down: toastDown 0.35s cubic-bezier(.34,1.56,.64,1);
+  @keyframes toastDown {
+    from { opacity: 0; transform: translateY(-130%); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   --animate-fade-in: fadeIn 0.3s ease-out;
   --animate-fade-in-up: fadeInUp 0.4s ease-out;
   --animate-fade-in-right: fadeInRight 0.3s ease-out;

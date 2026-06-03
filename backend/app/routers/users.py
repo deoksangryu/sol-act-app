@@ -17,8 +17,11 @@ def list_users(
     current_user: User = Depends(get_current_user)
 ):
     query = db.query(User)
+    # Student: only themselves (no enumerating other users / PII)
+    if current_user.role == UserRole.STUDENT:
+        query = query.filter(User.id == current_user.id)
     # Teacher: only see students in their classes (+ self)
-    if current_user.role == UserRole.TEACHER:
+    elif current_user.role == UserRole.TEACHER:
         my_student_ids = get_teacher_student_ids(db, current_user.id)
         visible_ids = set(my_student_ids) | {current_user.id}
         query = query.filter(User.id.in_(visible_ids))
@@ -33,6 +36,9 @@ def list_users(
 
 @router.get("/{user_id}", response_model=UserResponse)
 def get_user(user_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # Student: only their own profile (no fetching others by id / PII)
+    if current_user.role == UserRole.STUDENT and user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
     # Teachers can only see students in their classes + self
     if current_user.role == UserRole.TEACHER and user_id != current_user.id:
         visible_ids = set(get_teacher_student_ids(db, current_user.id))

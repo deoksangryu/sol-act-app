@@ -25,7 +25,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
-    invite_code: str
+    invite_code: Optional[str] = None  # 선택: 학원이 내부 링크로 가입을 안내하므로 코드 없이 가입 가능
     avatar: Optional[str] = None
 
     @field_validator("password")
