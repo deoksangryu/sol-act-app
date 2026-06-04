@@ -17,7 +17,9 @@ const TABS: { id: ViewState; label: string; icon: string }[] = [
 ];
 
 const INK = '#191F28';
-const FAINT = '#C4CCD4';
+// 비활성 탭 — 가독성(WCAG AA) 위해 faint(#C4CCD4·1.6:1) 대신 sub(#6B7684·4.6:1).
+// 활성(INK + 600 굵기)과의 위계는 색·굵기 차이로 충분히 유지됨.
+const SUB = '#6B7684';
 
 const WARN = '#C2410C';
 
@@ -36,14 +38,14 @@ export const MobileNav: React.FC<MobileNavProps> = ({ currentView, onChangeView,
           }}
         >
           <div style={{ position: 'relative', display: 'flex' }}>
-            <i className={`ti ${t.icon}`} style={{ fontSize: 22, color: on ? INK : FAINT }} />
+            <i className={`ti ${t.icon}`} style={{ fontSize: 22, color: on ? INK : SUB }} />
             {n > 0 && (
               <span style={{ position: 'absolute', top: -4, right: -9, background: WARN, color: '#fff', fontSize: 9, fontWeight: 700, minWidth: 14, height: 14, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>
                 {n > 99 ? '99+' : n}
               </span>
             )}
           </div>
-          <span style={{ fontSize: 10, color: on ? INK : FAINT, fontWeight: on ? 600 : 400 }}>{t.label}</span>
+          <span style={{ fontSize: 10, color: on ? INK : SUB, fontWeight: on ? 600 : 400 }}>{t.label}</span>
         </button>
       );
     })}

@@ -7,7 +7,7 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag,
-  Cta, Empty, InfoBox, ChipSelect,
+  Cta, Empty, InfoBox, ChipSelect, ListSkeleton, FlowTitle, toneColors,
 } from './toss/kit';
 
 const VIDEO_CATS = [
@@ -21,13 +21,14 @@ const catLabel = (v: string) => VIDEO_CATS.find(c => c.value === v)?.label || v;
 // 영상 길이(초) → ' · M:SS' (없으면 빈 문자열)
 const fmtDur = (s?: number) => (s && s > 0 ? ` · ${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
 
-// 영상 썸네일 (56x56) — 추출된 썸네일 있으면 표시, 업로드 중이면 로더
+// 영상 썸네일 (56x56) — 실제 <img loading="lazy">로 화면 밖은 지연 로드(느린 링크에서 동시요청↓)
 const PlayThumb: React.FC<{ thumb?: string; uploading?: boolean }> = ({ thumb, uploading }) => (
   <div style={{ width: 56, height: 56, borderRadius: 12, flexShrink: 0, overflow: 'hidden', position: 'relative',
-    background: thumb ? `#000 center/cover no-repeat url(${resolveFileUrl(thumb)})` : TOSS.surf,
-    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    background: thumb ? '#000' : TOSS.surf, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    {thumb && <img src={resolveFileUrl(thumb)} loading="lazy" decoding="async" alt=""
+      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
     <i className={`ti ${uploading ? 'ti-loader-2' : 'ti-player-play'}`}
-      style={{ fontSize: thumb ? 18 : 20, color: thumb ? '#fff' : TOSS.sub, filter: thumb ? 'drop-shadow(0 1px 3px rgba(0,0,0,.6))' : undefined }} />
+      style={{ position: 'relative', fontSize: thumb ? 18 : 20, color: thumb ? '#fff' : TOSS.sub, filter: thumb ? 'drop-shadow(0 1px 3px rgba(0,0,0,.6))' : undefined }} />
   </div>
 );
 // 포트폴리오의 대표 썸네일(커버 우선, 없으면 추가 영상에서)
@@ -36,23 +37,39 @@ const isUploadingItem = (v: PortfolioItem) => !v.videoUrl && !(v.videos && v.vid
 
 export const Video: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
+  const PAGE = 24;
   const [items, setItems] = useState<PortfolioItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [more, setMore] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
   const load = async () => {
     try {
-      const data = await portfolioApi.list(isStaff ? undefined : { studentId: user.id });
+      const data = await portfolioApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: 0, limit: PAGE });
       setItems(data);
+      setHasMore(data.length >= PAGE);
     } catch (e: any) {
       toast.error(e.message || '영상을 불러오지 못했어요');
     }
   };
+  const loadMore = async () => {
+    setMore(true);
+    try {
+      const data = await portfolioApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: items.length, limit: PAGE });
+      setItems(prev => [...prev, ...data]);
+      setHasMore(data.length >= PAGE);
+    } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
+    finally { setMore(false); }
+  };
   useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
   useDataRefresh(['portfolios'], load);
+  const renderMore = () => hasMore ? (
+    <button onClick={loadMore} disabled={more} style={{ display: 'block', margin: '12px auto 20px', background: TOSS.surf, color: TOSS.sub, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{more ? '불러오는 중…' : '더 보기'}</button>
+  ) : null;
 
-  if (loading) return <Empty>불러오는 중…</Empty>;
+  if (loading) return <ListSkeleton />;
 
   const open = openId ? items.find(i => i.id === openId) : null;
   if (open) return <VideoDetail item={open} user={user} isStaff={isStaff} onBack={() => setOpenId(null)} onReload={load} onDeleted={async () => { setOpenId(null); await load(); }} />;
@@ -77,9 +94,10 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
                 ? <Tag bg={TOSS.surf} fg={TOSS.sub}>업로드 중</Tag>
                 : (v.comments?.length ?? 0) > 0
                   ? <Tag bg={TOSS.successBg} fg={TOSS.success}>완료</Tag>
-                  : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>피드백 필요</Tag>}
+                  : <Tag {...toneColors('pending')}>피드백 필요</Tag>}
               onClick={() => setOpenId(v.id)} />
           ))}
+          {renderMore()}
         </Scroll>
       </Screen>
     );
@@ -98,9 +116,10 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
               ? <Tag bg={TOSS.surf} fg={TOSS.sub}>업로드 중</Tag>
               : (v.comments?.length ?? 0) > 0
                 ? <Tag bg={TOSS.successBg} fg={TOSS.success}>피드백 완료</Tag>
-                : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>피드백 대기</Tag>}
+                : <Tag {...toneColors('pending')}>피드백 대기</Tag>}
             onClick={() => setOpenId(v.id)} />
         ))}
+        {renderMore()}
       </Scroll>
       <Cta onClick={() => setUploading(true)}>새 영상 올리기</Cta>
     </Screen>
@@ -198,9 +217,9 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
           {editing ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <input value={title} onChange={e => setTitle(e.target.value)} placeholder="제목"
-                style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: '11px 13px', fontSize: 15, color: TOSS.ink, outline: 'none' }} />
+                style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: '11px 13px', fontSize: 15, color: TOSS.ink, outline: 'none' }} />
               <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="설명"
-                style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: '11px 13px', fontSize: 15, color: TOSS.ink, outline: 'none' }} />
+                style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: '11px 13px', fontSize: 15, color: TOSS.ink, outline: 'none' }} />
               <button onClick={saveEdit} disabled={busy || !title.trim()}
                 style={{ width: '100%', background: TOSS.blue, color: '#fff', border: 'none', borderRadius: 12, padding: 12, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>저장하기</button>
             </div>
@@ -218,14 +237,14 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
           <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>강사 피드백 {comments.length}개</div>
 
           {comments.length === 0 && !isStaff && (
-            <InfoBox tone="warn">24시간 안에 피드백이 와요</InfoBox>
+            <InfoBox tone="info">24시간 안에 피드백이 와요</InfoBox>
           )}
 
           {comments.map(c => (
             <div key={c.id} style={{ background: TOSS.surf, borderRadius: 13, padding: 13, marginBottom: 8, fontSize: 14, lineHeight: 1.7, color: TOSS.ink }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                 <span style={{ fontSize: 12, fontWeight: 600, color: TOSS.ink }}>{c.authorName}</span>
-                <span style={{ fontSize: 11, color: TOSS.faint }}>{(c.date || '').slice(5, 10)}</span>
+                <span style={{ fontSize: 11, color: TOSS.sub }}>{(c.date || '').slice(5, 10)}</span>
               </div>
               {c.content}
             </div>
@@ -235,7 +254,7 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
             <>
               {comments.length === 0 && <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>피드백 남기기</div>}
               <textarea value={fb} onChange={e => setFb(e.target.value)} placeholder="구체적으로 알려주세요"
-                style={{ width: '100%', boxSizing: 'border-box', minHeight: 90, border: '1px solid #E5E8EB', borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none', marginTop: 4 }} />
+                style={{ width: '100%', boxSizing: 'border-box', minHeight: 90, border: `1px solid ${TOSS.inputLine}`, borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none', marginTop: 4 }} />
             </>
           )}
 
@@ -316,7 +335,7 @@ const UploadScreen: React.FC<{ onBack: () => void; onDone: () => Promise<void> }
     <Screen>
       <BackHeader title="영상 올리기" onBack={onBack} />
       <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '8px 20px' }}>
-        <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>어떤 연습<br />영상인가요?</div>
+        <FlowTitle pad="0">어떤 연습<br />영상인가요?</FlowTitle>
 
         {/* 영상 선택 박스 (여러 개 가능) */}
         <input ref={fileRef} type="file" accept="video/*" multiple style={{ display: 'none' }} onChange={e => setFiles(Array.from(e.target.files || []))} />
@@ -334,7 +353,7 @@ const UploadScreen: React.FC<{ onBack: () => void; onDone: () => Promise<void> }
             <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '16px 0 8px' }}>업로드 방식</div>
             <ChipSelect options={[{ value: 'individual', label: '각각 따로 올리기' }, { value: 'single', label: '하나로 묶기' }]}
               value={mode} onChange={v => setMode(v as 'individual' | 'single')} />
-            <div style={{ fontSize: 12, color: TOSS.faint, marginTop: 6 }}>
+            <div style={{ fontSize: 12, color: TOSS.sub, marginTop: 6 }}>
               {mode === 'single' ? '여러 영상을 한 포트폴리오로 묶어요 (테이크·각도별)' : '영상마다 별도 포트폴리오로 올려요'}
             </div>
           </>
@@ -342,11 +361,11 @@ const UploadScreen: React.FC<{ onBack: () => void; onDone: () => Promise<void> }
 
         <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '16px 0 8px' }}>제목</div>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 자유연기 3차"
-          style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: '12px 13px', fontSize: 15, color: TOSS.ink, outline: 'none' }} />
+          style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: '12px 13px', fontSize: 15, color: TOSS.ink, outline: 'none' }} />
 
         <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '16px 0 8px' }}>설명 <span style={{ color: TOSS.faint, fontWeight: 400 }}>(선택)</span></div>
         <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="예: 복식호흡 중점 연습"
-          style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: '12px 13px', fontSize: 15, color: TOSS.ink, outline: 'none' }} />
+          style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: '12px 13px', fontSize: 15, color: TOSS.ink, outline: 'none' }} />
 
         <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '16px 0 8px' }}>카테고리</div>
         <ChipSelect wrap options={VIDEO_CATS} value={cat} onChange={setCat} />

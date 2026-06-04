@@ -34,6 +34,10 @@ def attendance_to_response(a: Attendance) -> dict:
 def list_attendance(
     lesson_id: Optional[str] = Query(None),
     student_id: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, description="수업 날짜 YYYY-MM-DD 이상"),
+    date_to: Optional[str] = Query(None, description="수업 날짜 YYYY-MM-DD 이하"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(300, ge=1, le=1000),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -49,7 +53,16 @@ def list_attendance(
         query = query.filter(Attendance.lesson_id == lesson_id)
     if student_id:
         query = query.filter(Attendance.student_id == student_id)
-    records = query.order_by(Attendance.created_at.desc()).all()
+    # 수업 날짜 윈도우 — lesson_id 서브쿼리
+    if date_from or date_to:
+        from app.models.lesson import Lesson
+        lq = db.query(Lesson.id)
+        if date_from:
+            lq = lq.filter(Lesson.date >= date_from)
+        if date_to:
+            lq = lq.filter(Lesson.date <= date_to)
+        query = query.filter(Attendance.lesson_id.in_(lq))
+    records = query.order_by(Attendance.created_at.desc()).offset(skip).limit(limit).all()
     return [attendance_to_response(a) for a in records]
 
 

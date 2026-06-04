@@ -8,12 +8,19 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag,
-  Cta, Empty, InfoBox, ChipSelect, Avatar, Chevron,
+  Cta, Empty, InfoBox, ChipSelect, Avatar, Chevron, ListSkeleton, FlowTitle, toneColors,
 } from './toss/kit';
 
 function dueLabel(iso: string): string {
   return (iso || '').slice(5, 10).replace('-', '/');
 }
+// 마감이 지났거나 36시간 내로 임박했는지 — 임박/지남일 때만 경고색(주황), 그 외엔 중립 회색
+function dueUrgent(iso: string): boolean {
+  const t = new Date(iso).getTime();
+  return !isNaN(t) && t < Date.now() + 36 * 3600 * 1000;
+}
+// 마감 태그 색: 임박/지남=주황(overdue), 여유=중립 회색
+const dueTone = (iso: string) => (dueUrgent(iso) ? toneColors('overdue') : { bg: TOSS.surf, fg: TOSS.sub });
 
 function upcomingDates(): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = [];
@@ -31,22 +38,36 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
   const [items, setItems] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [more, setMore] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);   // 학생: 과제 상세
   const [groupKey, setGroupKey] = useState<string | null>(null); // 선생님: 과제 그룹 상세
   const [creating, setCreating] = useState(false);
+  const PAGE = 40;
 
   const load = async () => {
     try {
-      const data = await assignmentApi.list(isStaff ? undefined : { studentId: user.id });
-      setItems(data);
+      const data = await assignmentApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: 0, limit: PAGE });
+      setItems(data); setHasMore(data.length >= PAGE);
     } catch (e: any) {
       toast.error(e.message || '과제를 불러오지 못했어요');
     }
   };
+  const loadMore = async () => {
+    setMore(true);
+    try {
+      const data = await assignmentApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: items.length, limit: PAGE });
+      setItems(prev => [...prev, ...data]); setHasMore(data.length >= PAGE);
+    } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
+    finally { setMore(false); }
+  };
+  const renderMore = () => hasMore ? (
+    <button onClick={loadMore} disabled={more} style={{ display: 'block', margin: '12px auto 20px', background: TOSS.surf, color: TOSS.sub, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{more ? '불러오는 중…' : '더 보기'}</button>
+  ) : null;
   useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
   useDataRefresh(['assignments'], load);
 
-  if (loading) return <Empty>불러오는 중…</Empty>;
+  if (loading) return <ListSkeleton />;
   if (creating) return <CreateAssignment onBack={() => setCreating(false)} onDone={async () => { setCreating(false); await load(); }} />;
 
   // ── 학생 ──
@@ -64,7 +85,7 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
             <ListRow key={a.id}
               left={<IconChip bg={TOSS.blueBg}><i className="ti ti-book-2" style={{ fontSize: 21, color: TOSS.blue }} /></IconChip>}
               title={a.title} sub="24시간 안에 피드백"
-              right={<Tag bg={TOSS.warnBg} fg={TOSS.warn}>{dueLabel(a.dueDate)}까지</Tag>}
+              right={<Tag {...dueTone(a.dueDate)}>{dueLabel(a.dueDate)}까지</Tag>}
               onClick={() => setOpenId(a.id)} />
           ))}
           <SectionLabel>제출한 과제 {done.length}개</SectionLabel>
@@ -75,6 +96,7 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
               right={a.grade ? <Tag bg={TOSS.successBg} fg={TOSS.success}>{a.grade}</Tag> : <Chevron />}
               onClick={() => setOpenId(a.id)} />
           ))}
+          {renderMore()}
         </Scroll>
       </Screen>
     );
@@ -115,6 +137,7 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
               onClick={() => setGroupKey(g.key)} />
           );
         })}
+        {renderMore()}
       </Scroll>
       <Cta onClick={() => setCreating(true)}>새 과제 내기</Cta>
     </Screen>
@@ -174,9 +197,9 @@ const StudentDetail: React.FC<{ a: Assignment; onBack: () => void; onReload: () 
           <div>
             {submitted
               ? <Tag bg={TOSS.successBg} fg={TOSS.success}>제출 완료</Tag>
-              : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>{dueLabel(a.dueDate)}까지 제출</Tag>}
+              : <Tag {...dueTone(a.dueDate)}>{dueLabel(a.dueDate)}까지 제출</Tag>}
           </div>
-          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink, marginTop: 12 }}>{a.title}</div>
+          <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink, marginTop: 12 }}>{a.title}</div>
           <div style={{ fontSize: 15, color: TOSS.sub, lineHeight: 1.7, marginTop: 14, whiteSpace: 'pre-wrap' }}>{a.description}</div>
 
           {a.submissionText && (
@@ -201,10 +224,10 @@ const StudentDetail: React.FC<{ a: Assignment; onBack: () => void; onReload: () 
             <div style={{ marginTop: 20 }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 8 }}>제출 내용</div>
               <textarea value={text} onChange={e => setText(e.target.value)} placeholder="과제를 어떻게 했는지 적어요"
-                style={{ width: '100%', boxSizing: 'border-box', minHeight: 120, border: '1px solid #E5E8EB', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none', resize: 'none' }} />
+                style={{ width: '100%', boxSizing: 'border-box', minHeight: 120, border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none', resize: 'none' }} />
               <input ref={fileRef} type="file" accept="video/*,image/*,audio/*,.pdf" style={{ display: 'none' }} onChange={e => setFile(e.target.files?.[0] || null)} />
               <button onClick={() => fileRef.current?.click()}
-                style={{ marginTop: 8, width: '100%', background: '#fff', border: '1px dashed #CDD3DA', borderRadius: 12, padding: '12px 6px', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: file ? TOSS.success : TOSS.sub, cursor: 'pointer' }}>
+                style={{ marginTop: 8, width: '100%', background: '#fff', border: `1px dashed ${TOSS.dashLine}`, borderRadius: 12, padding: '12px 6px', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: file ? TOSS.success : TOSS.sub, cursor: 'pointer' }}>
                 <i className={`ti ${file ? 'ti-check' : 'ti-paperclip'}`} style={{ fontSize: 16 }} />
                 {file ? file.name : '영상·사진·파일 첨부 (선택)'}
               </button>
@@ -300,7 +323,7 @@ const GradeScreen: React.FC<{ a: Assignment; onBack: () => void; onReload: () =>
           <ChipSelect options={GRADES.map(g => ({ value: g, label: g }))} value={grade} onChange={setGrade} />
           <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginTop: 16, marginBottom: 8 }}>피드백</div>
           <textarea value={fb} onChange={e => setFb(e.target.value)} placeholder="구체적으로 알려주세요"
-            style={{ width: '100%', boxSizing: 'border-box', minHeight: 100, border: '1px solid #E5E8EB', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none', resize: 'none' }} />
+            style={{ width: '100%', boxSizing: 'border-box', minHeight: 100, border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none', resize: 'none' }} />
         </div>
       </Scroll>
       <Cta onClick={submit} disabled={!grade} loading={busy}>채점 완료하기</Cta>
@@ -331,13 +354,13 @@ const CreateAssignment: React.FC<{ onBack: () => void; onDone: () => Promise<voi
     }
   };
   const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '16px 0 8px' };
-  const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none' };
+  const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none' };
   return (
     <Screen>
       <BackHeader title="새 과제" onBack={onBack} />
       <Scroll>
         <div style={{ padding: '8px 20px' }}>
-          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>어떤 과제를<br />낼까요?</div>
+          <FlowTitle pad="0">어떤 과제를<br />낼까요?</FlowTitle>
           <div style={labelStyle}>과제 이름</div>
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 자유연기 독백 외우기" style={inputStyle} />
           <div style={labelStyle}>설명</div>
@@ -349,7 +372,7 @@ const CreateAssignment: React.FC<{ onBack: () => void; onDone: () => Promise<voi
           )}
           <div style={labelStyle}>제출 기한</div>
           <ChipSelect options={dates} value={due} onChange={setDue} />
-          <div style={{ background: TOSS.purpleBg, borderRadius: 12, padding: 12, marginTop: 16, fontSize: 13, color: '#473A9E', lineHeight: 1.6 }}>
+          <div style={{ background: TOSS.purpleBg, borderRadius: 12, padding: 12, marginTop: 16, fontSize: 13, color: TOSS.purpleInk, lineHeight: 1.6 }}>
             학생들에게 알림이 가요
           </div>
         </div>

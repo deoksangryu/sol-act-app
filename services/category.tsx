@@ -6,10 +6,21 @@ export const TOSS = {
   blue: '#3182F6', blueBg: '#EAF2FF',
   purple: '#6D5BD0', purpleBg: '#EEEBFA',
   pink: '#E84F8B', pinkBg: '#FCE7F0',
-  ink: '#191F28', sub: '#8B95A1', faint: '#C4CCD4',
+  // sub: 흰 배경 위 약 4.6:1 — WCAG AA 통과(이전 #8B95A1는 2.9:1로 미달).
+  // faint: 비활성 chevron·플레이스홀더 등 '읽지 않아도 되는' 장식 전용.
+  ink: '#191F28', sub: '#6B7684', faint: '#C4CCD4',
   surf: '#F2F4F6', line: '#EEF0F2',
   success: '#1B8A4B', successBg: '#E7F4EC',
   warn: '#C2410C', warnBg: '#FFF1E6',
+  // --- 토큰화된 일회성 hex (인라인 리터럴 흡수) ---
+  inputLine: '#E5E8EB',          // 입력창 보더
+  danger: '#E5484D',             // 일요일·위험 신호
+  successInk: '#15662F',         // 연한 success 배경 위 본문(가독성 보정)
+  purpleInk: '#473A9E',          // 연한 purple 배경 위 본문
+  infoInk: '#1B4F8A',            // 연한 blue 배경 위 본문(음악 안내 등)
+  dietBg: '#D9E6CC',             // 식단 카드 연녹 배경
+  requestLine: '#FCD9B5',        // 음원 요청 카드 보더
+  dashLine: '#CDD3DA',           // 점선 보더
 } as const;
 
 export interface CatColor { bg: string; fg: string; }

@@ -7,12 +7,19 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS, catColor, CategoryIcon } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag, Avatar,
-  Cta, Empty, Chevron, DoneScreen,
+  Cta, Empty, Chevron, DoneScreen, ListSkeleton, FlowTitle, toneColors,
 } from './toss/kit';
 
 function todayStr(): string {
   const d = new Date();
   const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+// 오늘 기준 N일 후/전 날짜 (YYYY-MM-DD)
+function dayOffset(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  const p = (x: number) => String(x).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 const md = (iso: string) => (iso || '').slice(5, 10).replace('-', '/');
@@ -48,22 +55,32 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
   const [selDate, setSelDate] = useState<string | null>(null);
   const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
 
-  const load = async () => {
+  // 수업은 최근 60일 ~ 향후 30일(캘린더 점·목록용)
+  const loadLessons = async () => {
+    try { setLessons(await lessonApi.list({ dateFrom: dayOffset(-60), dateTo: dayOffset(30) })); }
+    catch (e: any) { toast.error(e.message || '수업을 불러오지 못했어요'); }
+  };
+  // 일지·출결은 "보이는 범위"만 — 홈=어제~내일, 캘린더 선택 시 그 날짜 (대형 풀페치 방지)
+  const loadJA = async () => {
+    const f = selDate || dayOffset(-1), t = selDate || dayOffset(1);
     try {
-      const [ls, js, at] = await Promise.all([
-        lessonApi.list(),
-        journalApi.list(),
-        isStaff ? attendanceApi.list() : attendanceApi.list({ studentId: user.id }),
+      const [js, at] = await Promise.all([
+        journalApi.list({ dateFrom: f, dateTo: t }),
+        isStaff ? attendanceApi.list({ dateFrom: f, dateTo: t }) : attendanceApi.list({ studentId: user.id, dateFrom: f, dateTo: t }),
       ]);
-      setLessons(ls);
       setJournals(js);
       setAttendance(at);
     } catch (e: any) {
-      toast.error(e.message || '수업을 불러오지 못했어요');
+      toast.error(e.message || '수업 정보를 불러오지 못했어요');
     }
   };
+  const load = async () => { await Promise.all([loadLessons(), loadJA()]); };
   useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
-  useDataRefresh(['lessons', 'journals', 'attendance'], load);
+  // 엔티티별로 분리 갱신(바뀐 것만 다시 받음)
+  useDataRefresh(['lessons'], loadLessons);
+  useDataRefresh(['journals', 'attendance'], loadJA);
+  // 캘린더 날짜 선택 변경 시 해당 날짜 일지/출결만 추가 로드
+  useEffect(() => { if (!loading) loadJA(); /* eslint-disable-next-line */ }, [selDate]);
 
   const classStudents = (classId?: string) => {
     const cls = classes.find(c => c.id === classId);
@@ -89,7 +106,7 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
         const j = myStudentJournal(l.id);
         return (
           <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={md(l.date)}
-            right={j ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>일지 쓰기</Tag>}
+            right={j ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag {...toneColors('todo')}>일지 쓰기</Tag>}
             onClick={j ? () => setView({ name: 'journalView', journalId: j.id }) : () => setView({ name: 'journalWrite', lessonId: l.id, type: 'student' })} />
         );
       }
@@ -116,7 +133,7 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
       const tj = teacherJournal(l.id);
       return (
         <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={md(l.date)}
-          right={tj ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>일지 쓰기</Tag>}
+          right={tj ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag {...toneColors('todo')}>일지 쓰기</Tag>}
           onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
       );
     }
@@ -134,7 +151,7 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
     );
   };
 
-  if (loading) return <Empty>불러오는 중…</Empty>;
+  if (loading) return <ListSkeleton />;
 
   // ── sub-screens ──
   if (view.name === 'done') {
@@ -187,11 +204,11 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
     );
   }
 
-  // ── home ── 끝난 수업은 날짜 기준으로도 판정(스케줄러 완료 처리 전이라도 일지 가능)
-  const past = lessons.filter(l => isPast(l));
-  const upcomingActive = lessons.filter(l => !isPast(l) && l.status !== 'cancelled');
-  const todays = upcomingActive.filter(l => l.date === todayStr());
-  const future = upcomingActive.filter(l => l.date !== todayStr());
+  // ── home ── 목록은 어제·오늘·내일만(나머지는 캘린더로 조회 → 렌더 가볍게)
+  const yest = dayOffset(-1), tod = todayStr(), tom = dayOffset(1);
+  const threeDays = lessons
+    .filter(l => l.date === yest || l.date === tod || l.date === tom)
+    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
 
   // 캘린더에서 선택한 날짜의 수업 (시간순)
   const dayLessons = selDate
@@ -213,13 +230,11 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
           </>
         ) : (
           <>
-            <SectionLabel>오늘 · 예정 수업</SectionLabel>
-            {todays.length + future.length === 0 && <Empty>예정된 수업이 없어요</Empty>}
-            {todays.map(lessonRow)}
-            {future.map(lessonRow)}
-            <SectionLabel>지난 수업 · {isStaff ? '수업일지' : '일지'}</SectionLabel>
-            {past.length === 0 && <Empty>지난 수업이 없어요</Empty>}
-            {past.map(lessonRow)}
+            <SectionLabel>어제 · 오늘 · 내일 수업</SectionLabel>
+            {threeDays.length === 0
+              ? <Empty>최근 수업이 없어요. 달력에서 날짜를 선택해 보세요</Empty>
+              : threeDays.map(lessonRow)}
+            <div style={{ fontSize: 12, color: TOSS.sub, textAlign: 'center', padding: '10px 0 4px' }}>다른 날짜는 위 달력에서 선택하세요</div>
           </>
         )}
       </Scroll>
@@ -251,7 +266,7 @@ const AttendScreen: React.FC<{ lesson: Lesson; userId: string; onBack: () => voi
       <BackHeader title="출석 체크" onBack={onBack} />
       <Scroll>
         <div style={{ padding: '8px 20px' }}>
-          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>출석하고<br />컨디션을 알려줘요</div>
+          <FlowTitle pad="0">출석하고<br />컨디션을 알려줘요</FlowTitle>
           <div style={{ background: TOSS.surf, borderRadius: 14, padding: 14, marginTop: 16, display: 'flex', alignItems: 'center', gap: 12 }}>
             <CategoryIcon cat={lesson.subject} />
             <div>
@@ -265,7 +280,7 @@ const AttendScreen: React.FC<{ lesson: Lesson; userId: string; onBack: () => voi
               const on = cond === o.value;
               return (
                 <button key={o.value} onClick={() => setCond(o.value)}
-                  style={{ flex: 1, background: on ? TOSS.blueBg : '#fff', border: `1.5px solid ${on ? TOSS.blue : '#E5E8EB'}`, borderRadius: 14, padding: '13px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                  style={{ flex: 1, background: on ? TOSS.blueBg : '#fff', border: `1.5px solid ${on ? TOSS.blue : TOSS.inputLine}`, borderRadius: 14, padding: '13px 4px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
                   <i className={`ti ${o.icon}`} style={{ fontSize: 23, color: on ? TOSS.blue : TOSS.sub }} />
                   <span style={{ fontSize: 12, fontWeight: 500, color: on ? TOSS.blue : TOSS.sub }}>{o.label}</span>
                 </button>
@@ -303,15 +318,15 @@ const JournalWrite: React.FC<{ lesson: Lesson; type: 'student' | 'teacher'; jour
       <BackHeader title={isTeacher ? '수업일지' : '수업 일지'} onBack={onBack} />
       <Scroll>
         <div style={{ padding: '8px 20px' }}>
-          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>
+          <FlowTitle pad="0">
             {isTeacher ? <>이 수업,<br />어떻게 진행됐나요?</> : <>이 수업,<br />어땠어요?</>}
-          </div>
+          </FlowTitle>
           <div style={{ fontSize: 14, color: TOSS.sub, marginTop: 6 }}>{lesson.className} · {md(lesson.date)}</div>
           <textarea value={content} onChange={e => setContent(e.target.value)}
             placeholder={isTeacher ? '수업 진행, 진도, 운영 메모를 적어요' : '잘된 점, 보완할 점을 편하게 적어요'}
-            style={{ width: '100%', boxSizing: 'border-box', marginTop: 16, minHeight: 120, border: '1px solid #E5E8EB', borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none' }} />
+            style={{ width: '100%', boxSizing: 'border-box', marginTop: 16, minHeight: 120, border: `1px solid ${TOSS.inputLine}`, borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none' }} />
           {isTeacher && (
-            <div style={{ marginTop: 16, background: TOSS.purpleBg, borderRadius: 12, padding: '11px 13px', fontSize: 13, color: '#473A9E', lineHeight: 1.6 }}>
+            <div style={{ marginTop: 16, background: TOSS.purpleBg, borderRadius: 12, padding: '11px 13px', fontSize: 13, color: TOSS.purpleInk, lineHeight: 1.6 }}>
               이 일지는 선생님과 관리자만 볼 수 있어요
             </div>
           )}
@@ -379,7 +394,7 @@ const JournalView: React.FC<{ journal: LessonJournal; lesson?: Lesson; canCommen
           {canComment && (
             <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
               <input value={text} onChange={e => setText(e.target.value)} placeholder="코칭 댓글을 남겨요"
-                style={{ flex: 1, border: '1px solid #E5E8EB', borderRadius: 11, padding: 11, fontSize: 13, fontFamily: 'inherit', color: TOSS.ink, outline: 'none' }} />
+                style={{ flex: 1, border: `1px solid ${TOSS.inputLine}`, borderRadius: 11, padding: 11, fontSize: 13, fontFamily: 'inherit', color: TOSS.ink, outline: 'none' }} />
               <button onClick={add} disabled={busy || !text.trim()}
                 style={{ background: TOSS.blue, color: '#fff', border: 'none', borderRadius: 11, padding: '0 16px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>등록</button>
             </div>
@@ -473,14 +488,14 @@ const TeacherLessonDetail: React.FC<{
             <SectionLabel>수업일지</SectionLabel>
             <div style={{ margin: '0 20px 8px', background: TOSS.purpleBg, borderRadius: 11, padding: '9px 12px', display: 'flex', gap: 7, alignItems: 'center' }}>
               <i className="ti ti-lock" style={{ fontSize: 14, color: TOSS.purple }} />
-              <span style={{ fontSize: 12, color: '#473A9E' }}>선생님과 관리자만 볼 수 있어요</span>
+              <span style={{ fontSize: 12, color: TOSS.purpleInk }}>선생님과 관리자만 볼 수 있어요</span>
             </div>
             {teacherJournal ? (
               <div style={{ margin: '0 20px', padding: '13px 15px', border: `0.5px solid ${TOSS.line}`, borderRadius: 13, fontSize: 14, lineHeight: 1.6, color: TOSS.ink, whiteSpace: 'pre-wrap' }}>
                 {teacherJournal.content}
               </div>
             ) : (
-              <div style={{ margin: '0 20px', background: TOSS.warnBg, borderRadius: 13, padding: 13, fontSize: 13, color: TOSS.warn }}>
+              <div style={{ margin: '0 20px', background: TOSS.surf, borderRadius: 13, padding: 13, fontSize: 13, color: TOSS.sub }}>
                 이 수업의 수업일지를 아직 안 썼어요
               </div>
             )}
@@ -495,11 +510,11 @@ const TeacherLessonDetail: React.FC<{
         )}
       </Scroll>
       {isToday
-        ? <div style={{ padding: '10px 20px calc(10px + env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <button onClick={saveAttendance} disabled={busy}
-              style={{ width: '100%', background: TOSS.blue, color: '#fff', border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 700, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>출결만 저장하기</button>
+        ? <div style={{ flexShrink: 0, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            {/* 주행동: 출결 저장(공용 Cta) · 보조: 수업 종료(약한 텍스트 버튼)로 위계 분리 */}
+            <Cta onClick={saveAttendance} loading={busy}>출결 저장하기</Cta>
             <button onClick={completeLesson} disabled={busy}
-              style={{ width: '100%', background: TOSS.surf, color: TOSS.ink, border: 'none', borderRadius: 14, padding: 14, fontSize: 14, fontWeight: 600, cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>수업 종료하고 일지 쓰기</button>
+              style={{ display: 'block', width: '100%', background: 'none', border: 'none', padding: '0 20px 16px', fontSize: 14, fontWeight: 600, color: TOSS.sub, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1 }}>수업 종료하고 일지 쓰기</button>
           </div>
         : <Cta onClick={onWriteJournal}>{teacherJournal ? '수업일지 다시 쓰기' : '이 수업의 수업일지 쓰기'}</Cta>}
     </Screen>
@@ -552,7 +567,7 @@ const LessonCalendar: React.FC<{
         <div style={{ padding: '4px 2px 6px' }}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 2 }}>
             {CAL_WD.map((w, i) => (
-              <div key={w} style={{ textAlign: 'center', fontSize: 11, fontWeight: 500, color: i === 0 ? '#E5484D' : i === 6 ? TOSS.blue : TOSS.faint, padding: '4px 0' }}>{w}</div>
+              <div key={w} style={{ textAlign: 'center', fontSize: 11, fontWeight: 500, color: i === 0 ? TOSS.danger : i === 6 ? TOSS.blue : TOSS.sub, padding: '4px 0' }}>{w}</div>
             ))}
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>

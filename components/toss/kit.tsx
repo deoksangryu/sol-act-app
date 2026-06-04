@@ -24,6 +24,12 @@ export const BigTitle: React.FC<{ title: React.ReactNode; sub?: React.ReactNode 
   </div>
 );
 
+// 입력/작성 플로우 메인 질문 타이틀 — BigTitle과 동일 스케일(23px/700)로 통일.
+// 서브화면마다 21px로 하드코딩하던 것을 이 토큰으로 일원화.
+export const FlowTitle: React.FC<{ children: React.ReactNode; pad?: string }> = ({ children, pad = '4px 20px 16px' }) => (
+  <div style={{ fontSize: 23, fontWeight: 700, lineHeight: 1.34, letterSpacing: '-.02em', color: I, padding: pad }}>{children}</div>
+);
+
 // 섹션 라벨 (lb) — 13px/500/S, padding 18px 20px 6px
 export const SectionLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{ fontSize: 13, fontWeight: 500, color: S, padding: '18px 20px 6px' }}>{children}</div>
@@ -57,12 +63,16 @@ export const Tag: React.FC<{ children: React.ReactNode; bg?: string; fg?: string
   <span style={{ fontSize: 12, fontWeight: 500, padding: '4px 9px', borderRadius: 7, background: bg, color: fg, whiteSpace: 'nowrap' }}>{children}</span>
 );
 
-export type TagTone = 'todo' | 'done' | 'pending' | 'info';
+export type TagTone = 'todo' | 'done' | 'pending' | 'info' | 'overdue';
 export function toneColors(tone: TagTone): { bg: string; fg: string } {
   switch (tone) {
     case 'done': return { bg: TOSS.successBg, fg: TOSS.success };
-    case 'todo': return { bg: TOSS.warnBg, fg: TOSS.warn };
-    case 'pending': return { bg: TOSS.warnBg, fg: TOSS.warn };
+    // 중립 '할 일'(일지 쓰기 등)은 회색 — 주황(warn)은 진짜 경고에만.
+    case 'todo': return { bg: SF, fg: S };
+    // 대기 중(승인·피드백 대기)은 정보 톤(파랑).
+    case 'pending': return { bg: TOSS.blueBg, fg: B };
+    // 마감 임박·미제출 등 실제 주의 상태에만 주황 사용.
+    case 'overdue': return { bg: TOSS.warnBg, fg: TOSS.warn };
     default: return { bg: SF, fg: S };
   }
 }
@@ -120,7 +130,7 @@ export const Cta: React.FC<{ children: React.ReactNode; onClick?: () => void; di
       <button
         onClick={off ? undefined : onClick}
         disabled={off}
-        style={{ width: '100%', background: off ? SF : B, color: off ? F : '#fff', border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 600, cursor: off ? 'default' : 'pointer' }}
+        style={{ width: '100%', background: off ? SF : B, color: off ? S : '#fff', border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 600, cursor: off ? 'default' : 'pointer' }}
       >
         {loading ? '잠시만요…' : children}
       </button>
@@ -138,6 +148,24 @@ export const GhostButton: React.FC<{ children: React.ReactNode; onClick?: () => 
 // 빈 상태
 export const Empty: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div style={{ padding: '40px 24px', textAlign: 'center', color: S, fontSize: 13 }}>{children}</div>
+);
+
+// 로딩 스켈레톤 — 첫 진입 시 텍스트 한 줄 대신 ListRow 골격을 회색 블록으로(토스식 골격 전환).
+const SkelBlock: React.FC<{ w: number | string; h: number; r?: number; mt?: number }> = ({ w, h, r = 6, mt }) => (
+  <div className="skel" style={{ width: w, height: h, borderRadius: r, marginTop: mt }} />
+);
+export const ListSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
+  <div style={{ padding: '8px 0' }} aria-busy="true" aria-label="불러오는 중">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 13, padding: '12px 20px' }}>
+        <SkelBlock w={44} h={44} r={13} />
+        <div style={{ flex: 1 }}>
+          <SkelBlock w={`${52 + ((i * 9) % 28)}%`} h={14} />
+          <SkelBlock w={`${30 + ((i * 7) % 18)}%`} h={12} mt={8} />
+        </div>
+      </div>
+    ))}
+  </div>
 );
 
 // 안내 박스

@@ -68,6 +68,10 @@ def list_journals(
     lesson_id: Optional[str] = Query(None),
     author_id: Optional[str] = Query(None),
     journal_type: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, description="수업 날짜 YYYY-MM-DD 이상"),
+    date_to: Optional[str] = Query(None, description="수업 날짜 YYYY-MM-DD 이하"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(200, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -99,7 +103,15 @@ def list_journals(
             query = query.filter(LessonJournal.journal_type == jt)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid journal_type: {journal_type}")
-    journals = query.order_by(LessonJournal.created_at.desc()).all()
+    # 수업 날짜 윈도우(보이는 범위만) — lesson_id 서브쿼리로 join 충돌 회피
+    if date_from or date_to:
+        lq = db.query(Lesson.id)
+        if date_from:
+            lq = lq.filter(Lesson.date >= date_from)
+        if date_to:
+            lq = lq.filter(Lesson.date <= date_to)
+        query = query.filter(LessonJournal.lesson_id.in_(lq))
+    journals = query.order_by(LessonJournal.created_at.desc()).offset(skip).limit(limit).all()
     return [journal_to_response(j) for j in journals]
 
 

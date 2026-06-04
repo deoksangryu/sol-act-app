@@ -1,14 +1,15 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import { User, UserRole, ViewState, ClassInfo, Notification } from './types';
 import { Login } from './components/Login';
 import { MobileNav } from './components/MobileNav';
 import { Classes } from './components/Classes';
-import { Assignments } from './components/Assignments';
-import { Video } from './components/Video';
-import { Diet } from './components/Diet';
-import { Music } from './components/Music';
-import { ProfileSettings } from './components/ProfileSettings';
+// 첫 진입(classes) 외 탭은 지연 로드 → 초기 번들 ~30KB(gzip) 감소
+const Assignments = React.lazy(() => import('./components/Assignments').then(m => ({ default: m.Assignments })));
+const Video = React.lazy(() => import('./components/Video').then(m => ({ default: m.Video })));
+const Diet = React.lazy(() => import('./components/Diet').then(m => ({ default: m.Diet })));
+const Music = React.lazy(() => import('./components/Music').then(m => ({ default: m.Music })));
+const ProfileSettings = React.lazy(() => import('./components/ProfileSettings').then(m => ({ default: m.ProfileSettings })));
 import { Notifications } from './components/Notifications';
 import { InstallPrompt } from './components/InstallPrompt';
 import toast, { Toaster } from 'react-hot-toast';
@@ -85,12 +86,11 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
-  // 탭 뱃지(미처리 항목 수) — 로그인 + 탭 이동 시 갱신(실패해도 무시).
+  // 탭 뱃지(미처리 항목 수) — 로그인 시 1회 + 관련 데이터 변경 시에만 갱신(탭마다 왕복 안 함).
   // 반드시 early-return 위에 위치해야 함(Rules of Hooks).
-  useEffect(() => {
-    if (!user) return;
-    badgeApi.get().then(setBadges).catch(() => {});
-  }, [user, currentView]);
+  const refreshBadges = useCallback(() => { badgeApi.get().then(setBadges).catch(() => {}); }, []);
+  useEffect(() => { if (user) refreshBadges(); }, [user, refreshBadges]);
+  useDataRefresh(['assignments', 'portfolios', 'diet', 'music'], refreshBadges);
 
   const loadClasses = useCallback(() => {
     classApi.list().then(setClasses).catch(console.error);
@@ -239,7 +239,9 @@ const AppInner: React.FC = () => {
       <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="w-full max-w-[480px] mx-auto flex-1 flex flex-col min-h-0 px-1.5">
           <ErrorBoundary key={currentView}>
-            {renderView()}
+            <Suspense fallback={<div className="flex-1 flex items-center justify-center"><div className="w-6 h-6 border-2 border-slate-200 rounded-full animate-spin" style={{ borderTopColor: '#3182F6' }} /></div>}>
+              {renderView()}
+            </Suspense>
           </ErrorBoundary>
         </div>
       </main>

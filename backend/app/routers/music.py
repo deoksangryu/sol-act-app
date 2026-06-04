@@ -109,14 +109,19 @@ def request_to_response(r: MusicDownloadRequest) -> dict:
 @router.get("/tracks", response_model=List[TrackResponse])
 def list_tracks(
     category: Optional[str] = Query(None),
+    search: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(60, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """무용 음악 목록. 인앱 청취는 전원 가능하므로 역할 무관 전체 조회."""
+    """무용 음악 목록(페이지네이션). 인앱 청취는 전원 가능하므로 역할 무관 조회."""
     query = db.query(Track).options(joinedload(Track.requests))
     if category and category != "all":
         query = query.filter(Track.category == category)
-    tracks = query.order_by(Track.created_at.desc()).all()
+    if search:
+        query = query.filter(Track.title.ilike(f"%{search}%"))
+    tracks = query.order_by(Track.created_at.desc()).offset(skip).limit(limit).all()
     return [track_to_response(t, current_user) for t in tracks]
 
 

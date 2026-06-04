@@ -6,14 +6,14 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag, Chevron,
-  Empty, InfoBox, ChipSelect, Avatar,
+  Empty, InfoBox, ChipSelect, Avatar, ListSkeleton, FlowTitle, toneColors,
 } from './toss/kit';
 
 // 트랙 상태 → 칩 (프로토타입 pill 대응)
 function statusTag(t: Track): React.ReactNode {
   const r = t.myRequest;
   if (!r) return null;
-  if (r.status === 'pending') return <Tag bg={TOSS.warnBg} fg={TOSS.warn}>요청 대기</Tag>;
+  if (r.status === 'pending') return <Tag {...toneColors('pending')}>요청 대기</Tag>;
   if (r.status === 'approved') return <Tag bg={TOSS.successBg} fg={TOSS.success}>승인됨</Tag>;
   if (r.status === 'rejected') return <Tag>거절됨</Tag>;
   return null;
@@ -22,9 +22,12 @@ function statusTag(t: Track): React.ReactNode {
 export const Music: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
   const isDirector = user.role === UserRole.DIRECTOR; // 음원 요청은 원장만 관리
+  const PAGE = 60;
   const [tracks, setTracks] = useState<Track[]>([]);
   const [requests, setRequests] = useState<MusicDownloadRequest[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [more, setMore] = useState(false);
   const [cat, setCat] = useState('all');
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);     // 트랙 상세
@@ -34,42 +37,43 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
   const load = async () => {
     try {
       const [t, r] = await Promise.all([
-        musicApi.listTracks(),
+        musicApi.listTracks({ category: cat, skip: 0, limit: PAGE }),
         isDirector ? musicApi.listRequests() : Promise.resolve([] as MusicDownloadRequest[]),
       ]);
-      setTracks(t);
+      setTracks(t); setHasMore(t.length >= PAGE);
       setRequests(r);
     } catch (e: any) {
       toast.error(e.message || '음악을 불러오지 못했어요');
     }
   };
-
-  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
+  const loadMore = async () => {
+    setMore(true);
+    try {
+      const t = await musicApi.listTracks({ category: cat, skip: tracks.length, limit: PAGE });
+      setTracks(prev => [...prev, ...t]); setHasMore(t.length >= PAGE);
+    } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
+    finally { setMore(false); }
+  };
+  // 최초 + 카테고리 변경 시 재조회(서버 필터 + 페이지 리셋)
+  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, [cat]);
   useDataRefresh(['music'], load);
 
-  const categories = useMemo(() => {
-    const set = new Set(tracks.map(t => t.category).filter(Boolean));
-    // 프로토타입 노출 순서 우선, 그 외는 가나다순으로 뒤에
-    const PRIORITY = ['현대무용', '발레', '재즈댄스', '한국무용'];
-    const known = PRIORITY.filter(c => set.has(c));
-    const rest = Array.from(set).filter(c => !PRIORITY.includes(c)).sort();
-    return ['all', ...known, ...rest];
-  }, [tracks]);
-  // 선택한 카테고리가 목록에서 사라지면(데이터 갱신 등) '전체'로 복귀 — 빈 목록 갇힘 방지
-  useEffect(() => { if (!categories.includes(cat)) setCat('all'); }, [categories, cat]);
+  // 카테고리 칩은 고정 4종(프로토타입 순서) — 데이터에서 유추하지 않음
+  const categories = ['all', '현대무용', '발레', '재즈댄스', '한국무용'];
 
+  // 검색은 로드된 목록에 대해 클라이언트에서 필터
   const filtered = useMemo(() => {
-    return tracks.filter(t =>
-      (cat === 'all' || t.category === cat) &&
-      (!query || t.title.toLowerCase().includes(query.toLowerCase()))
-    );
-  }, [tracks, cat, query]);
+    return tracks.filter(t => !query || t.title.toLowerCase().includes(query.toLowerCase()));
+  }, [tracks, query]);
+  const renderMore = () => (hasMore && !query) ? (
+    <button onClick={loadMore} disabled={more} style={{ display: 'block', margin: '12px auto 20px', background: TOSS.surf, color: TOSS.sub, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{more ? '불러오는 중…' : '더 보기'}</button>
+  ) : null;
 
   const openTrack = openId ? tracks.find(t => t.id === openId) : null;
   const requestTrack = requestId ? tracks.find(t => t.id === requestId) : null;
   const reviewReq = reviewId ? requests.find(r => r.id === reviewId) : null;
 
-  if (loading) return <Empty>불러오는 중…</Empty>;
+  if (loading) return <ListSkeleton />;
 
   // ── 다운로드 요청 화면 (학생) ── sMr
   if (requestTrack) {
@@ -107,10 +111,10 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
                 <div
                   key={r.id}
                   onClick={() => setReviewId(r.id)}
-                  style={{ margin: '0 20px 8px', padding: '13px 14px', border: '1.5px solid #FCD9B5', background: TOSS.warnBg, borderRadius: 13, cursor: 'pointer' }}
+                  style={{ margin: '0 20px 8px', padding: '13px 14px', border: `1px solid ${TOSS.blueBg}`, background: TOSS.blueBg, borderRadius: 13, cursor: 'pointer' }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <Avatar name={r.studentName} size={28} bg="#fff" fg={TOSS.warn} />
+                    <Avatar name={r.studentName} size={28} bg="#fff" fg={TOSS.blue} />
                     <span style={{ fontSize: 13, fontWeight: 600, color: TOSS.ink }}>{r.studentName}님이 요청했어요</span>
                   </div>
                   <div style={{ fontSize: 14, fontWeight: 500, color: TOSS.ink }}>{r.trackTitle}</div>
@@ -121,7 +125,7 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
           ) : (
             <div style={{ margin: '14px 20px', padding: '13px 15px', background: TOSS.successBg, borderRadius: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
               <i className="ti ti-circle-check" style={{ fontSize: 18, color: TOSS.success }} />
-              <span style={{ fontSize: 13, color: '#15662F' }}>대기 중인 요청이 없어요</span>
+              <span style={{ fontSize: 13, color: TOSS.successInk }}>대기 중인 요청이 없어요</span>
             </div>
           ))}
           <SectionLabel>음악 라이브러리 {tracks.length}곡</SectionLabel>
@@ -134,6 +138,7 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
               onClick={() => setOpenId(t.id)}
             />
           ))}
+          {renderMore()}
         </Scroll>
       </Screen>
     );
@@ -148,7 +153,7 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="곡 제목 검색"
-          style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: '10px 13px', fontSize: 14, color: TOSS.ink, outline: 'none', marginBottom: 8 }}
+          style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: '10px 13px', fontSize: 14, color: TOSS.ink, outline: 'none', marginBottom: 8 }}
         />
       </div>
       <div style={{ display: 'flex', gap: 7, padding: '0 20px 2px', overflowX: 'auto' }} className="no-scrollbar">
@@ -158,7 +163,7 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
             <button
               key={c}
               onClick={() => setCat(c)}
-              style={{ flexShrink: 0, background: on ? TOSS.ink : '#fff', border: `1px solid ${on ? TOSS.ink : '#E5E8EB'}`, borderRadius: 999, padding: '7px 13px', fontSize: 13, fontWeight: 500, color: on ? '#fff' : TOSS.sub, cursor: 'pointer' }}
+              style={{ flexShrink: 0, background: on ? TOSS.ink : '#fff', border: `1px solid ${on ? TOSS.ink : TOSS.inputLine}`, borderRadius: 999, padding: '7px 13px', fontSize: 13, fontWeight: 500, color: on ? '#fff' : TOSS.sub, cursor: 'pointer' }}
             >
               {c === 'all' ? '전체' : c}
             </button>
@@ -177,6 +182,7 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
             onClick={() => setOpenId(t.id)}
           />
         ))}
+        {renderMore()}
       </Scroll>
     </Screen>
   );
@@ -256,7 +262,7 @@ const TrackDetail: React.FC<{
             <i className={`ti ${playing ? 'ti-player-pause-filled' : 'ti-player-play-filled'}`} style={{ fontSize: 28 }} />
           </button>
         </div>
-        {!playUrl && <div style={{ textAlign: 'center', fontSize: 12, color: TOSS.faint }}>음원 파일이 아직 준비 중이에요</div>}
+        {!playUrl && <div style={{ textAlign: 'center', fontSize: 12, color: TOSS.sub }}>음원 파일이 아직 준비 중이에요</div>}
         {playUrl && (
           <audio
             ref={audioRef}
@@ -286,7 +292,7 @@ const TrackDetail: React.FC<{
           <button
             onClick={cta.on ? onRequest : undefined}
             disabled={!cta.on}
-            style={{ width: '100%', background: cta.on ? TOSS.blue : TOSS.surf, color: cta.on ? '#fff' : TOSS.faint, border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 600, cursor: cta.on ? 'pointer' : 'default' }}
+            style={{ width: '100%', background: cta.on ? TOSS.blue : TOSS.surf, color: cta.on ? '#fff' : TOSS.sub, border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 600, cursor: cta.on ? 'pointer' : 'default' }}
           >
             {cta.label}
           </button>
@@ -318,7 +324,7 @@ const RequestScreen: React.FC<{ track: Track; onBack: () => void; onDone: () => 
       <BackHeader title="다운로드 권한 요청" onBack={onBack} />
       <Scroll>
         <div style={{ padding: '8px 20px' }}>
-          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>왜 다운로드가<br />필요한가요?</div>
+          <FlowTitle pad="0">왜 다운로드가<br />필요한가요?</FlowTitle>
           <div style={{ fontSize: 14, color: TOSS.sub, marginTop: 6 }}>원장님이 사용 목적을 보고 승인해요</div>
           <div style={{ background: TOSS.surf, borderRadius: 14, padding: 13, marginTop: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
             <IconChip bg={TOSS.blueBg} size={40}><i className="ti ti-music" style={{ fontSize: 19, color: TOSS.blue }} /></IconChip>
@@ -335,21 +341,21 @@ const RequestScreen: React.FC<{ track: Track; onBack: () => void; onDone: () => 
                 <button
                   key={pp}
                   onClick={() => setPurpose(pp)}
-                  style={{ background: on ? TOSS.blueBg : '#fff', border: `1.5px solid ${on ? TOSS.blue : '#E5E8EB'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, color: on ? TOSS.blue : TOSS.sub, cursor: 'pointer' }}
+                  style={{ background: on ? TOSS.blueBg : '#fff', border: `1.5px solid ${on ? TOSS.blue : TOSS.inputLine}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, color: on ? TOSS.blue : TOSS.sub, cursor: 'pointer' }}
                 >
                   {pp}
                 </button>
               );
             })}
           </div>
-          <div style={{ background: TOSS.blueBg, borderRadius: 12, padding: 12, marginTop: 18, fontSize: 13, color: '#1B4F8A', lineHeight: 1.6 }}>입시 연습 용도로만 써요. 외부 공유는 저작권 문제가 될 수 있어요</div>
+          <div style={{ background: TOSS.blueBg, borderRadius: 12, padding: 12, marginTop: 18, fontSize: 13, color: TOSS.infoInk, lineHeight: 1.6 }}>입시 연습 용도로만 써요. 외부 공유는 저작권 문제가 될 수 있어요</div>
         </div>
       </Scroll>
       <div style={{ padding: '12px 20px 16px', flexShrink: 0 }}>
         <button
           onClick={purpose && !busy ? submit : undefined}
           disabled={!purpose || busy}
-          style={{ width: '100%', background: purpose && !busy ? TOSS.blue : TOSS.surf, color: purpose && !busy ? '#fff' : TOSS.faint, border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 600, cursor: purpose && !busy ? 'pointer' : 'default' }}
+          style={{ width: '100%', background: purpose && !busy ? TOSS.blue : TOSS.surf, color: purpose && !busy ? '#fff' : TOSS.sub, border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 600, cursor: purpose && !busy ? 'pointer' : 'default' }}
         >
           {busy ? '잠시만요…' : '요청 보내기'}
         </button>
@@ -395,14 +401,14 @@ const ReviewScreen: React.FC<{ req: MusicDownloadRequest; onBack: () => void; on
           </div>
           <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '18px 0 8px' }}>사용 목적</div>
           <div style={{ background: TOSS.surf, borderRadius: 12, padding: 13, fontSize: 14, lineHeight: 1.6, color: TOSS.ink }}>{req.purpose}</div>
-          <div style={{ background: TOSS.blueBg, borderRadius: 12, padding: 12, marginTop: 14, fontSize: 13, color: '#1B4F8A', lineHeight: 1.6 }}>결정하면 {req.studentName}님에게 즉시 알림이 가요</div>
+          <div style={{ background: TOSS.blueBg, borderRadius: 12, padding: 12, marginTop: 14, fontSize: 13, color: TOSS.infoInk, lineHeight: 1.6 }}>결정하면 {req.studentName}님에게 즉시 알림이 가요</div>
         </div>
       </Scroll>
       <div style={{ display: 'flex', gap: 8, padding: '12px 20px 16px', flexShrink: 0 }}>
         <button
           onClick={busy ? undefined : () => respond('rejected')}
           disabled={busy}
-          style={{ flex: 1, background: '#fff', border: '1.5px solid #E5E8EB', color: TOSS.sub, borderRadius: 14, padding: 14, fontSize: 15, fontWeight: 600, cursor: busy ? 'default' : 'pointer' }}
+          style={{ flex: 1, background: '#fff', border: `1.5px solid ${TOSS.inputLine}`, color: TOSS.sub, borderRadius: 14, padding: 14, fontSize: 15, fontWeight: 600, cursor: busy ? 'default' : 'pointer' }}
         >
           거절
         </button>

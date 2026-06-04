@@ -300,10 +300,12 @@ export const lessonApi = {
 
 // --- Attendance API ---
 export const attendanceApi = {
-  list(params?: { lessonId?: string; studentId?: string }): Promise<AttendanceRecord[]> {
+  list(params?: { lessonId?: string; studentId?: string; dateFrom?: string; dateTo?: string }): Promise<AttendanceRecord[]> {
     const q = new URLSearchParams();
     if (params?.lessonId) q.set('lesson_id', params.lessonId);
     if (params?.studentId) q.set('student_id', params.studentId);
+    if (params?.dateFrom) q.set('date_from', params.dateFrom);
+    if (params?.dateTo) q.set('date_to', params.dateTo);
     const qs = q.toString();
     return apiRequest(`/api/attendance${qs ? '?' + qs : ''}`);
   },
@@ -345,10 +347,12 @@ function mapJournal(raw: Record<string, unknown>): LessonJournal {
 }
 
 export const journalApi = {
-  async list(params?: { lessonId?: string; authorId?: string }): Promise<LessonJournal[]> {
+  async list(params?: { lessonId?: string; authorId?: string; dateFrom?: string; dateTo?: string }): Promise<LessonJournal[]> {
     const q = new URLSearchParams();
     if (params?.lessonId) q.set('lesson_id', params.lessonId);
     if (params?.authorId) q.set('author_id', params.authorId);
+    if (params?.dateFrom) q.set('date_from', params.dateFrom);
+    if (params?.dateTo) q.set('date_to', params.dateTo);
     const qs = q.toString();
     const data = await apiRequest<Record<string, unknown>[]>(`/api/journals${qs ? '?' + qs : ''}`);
     return data.map(mapJournal);
@@ -391,11 +395,13 @@ export const journalApi = {
 
 // --- Assignment API ---
 export const assignmentApi = {
-  list(params?: { studentId?: string; assignedBy?: string; status?: string }): Promise<Assignment[]> {
+  list(params?: { studentId?: string; assignedBy?: string; status?: string; skip?: number; limit?: number }): Promise<Assignment[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.assignedBy) q.set('assigned_by', params.assignedBy);
     if (params?.status) q.set('status', params.status);
+    if (params?.skip != null) q.set('skip', String(params.skip));
+    if (params?.limit != null) q.set('limit', String(params.limit));
     const qs = q.toString();
     return apiRequest(`/api/assignments${qs ? '?' + qs : ''}`);
   },
@@ -439,10 +445,12 @@ export const assignmentApi = {
 
 // --- Diet API ---
 export const dietApi = {
-  list(params?: { studentId?: string; date?: string }): Promise<DietLog[]> {
+  list(params?: { studentId?: string; date?: string; skip?: number; limit?: number }): Promise<DietLog[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.date) q.set('date', params.date);
+    if (params?.skip != null) q.set('skip', String(params.skip));
+    if (params?.limit != null) q.set('limit', String(params.limit));
     const qs = q.toString();
     return apiRequest(`/api/diet${qs ? '?' + qs : ''}`);
   },
@@ -506,9 +514,14 @@ export interface StudentWeightSummary {
 
 // --- Music API (무용 음악 라이브러리 + 다운로드 요청/승인) ---
 export const musicApi = {
-  listTracks(category?: string): Promise<Track[]> {
-    const q = category && category !== 'all' ? `?category=${encodeURIComponent(category)}` : '';
-    return apiRequest(`/api/music/tracks${q}`);
+  listTracks(params?: { category?: string; search?: string; skip?: number; limit?: number }): Promise<Track[]> {
+    const q = new URLSearchParams();
+    if (params?.category && params.category !== 'all') q.set('category', params.category);
+    if (params?.search) q.set('search', params.search);
+    if (params?.skip != null) q.set('skip', String(params.skip));
+    if (params?.limit != null) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return apiRequest(`/api/music/tracks${qs ? '?' + qs : ''}`);
   },
   getTrack(id: string): Promise<Track> {
     return apiRequest(`/api/music/tracks/${id}`);
@@ -702,10 +715,12 @@ export const notificationApi = {
 
 // --- Portfolio API ---
 export const portfolioApi = {
-  async list(params?: { studentId?: string; category?: string }): Promise<PortfolioItem[]> {
+  async list(params?: { studentId?: string; category?: string; skip?: number; limit?: number }): Promise<PortfolioItem[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.category) q.set('category', params.category);
+    if (params?.skip != null) q.set('skip', String(params.skip));
+    if (params?.limit != null) q.set('limit', String(params.limit));
     const qs = q.toString();
     const data = await apiRequest<Record<string, unknown>[]>(`/api/portfolios${qs ? '?' + qs : ''}`);
     return data.map(mapPortfolio);

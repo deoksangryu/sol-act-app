@@ -41,7 +41,7 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onC
 
     <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto' }}>
       {notifications.length === 0 ? (
-        <div style={{ padding: 48, textAlign: 'center', color: TOSS.faint, fontSize: 13 }}>새로운 알림이 없어요</div>
+        <div style={{ padding: 48, textAlign: 'center', color: TOSS.sub, fontSize: 13 }}>새로운 알림이 없어요</div>
       ) : notifications.map((n) => {
         const view = inferView(n.message);
         const c = (view && CAT[view]) || CAT.classes;
@@ -59,7 +59,7 @@ export const Notifications: React.FC<NotificationsProps> = ({ notifications, onC
                 <div style={{ flex: 1, fontSize: 14, fontWeight: n.read ? 500 : 600, color: TOSS.ink, lineHeight: 1.45 }}>{n.message}</div>
                 {!n.read && <div style={{ width: 7, height: 7, borderRadius: 999, background: TOSS.blue, marginTop: 5, flexShrink: 0 }} />}
               </div>
-              <div style={{ fontSize: 11, color: TOSS.faint, marginTop: 4 }}>{formatDateTimeShortKo(n.date)}</div>
+              <div style={{ fontSize: 11, color: TOSS.sub, marginTop: 4 }}>{formatDateTimeShortKo(n.date)}</div>
             </div>
           </div>
         );

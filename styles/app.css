@@ -20,7 +20,7 @@
   --color-toss-pink: #E84F8B;
   --color-toss-pink-bg: #FCE7F0;
   --color-toss-ink: #191F28;
-  --color-toss-sub: #8B95A1;
+  --color-toss-sub: #6B7684;
   --color-toss-faint: #C4CCD4;
   --color-toss-surf: #F2F4F6;
   --color-toss-line: #EEF0F2;
@@ -53,9 +53,26 @@
   }
 }
 
+/* 라이트 테마 고정 — OS 다크모드에서 입력창·range·시스템 컨트롤 색 반전 방어.
+   (의미 토큰의 CSS 변수 승격 전까지 단기 방어책) */
+html {
+  color-scheme: light;
+}
+
 body {
   font-family: 'Noto Sans KR', sans-serif;
   background-color: #F8FAFC;
+}
+
+/* 로딩 스켈레톤 shimmer — kit ListSkeleton의 .skel */
+.skel {
+  background: linear-gradient(100deg, #EEF0F2 30%, #F6F7F9 50%, #EEF0F2 70%);
+  background-size: 200% 100%;
+  animation: skelShimmer 1.25s ease-in-out infinite;
+}
+@keyframes skelShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 
 /* Hide scrollbar for clean mobile look */

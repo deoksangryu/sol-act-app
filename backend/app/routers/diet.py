@@ -34,6 +34,8 @@ def diet_to_response(d: DietLog) -> dict:
 def list_diet_logs(
     student_id: Optional[str] = Query(None),
     date: Optional[str] = Query(None, description="Filter by date (YYYY-MM-DD)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -57,7 +59,7 @@ def list_diet_logs(
             query = query.filter(DietLog.date >= target, DietLog.date <= next_day)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
-    logs = query.order_by(DietLog.date.desc()).all()
+    logs = query.order_by(DietLog.date.desc()).offset(skip).limit(limit).all()
     return [diet_to_response(d) for d in logs]
 
 
