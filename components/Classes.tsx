@@ -9,6 +9,7 @@ import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag, Avatar,
   Cta, Empty, Chevron, DoneScreen, ListSkeleton, FlowTitle, toneColors,
 } from './toss/kit';
+import { MiniCalendar } from './toss/Calendar';
 
 function todayStr(): string {
   const d = new Date();
@@ -204,23 +205,33 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
     );
   }
 
-  // ── home ── 목록은 어제·오늘·내일만(나머지는 캘린더로 조회 → 렌더 가볍게)
+  // ── home ── 목록은 오늘/내일/어제로 분할(나머지는 캘린더로 조회 → 렌더 가볍게)
   const yest = dayOffset(-1), tod = todayStr(), tom = dayOffset(1);
-  const threeDays = lessons
-    .filter(l => l.date === yest || l.date === tod || l.date === tom)
-    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
 
   // 캘린더에서 선택한 날짜의 수업 (시간순)
   const dayLessons = selDate
     ? lessons.filter(l => l.date === selDate).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''))
     : [];
 
+  // 날짜별 섹션 — 같은 날 수업을 시간순으로(없으면 한 줄 안내)
+  const daySection = (label: string, date: string) => {
+    const ls = lessons.filter(l => l.date === date).sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+    return (
+      <React.Fragment key={date}>
+        <SectionLabel>{label}{ls.length ? ` · ${ls.length}개` : ''}</SectionLabel>
+        {ls.length === 0
+          ? <div style={{ padding: '6px 20px 8px', fontSize: 13, color: TOSS.sub }}>수업이 없어요</div>
+          : ls.map(lessonRow)}
+      </React.Fragment>
+    );
+  };
+
   return (
     <Screen>
       <BigTitle title={isStaff ? <>수업을<br />운영하고 기록해요</> : <>수업을<br />준비하고 돌아봐요</>} />
       <Scroll>
-        <LessonCalendar
-          lessons={lessons} selected={selDate} onSelect={setSelDate}
+        <MiniCalendar
+          marked={new Set(lessons.map(l => l.date))} selected={selDate} onSelect={setSelDate}
           open={calOpen} onToggle={() => setCalOpen(o => !o)} month={calMonth} onMonth={setCalMonth}
         />
         {selDate ? (
@@ -230,11 +241,10 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
           </>
         ) : (
           <>
-            <SectionLabel>어제 · 오늘 · 내일 수업</SectionLabel>
-            {threeDays.length === 0
-              ? <Empty>최근 수업이 없어요. 달력에서 날짜를 선택해 보세요</Empty>
-              : threeDays.map(lessonRow)}
-            <div style={{ fontSize: 12, color: TOSS.sub, textAlign: 'center', padding: '10px 0 4px' }}>다른 날짜는 위 달력에서 선택하세요</div>
+            {daySection('오늘', tod)}
+            {daySection('내일', tom)}
+            {daySection('어제', yest)}
+            <div style={{ fontSize: 12, color: TOSS.sub, textAlign: 'center', padding: '12px 0 4px' }}>다른 날짜는 위 달력에서 선택하세요</div>
           </>
         )}
       </Scroll>
@@ -521,81 +531,3 @@ const TeacherLessonDetail: React.FC<{
   );
 };
 
-// ── 수업 캘린더 (접기/펴기 + 날짜 선택) ──
-const CAL_WD = ['일', '월', '화', '수', '목', '금', '토'];
-
-const LessonCalendar: React.FC<{
-  lessons: Lesson[];
-  selected: string | null;
-  onSelect: (d: string | null) => void;
-  open: boolean;
-  onToggle: () => void;
-  month: Date;
-  onMonth: (d: Date) => void;
-}> = ({ lessons, selected, onSelect, open, onToggle, month, onMonth }) => {
-  const y = month.getFullYear(), m = month.getMonth();
-  const dateSet = new Set(lessons.map(l => l.date));
-  const firstDow = new Date(y, m, 1).getDay();
-  const days = new Date(y, m + 1, 0).getDate();
-  const today = todayStr();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const fmt = (d: number) => `${y}-${pad(m + 1)}-${pad(d)}`;
-  const cells: (number | null)[] = [];
-  for (let i = 0; i < firstDow; i++) cells.push(null);
-  for (let d = 1; d <= days; d++) cells.push(d);
-
-  return (
-    <div style={{ padding: '4px 14px 2px' }}>
-      {/* 헤더: 월 이동 + 접기/펴기 */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 6px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <button onClick={() => onMonth(new Date(y, m - 1, 1))} style={{ background: 'none', border: 'none', padding: 6, cursor: 'pointer', display: 'flex' }} aria-label="이전 달">
-            <i className="ti ti-chevron-left" style={{ fontSize: 18, color: TOSS.sub }} />
-          </button>
-          <span style={{ fontSize: 15, fontWeight: 700, color: TOSS.ink, minWidth: 86, textAlign: 'center' }}>{y}년 {m + 1}월</span>
-          <button onClick={() => onMonth(new Date(y, m + 1, 1))} style={{ background: 'none', border: 'none', padding: 6, cursor: 'pointer', display: 'flex' }} aria-label="다음 달">
-            <i className="ti ti-chevron-right" style={{ fontSize: 18, color: TOSS.sub }} />
-          </button>
-        </div>
-        <button onClick={onToggle} style={{ background: 'none', border: 'none', padding: '6px 4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, color: TOSS.sub, fontWeight: 500 }}>
-          {open ? '접기' : '캘린더'}
-          <i className={`ti ${open ? 'ti-chevron-up' : 'ti-chevron-down'}`} style={{ fontSize: 16, color: TOSS.sub }} />
-        </button>
-      </div>
-
-      {open && (
-        <div style={{ padding: '4px 2px 6px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', marginBottom: 2 }}>
-            {CAL_WD.map((w, i) => (
-              <div key={w} style={{ textAlign: 'center', fontSize: 11, fontWeight: 500, color: i === 0 ? TOSS.danger : i === 6 ? TOSS.blue : TOSS.sub, padding: '4px 0' }}>{w}</div>
-            ))}
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)' }}>
-            {cells.map((d, i) => {
-              if (d === null) return <div key={`e${i}`} />;
-              const ds = fmt(d);
-              const has = dateSet.has(ds);
-              const isToday = ds === today;
-              const isSel = ds === selected;
-              return (
-                <button key={ds} onClick={() => onSelect(isSel ? null : ds)}
-                  style={{ background: 'none', border: 'none', padding: '3px 0', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
-                  <span style={{
-                    width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, fontWeight: isSel || isToday ? 700 : 400,
-                    background: isSel ? TOSS.blue : 'transparent',
-                    color: isSel ? '#fff' : isToday ? TOSS.blue : TOSS.ink,
-                  }}>{d}</span>
-                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: has && !isSel ? TOSS.blue : 'transparent' }} />
-                </button>
-              );
-            })}
-          </div>
-          {selected && (
-            <button onClick={() => onSelect(null)} style={{ width: '100%', marginTop: 4, background: 'none', border: 'none', padding: 6, fontSize: 13, color: TOSS.blue, fontWeight: 600, cursor: 'pointer' }}>전체 보기</button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};

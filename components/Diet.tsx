@@ -3,11 +3,15 @@ import toast from 'react-hot-toast';
 import { User, UserRole, DietLog } from '../types';
 import { dietApi, uploadApi, resolveFileUrl, StudentWeightSummary } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
+import { useDebouncedValue } from '../services/useDebounce';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag,
-  Cta, Empty, Chevron, ListSkeleton, FlowTitle, toneColors,
+  Cta, Empty, Chevron, ListSkeleton, FlowTitle, toneColors, SearchBar, FilterChips,
 } from './toss/kit';
+
+// 끼니 필터 칩(전체 + 끼니)
+const MEAL_FILTERS = [{ value: 'all', label: '전체' }, { value: 'breakfast', label: '아침' }, { value: 'lunch', label: '점심' }, { value: 'dinner', label: '저녁' }, { value: 'snack', label: '간식' }];
 
 const MEAL_TYPES = [
   { value: 'breakfast', label: '아침' },
@@ -41,6 +45,15 @@ const bmiStr = (weightKg?: number, heightCm?: number) => {
   return (weightKg / (m * m)).toFixed(1);
 };
 
+// 식단 리스트 썸네일 — 이미지가 주요 정보라 사진을 앞세우고, 없으면 끼니 아이콘
+const MealThumb: React.FC<{ url?: string | null; icon: string }> = ({ url, icon }) => (
+  url
+    ? <div style={{ width: 44, height: 44, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: TOSS.surf }}>
+        <img src={resolveFileUrl(url)} loading="lazy" decoding="async" alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      </div>
+    : <IconChip bg={TOSS.blueBg}><i className={`ti ${icon}`} style={{ fontSize: 21, color: TOSS.blue }} /></IconChip>
+);
+
 export const Diet: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
   const [meals, setMeals] = useState<DietLog[]>([]);
@@ -52,12 +65,27 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
   const [more, setMore] = useState(false);
   const [screen, setScreen] = useState<'home' | 'addMeal' | 'addWeight'>('home');
   const [openId, setOpenId] = useState<string | null>(null);
+  const [meal, setMeal] = useState('all');     // 끼니 필터
+  const [query, setQuery] = useState('');       // 검색 입력
+  const search = useDebouncedValue(query.trim(), 300);
+  const filtering = meal !== 'all' || !!search; // 검색/필터 활성 → '오늘만' 대신 결과 전체
   const PAGE = 24;
 
+  // 서버사이드 식단 조회 파라미터(끼니 + 검색)
+  const mealParams = (skip: number) => ({
+    ...(isStaff ? {} : { studentId: user.id }),
+    ...(meal !== 'all' ? { mealType: meal } : {}),
+    ...(search ? { search } : {}),
+    skip, limit: PAGE,
+  });
+  const loadMeals = async () => {
+    const m = await dietApi.list(mealParams(0));
+    setMeals(m); setHasMore(m.length >= PAGE);
+  };
   const load = async () => {
     try {
       const [m, w, sw] = await Promise.all([
-        dietApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: 0, limit: PAGE }),
+        dietApi.list(mealParams(0)),
         // 체중 로드 실패가 식단 목록까지 막지 않도록 개별 방어
         isStaff ? Promise.resolve([] as any[]) : dietApi.listWeight({ studentId: user.id, days: 30 }).catch(() => [] as any[]),
         // 선생님/원장: 학생별 체중 요약
@@ -73,7 +101,7 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
   const loadMore = async () => {
     setMore(true);
     try {
-      const m = await dietApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: meals.length, limit: PAGE });
+      const m = await dietApi.list(mealParams(meals.length));
       setMeals(prev => [...prev, ...m]); setHasMore(m.length >= PAGE);
     } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
     finally { setMore(false); }
@@ -83,6 +111,8 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
   ) : null;
 
   useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
+  // 끼니/검색 변경 시 식단만 재조회(체중은 그대로)
+  useEffect(() => { if (!loading) loadMeals().catch(() => {}); /* eslint-disable-next-line */ }, [meal, search]);
   useDataRefresh(['diet'], load);
 
   const open = openId ? meals.find(m => m.id === openId) : null;
@@ -99,8 +129,10 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
     return (
       <Screen>
         <BigTitle title={<>학생 식단을<br />살펴봐요</>} />
+        <SearchBar value={query} onChange={setQuery} placeholder="식단·학생 검색" />
+        <FilterChips options={MEAL_FILTERS} value={meal} onChange={setMeal} />
         <Scroll>
-          {studentWeights.length > 0 && (
+          {!filtering && studentWeights.length > 0 && (
             <>
               <SectionLabel>학생 체중 · {studentWeights.length}명</SectionLabel>
               {studentWeights.map(s => {
@@ -120,15 +152,11 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
               })}
             </>
           )}
-          <SectionLabel>학생 식단 · 피드백 필요 {need}개</SectionLabel>
-          {meals.length === 0 ? <Empty>아직 올라온 식단이 없어요</Empty> : meals.map(m => (
+          <SectionLabel>{filtering ? `검색 결과 ${meals.length}개` : `학생 식단 · 피드백 필요 ${need}개`}</SectionLabel>
+          {meals.length === 0 ? <Empty>{filtering ? '조건에 맞는 식단이 없어요' : '아직 올라온 식단이 없어요'}</Empty> : meals.map(m => (
             <ListRow
               key={m.id}
-              left={
-                <IconChip bg={m.teacherComment ? TOSS.surf : TOSS.blueBg}>
-                  <i className="ti ti-tools-kitchen-2" style={{ fontSize: 21, color: m.teacherComment ? TOSS.sub : TOSS.blue }} />
-                </IconChip>
-              }
+              left={<MealThumb url={m.imageUrl} icon="ti-tools-kitchen-2" />}
               title={m.description}
               sub={`${m.studentName} · ${mealLabel(m.mealType)}${mealTime(m)}`}
               right={m.teacherComment
@@ -150,7 +178,10 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
   return (
     <Screen>
       <BigTitle title={<>오늘도 잘<br />챙기고 있어요</>} />
+      <SearchBar value={query} onChange={setQuery} placeholder="식단 검색" />
+      <FilterChips options={MEAL_FILTERS} value={meal} onChange={setMeal} />
       <Scroll>
+        {!filtering && <>
         {/* 체중 기록은 체중 섹션 안의 보조 액션 — 하단 주행동(식단 올리기)과 위계 분리 */}
         <div style={{ display: 'flex', alignItems: 'center', padding: '18px 20px 6px' }}>
           <span style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, flex: 1 }}>체중 추이</span>
@@ -195,22 +226,29 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
             )}
           </div>
         </div>
+        </>}
 
-        <SectionLabel>오늘 먹은 것 · {todays.length}/3끼</SectionLabel>
-        {todays.length === 0 ? <Empty>오늘 기록한 식단이 없어요</Empty> : todays.map(m => (
-          <ListRow
-            key={m.id}
-            left={
-              <IconChip bg={TOSS.blueBg}>
-                <i className={`ti ${mealIcon(m.mealType)}`} style={{ fontSize: 21, color: TOSS.blue }} />
-              </IconChip>
-            }
-            title={m.description}
-            sub={`${mealLabel(m.mealType)}${mealTime(m)}`}
-            right={m.teacherComment ? <Tag bg={TOSS.successBg} fg={TOSS.success}>피드백</Tag> : <Chevron />}
-            onClick={() => setOpenId(m.id)}
-          />
-        ))}
+        {(() => {
+          const list = filtering ? meals : todays;
+          return (
+            <>
+              <SectionLabel>{filtering ? `검색 결과 ${meals.length}개` : `오늘 먹은 것 · ${todays.length}/3끼`}</SectionLabel>
+              {list.length === 0
+                ? <Empty>{filtering ? '조건에 맞는 식단이 없어요' : '오늘 기록한 식단이 없어요'}</Empty>
+                : list.map(m => (
+                  <ListRow
+                    key={m.id}
+                    left={<MealThumb url={m.imageUrl} icon={mealIcon(m.mealType)} />}
+                    title={m.description}
+                    sub={filtering ? `${(m.date || '').slice(5, 10).replace('-', '/')} · ${mealLabel(m.mealType)}` : `${mealLabel(m.mealType)}${mealTime(m)}`}
+                    right={m.teacherComment ? <Tag bg={TOSS.successBg} fg={TOSS.success}>피드백</Tag> : <Chevron />}
+                    onClick={() => setOpenId(m.id)}
+                  />
+                ))}
+              {filtering && renderMore()}
+            </>
+          );
+        })()}
       </Scroll>
       <Cta onClick={() => setScreen('addMeal')}>식단 올리기</Cta>
     </Screen>
@@ -271,11 +309,23 @@ const StaffWeightDetail: React.FC<{ s: StudentWeightSummary; onBack: () => void 
   );
 };
 
-// 식단 상세 + (선생님) 피드백
+// 식단 상세 — 이미지 위주(잘리지 않게 전체 표시) + (학생 본인) 수정/삭제 + (선생님) 피드백
 const MealDetail: React.FC<{ meal: DietLog; user: User; isStaff: boolean; onBack: () => void; onReload: () => Promise<void>; onDeleted: () => Promise<void> }> = ({ meal, user, isStaff, onBack, onReload, onDeleted }) => {
   const [fb, setFb] = useState('');
   const [busy, setBusy] = useState(false);
   const isOwner = !isStaff && meal.studentId === user.id;
+
+  // 학생 본인 수정 모드(잘못 입력 정정)
+  const [editing, setEditing] = useState(false);
+  const [desc, setDesc] = useState(meal.description);
+  const [mType, setMType] = useState<string>(meal.mealType);
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
+  const editFileRef = useRef<HTMLInputElement>(null);
+  const pickEdit = (f: File | null) => { setFile(f); setPreview(f ? URL.createObjectURL(f) : null); };
+  const resetEdit = () => { setFile(null); setPreview(null); setDesc(meal.description); setMType(meal.mealType); };
+
   const remove = async () => {
     if (!window.confirm('이 식단 기록을 지울까요?')) return;
     try { await dietApi.delete(meal.id); toast.success('지웠어요'); await onDeleted(); }
@@ -295,49 +345,99 @@ const MealDetail: React.FC<{ meal: DietLog; user: User; isStaff: boolean; onBack
       setBusy(false);
     }
   };
+  const saveEdit = async () => {
+    if (!desc.trim()) return;
+    setSavingEdit(true);
+    try {
+      let imageUrl: string | undefined;
+      if (file) { const { url } = await uploadApi.upload(file, undefined, 'diet'); imageUrl = url; }
+      await dietApi.update(meal.id, { description: desc.trim(), mealType: mType, ...(imageUrl ? { imageUrl } : {}) } as any);
+      toast.success('수정했어요');
+      setEditing(false); setFile(null); setPreview(null);
+      await onReload();
+      onBack();
+    } catch (e: any) { toast.error(e.message || '수정하지 못했어요'); }
+    finally { setSavingEdit(false); }
+  };
+
+  const imgSrc = preview || (meal.imageUrl ? resolveFileUrl(meal.imageUrl) : null);
   return (
     <Screen>
-      <BackHeader title="식단" onBack={onBack} />
+      <BackHeader title="식단" onBack={onBack} right={isOwner ? (
+        <button onClick={() => { if (editing) resetEdit(); setEditing(e => !e); }}
+          style={{ background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: TOSS.blue, padding: 4, cursor: 'pointer' }}>{editing ? '취소' : '수정'}</button>
+      ) : undefined} />
       <Scroll>
-        <div style={{ height: 140, background: TOSS.dietBg, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-          {meal.imageUrl
-            ? <img src={resolveFileUrl(meal.imageUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            : <i className="ti ti-salad" style={{ fontSize: 44, color: TOSS.success }} />}
+        {/* 이미지가 주요 정보 — 비율 유지(contain)로 잘림 없이 전체 표시 */}
+        <div
+          onClick={editing ? () => editFileRef.current?.click() : undefined}
+          style={{ background: TOSS.dietBg, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', minHeight: 160, cursor: editing ? 'pointer' : 'default' }}
+        >
+          {imgSrc
+            ? <img src={imgSrc} alt="" style={{ display: 'block', width: '100%', height: 'auto', maxHeight: '60vh', objectFit: 'contain' }} />
+            : <i className="ti ti-salad" style={{ fontSize: 44, color: TOSS.success, padding: '52px 0' }} />}
+          {editing && (
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,.22)' }}>
+              <span style={{ background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 999 }}><i className="ti ti-camera" style={{ marginRight: 6 }} />사진 바꾸기</span>
+            </div>
+          )}
         </div>
+        <input ref={editFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => pickEdit(e.target.files?.[0] || null)} />
+
         <div style={{ padding: '16px 20px 0' }}>
-          <div style={{ fontSize: 19, fontWeight: 700, color: TOSS.ink }}>{meal.description}</div>
-          <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{meal.studentName} · {mealLabel(meal.mealType)}{mealTime(meal)}</div>
-          {meal.teacherComment ? (
+          {editing ? (
             <>
-              <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
-              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>선생님 피드백</div>
-              <div style={{ background: TOSS.surf, borderRadius: 13, padding: 13, fontSize: 14, lineHeight: 1.7, color: TOSS.ink }}>{meal.teacherComment}</div>
-              <div style={{ height: 14 }} />
-            </>
-          ) : isStaff ? (
-            <>
-              <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
-              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>피드백 남기기</div>
-              <textarea
-                value={fb}
-                onChange={e => setFb(e.target.value)}
-                placeholder="조언해 주세요"
-                style={{ width: '100%', boxSizing: 'border-box', minHeight: 86, border: `1px solid ${TOSS.inputLine}`, borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none' }}
-              />
-              <div style={{ height: 8 }} />
+              <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="예: 닭가슴살 샐러드"
+                style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: 12, fontSize: 15, color: TOSS.ink, outline: 'none' }} />
+              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '14px 0 8px' }}>끼니</div>
+              <div style={{ display: 'flex', gap: 7 }}>
+                {MEAL_TYPES.map(o => {
+                  const on = mType === o.value;
+                  return (
+                    <button key={o.value} onClick={() => setMType(o.value)}
+                      style={{ flex: 1, background: on ? TOSS.blueBg : '#fff', border: `1.5px solid ${on ? TOSS.blue : TOSS.inputLine}`, borderRadius: 11, padding: '10px 2px', fontSize: 14, fontWeight: 500, color: on ? TOSS.blue : TOSS.sub, cursor: 'pointer' }}>{o.label}</button>
+                  );
+                })}
+              </div>
+              <button onClick={remove} style={{ background: 'none', border: 'none', padding: 0, marginTop: 18, fontSize: 13, fontWeight: 500, color: TOSS.warn, cursor: 'pointer' }}>이 식단 지우기</button>
+              <div style={{ height: 12 }} />
             </>
           ) : (
             <>
-              <div style={{ background: TOSS.blueBg, borderRadius: 12, padding: 12, marginTop: 16, fontSize: 13, color: TOSS.infoInk, lineHeight: 1.6 }}>피드백을 기다리고 있어요</div>
-              <div style={{ height: 14 }} />
+              <div style={{ fontSize: 19, fontWeight: 700, color: TOSS.ink }}>{meal.description}</div>
+              <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{meal.studentName} · {mealLabel(meal.mealType)}{mealTime(meal)}</div>
+              {meal.teacherComment ? (
+                <>
+                  <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
+                  <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>선생님 피드백</div>
+                  <div style={{ background: TOSS.surf, borderRadius: 13, padding: 13, fontSize: 14, lineHeight: 1.7, color: TOSS.ink }}>{meal.teacherComment}</div>
+                  <div style={{ height: 14 }} />
+                </>
+              ) : isStaff ? (
+                <>
+                  <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
+                  <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>피드백 남기기</div>
+                  <textarea
+                    value={fb}
+                    onChange={e => setFb(e.target.value)}
+                    placeholder="조언해 주세요"
+                    style={{ width: '100%', boxSizing: 'border-box', minHeight: 86, border: `1px solid ${TOSS.inputLine}`, borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none' }}
+                  />
+                  <div style={{ height: 8 }} />
+                </>
+              ) : (
+                <>
+                  <div style={{ background: TOSS.blueBg, borderRadius: 12, padding: 12, marginTop: 16, fontSize: 13, color: TOSS.infoInk, lineHeight: 1.6 }}>피드백을 기다리고 있어요</div>
+                  <div style={{ height: 14 }} />
+                </>
+              )}
             </>
-          )}
-          {isOwner && (
-            <button onClick={remove} style={{ background: 'none', border: 'none', padding: 0, marginTop: 4, fontSize: 13, fontWeight: 500, color: TOSS.warn, cursor: 'pointer' }}>이 식단 지우기</button>
           )}
         </div>
       </Scroll>
-      {!meal.teacherComment && isStaff && <Cta onClick={send} disabled={!fb.trim()} loading={busy}>피드백 보내기</Cta>}
+      {editing
+        ? <Cta onClick={saveEdit} disabled={!desc.trim()} loading={savingEdit}>수정 저장하기</Cta>
+        : (!meal.teacherComment && isStaff && <Cta onClick={send} disabled={!fb.trim()} loading={busy}>피드백 보내기</Cta>)}
     </Screen>
   );
 };

@@ -8,3 +8,14 @@ sol_act.db
 backend/backend/uploads/
 backend/static/uploads/
 backend/.env
+
+# 푸시/서명 비밀키 — 절대 커밋 금지 (APNs .p8, 인증서, 프로비저닝, Firebase 서비스계정 JSON)
+# 주의: google-services.json(클라이언트 설정)은 비밀 아님 → 여기서 무시하지 않음
+*.p8
+AuthKey_*.p8
+*.cer
+*.p12
+*.mobileprovision
+**/firebase-service-account*.json
+**/serviceAccount*.json
+**/*service-account*.json

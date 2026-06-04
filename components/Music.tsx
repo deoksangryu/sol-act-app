@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { User, UserRole, Track, MusicDownloadRequest, MUSIC_PURPOSES } from '../types';
 import { musicApi, resolveFileUrl } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
+import { useDebouncedValue } from '../services/useDebounce';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag, Chevron,
-  Empty, InfoBox, ChipSelect, Avatar, ListSkeleton, FlowTitle, toneColors,
+  Empty, InfoBox, ChipSelect, Avatar, ListSkeleton, FlowTitle, toneColors, SearchBar, FilterChips,
 } from './toss/kit';
 
 // 트랙 상태 → 칩 (프로토타입 pill 대응)
@@ -34,10 +35,14 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
   const [requestId, setRequestId] = useState<string | null>(null); // 다운로드 요청 화면
   const [reviewId, setReviewId] = useState<string | null>(null);   // 요청 승인/거절 화면(원장)
 
+  const search = useDebouncedValue(query.trim(), 300);
+  const filtering = cat !== 'all' || !!search;
+  // 서버사이드 카테고리 + 검색(전 곡 대상)
+  const trackParams = (skip: number) => ({ category: cat, ...(search ? { search } : {}), skip, limit: PAGE });
   const load = async () => {
     try {
       const [t, r] = await Promise.all([
-        musicApi.listTracks({ category: cat, skip: 0, limit: PAGE }),
+        musicApi.listTracks(trackParams(0)),
         isDirector ? musicApi.listRequests() : Promise.resolve([] as MusicDownloadRequest[]),
       ]);
       setTracks(t); setHasMore(t.length >= PAGE);
@@ -49,23 +54,18 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
   const loadMore = async () => {
     setMore(true);
     try {
-      const t = await musicApi.listTracks({ category: cat, skip: tracks.length, limit: PAGE });
+      const t = await musicApi.listTracks(trackParams(tracks.length));
       setTracks(prev => [...prev, ...t]); setHasMore(t.length >= PAGE);
     } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
     finally { setMore(false); }
   };
-  // 최초 + 카테고리 변경 시 재조회(서버 필터 + 페이지 리셋)
-  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, [cat]);
+  // 최초 + 카테고리/검색 변경 시 재조회(첫 진입만 스켈레톤, 이후 부드럽게 교체)
+  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, [cat, search]);
   useDataRefresh(['music'], load);
 
-  // 카테고리 칩은 고정 4종(프로토타입 순서) — 데이터에서 유추하지 않음
-  const categories = ['all', '현대무용', '발레', '재즈댄스', '한국무용'];
-
-  // 검색은 로드된 목록에 대해 클라이언트에서 필터
-  const filtered = useMemo(() => {
-    return tracks.filter(t => !query || t.title.toLowerCase().includes(query.toLowerCase()));
-  }, [tracks, query]);
-  const renderMore = () => (hasMore && !query) ? (
+  // 카테고리 칩(전체 + 고정 4종, 프로토타입 순서) — FilterChips 형식
+  const CAT_OPTS = [{ value: 'all', label: '전체' }, { value: '현대무용', label: '현대무용' }, { value: '발레', label: '발레' }, { value: '재즈댄스', label: '재즈댄스' }, { value: '한국무용', label: '한국무용' }];
+  const renderMore = () => hasMore ? (
     <button onClick={loadMore} disabled={more} style={{ display: 'block', margin: '12px auto 20px', background: TOSS.surf, color: TOSS.sub, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{more ? '불러오는 중…' : '더 보기'}</button>
   ) : null;
 
@@ -103,8 +103,10 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
     return (
       <Screen>
         <BigTitle title={<>무용 음악을<br />관리해요</>} />
+        <SearchBar value={query} onChange={setQuery} placeholder="곡 제목 검색" />
+        <FilterChips options={CAT_OPTS} value={cat} onChange={setCat} />
         <Scroll>
-          {isDirector && (pending.length > 0 ? (
+          {!filtering && isDirector && (pending.length > 0 ? (
             <>
               <SectionLabel>승인 대기 {pending.length}개</SectionLabel>
               {pending.map(r => (
@@ -128,8 +130,8 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
               <span style={{ fontSize: 13, color: TOSS.successInk }}>대기 중인 요청이 없어요</span>
             </div>
           ))}
-          <SectionLabel>음악 라이브러리 {tracks.length}곡</SectionLabel>
-          {filtered.map(t => (
+          <SectionLabel>{filtering ? `검색 결과 ${tracks.length}곡` : `음악 라이브러리 ${tracks.length}곡`}</SectionLabel>
+          {tracks.length === 0 ? <Empty>해당하는 음악이 없어요</Empty> : tracks.map(t => (
             <ListRow
               key={t.id}
               left={<IconChip bg={TOSS.surf}><i className="ti ti-music" style={{ fontSize: 21, color: TOSS.sub }} /></IconChip>}
@@ -148,31 +150,11 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
   return (
     <Screen>
       <BigTitle title={<>무용 음악을<br />들어봐요</>} sub="연습실 안에서 자유롭게 들어요" />
-      <div style={{ padding: '0 20px 2px' }}>
-        <input
-          value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="곡 제목 검색"
-          style={{ width: '100%', boxSizing: 'border-box', border: `1px solid ${TOSS.inputLine}`, borderRadius: 12, padding: '10px 13px', fontSize: 14, color: TOSS.ink, outline: 'none', marginBottom: 8 }}
-        />
-      </div>
-      <div style={{ display: 'flex', gap: 7, padding: '0 20px 2px', overflowX: 'auto' }} className="no-scrollbar">
-        {categories.map(c => {
-          const on = cat === c;
-          return (
-            <button
-              key={c}
-              onClick={() => setCat(c)}
-              style={{ flexShrink: 0, background: on ? TOSS.ink : '#fff', border: `1px solid ${on ? TOSS.ink : TOSS.inputLine}`, borderRadius: 999, padding: '7px 13px', fontSize: 13, fontWeight: 500, color: on ? '#fff' : TOSS.sub, cursor: 'pointer' }}
-            >
-              {c === 'all' ? '전체' : c}
-            </button>
-          );
-        })}
-      </div>
+      <SearchBar value={query} onChange={setQuery} placeholder="곡 제목 검색" />
+      <FilterChips options={CAT_OPTS} value={cat} onChange={setCat} />
       <Scroll>
-        <SectionLabel>무용 음악 {filtered.length}곡</SectionLabel>
-        {filtered.length === 0 ? <Empty>해당하는 음악이 없어요</Empty> : filtered.map(t => (
+        <SectionLabel>{filtering ? `검색 결과 ${tracks.length}곡` : `무용 음악 ${tracks.length}곡`}</SectionLabel>
+        {tracks.length === 0 ? <Empty>해당하는 음악이 없어요</Empty> : tracks.map(t => (
           <ListRow
             key={t.id}
             left={<IconChip bg={TOSS.blueBg}><i className="ti ti-music" style={{ fontSize: 21, color: TOSS.blue }} /></IconChip>}

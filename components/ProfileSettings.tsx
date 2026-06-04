@@ -9,6 +9,7 @@ interface ProfileSettingsProps {
   user: User;
   onUserUpdate: (user: User) => void;
   onBack?: () => void;
+  onLogout?: () => void;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -17,7 +18,7 @@ const ROLE_LABELS: Record<string, string> = {
   director: '원장님',
 };
 
-export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUpdate, onBack }) => {
+export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUpdate, onBack, onLogout }) => {
   // Profile edit
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
@@ -151,8 +152,10 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
   const hasProfileChanges = name !== user.name || email !== user.email || (user.role === 'student' && height !== (user.height != null ? String(user.height) : ''));
 
   return (
-    <div className="max-w-lg mx-auto space-y-6 animate-fade-in-up">
-      <div className="flex items-center gap-1.5">
+    // 부모 main이 overflow-hidden이라 자체 스크롤 컨테이너 필요(이게 없어 내용이 잘렸음)
+    <div className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
+    <div className="max-w-lg mx-auto space-y-6 animate-fade-in-up px-1" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 32px)' }}>
+      <div className="flex items-center gap-1.5 pt-1">
         {onBack && (
           <button onClick={onBack} className="p-1.5 -ml-1.5 flex items-center" aria-label="뒤로">
             <svg className="w-6 h-6 text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
@@ -422,6 +425,17 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
           </div>
         )}
       </div>
+
+      {/* Logout */}
+      {onLogout && (
+        <button
+          onClick={() => { if (window.confirm('로그아웃 할까요?')) onLogout(); }}
+          className="w-full bg-white border border-slate-200 text-red-500 py-3.5 rounded-2xl font-bold text-sm hover:bg-red-50 transition-colors"
+        >
+          로그아웃
+        </button>
+      )}
+    </div>
     </div>
   );
 };

@@ -181,7 +181,7 @@ const AppInner: React.FC = () => {
       case 'music':
         return <Music user={user!} />;
       case 'profile':
-        return <ProfileSettings user={user!} onUserUpdate={(u) => setUser(u)} onBack={() => setCurrentView('classes')} />;
+        return <ProfileSettings user={user!} onUserUpdate={(u) => setUser(u)} onBack={() => setCurrentView('classes')} onLogout={handleLogout} />;
       default:
         return <Classes user={user!} />;
     }

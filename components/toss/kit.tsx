@@ -4,7 +4,7 @@ import { TOSS } from '../../services/category';
 /** 프로토타입(prototype-v8.html) 의 렌더 헬퍼(H/lb/rw/tg/bt/bH/sc/ic/av)를 그대로 옮긴 React 키트.
  *  스타일 값은 프로토타입과 1:1로 일치시킵니다. */
 
-const { ink: I, sub: S, faint: F, surf: SF, line: L, blue: B, blueBg: BB } = TOSS;
+const { ink: I, sub: S, faint: F, surf: SF, line: L, blue: B, blueBg: BB, inputLine: IL } = TOSS;
 
 // 화면 래퍼 (세로 플렉스, 전체 높이)
 export const Screen: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -165,6 +165,44 @@ export const ListSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
         </div>
       </div>
     ))}
+  </div>
+);
+
+// 검색 바 — 돋보기 + 입력 + 클리어(×). 서버사이드 검색 입력용(디바운스는 호출부에서).
+export const SearchBar: React.FC<{ value: string; onChange: (v: string) => void; placeholder?: string }> = ({ value, onChange, placeholder }) => (
+  <div style={{ padding: '6px 20px 8px' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: `1px solid ${IL}`, borderRadius: 12, padding: '0 12px' }}>
+      <i className="ti ti-search" style={{ fontSize: 17, color: S }} />
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder || '검색'}
+        style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', padding: '11px 0', fontSize: 14, color: I }}
+      />
+      {value && (
+        <button onClick={() => onChange('')} aria-label="지우기" style={{ background: 'none', border: 'none', padding: 4, cursor: 'pointer', display: 'flex' }}>
+          <i className="ti ti-x" style={{ fontSize: 16, color: F }} />
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+// 필터 칩 행(가로 스크롤) — 활성=ink pill. 폼 선택용 ChipSelect(파랑 아웃라인)와 구분되는 '필터' 전용.
+export const FilterChips: React.FC<{ options: { value: string; label: string }[]; value: string; onChange: (v: string) => void }> = ({ options, value, onChange }) => (
+  <div className="no-scrollbar" style={{ display: 'flex', gap: 7, padding: '2px 20px 8px', overflowX: 'auto' }}>
+    {options.map((o) => {
+      const on = value === o.value;
+      return (
+        <button
+          key={o.value}
+          onClick={() => onChange(o.value)}
+          style={{ flexShrink: 0, background: on ? I : '#fff', border: `1px solid ${on ? I : IL}`, borderRadius: 999, padding: '7px 13px', fontSize: 13, fontWeight: 500, color: on ? '#fff' : S, cursor: 'pointer', whiteSpace: 'nowrap' }}
+        >
+          {o.label}
+        </button>
+      );
+    })}
   </div>
 );
 

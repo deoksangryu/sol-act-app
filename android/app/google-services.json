@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "113618861372",
+    "project_id": "sol-act",
+    "storage_bucket": "sol-act.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:113618861372:android:a47217b2e723f8ccddf239",
+        "android_client_info": {
+          "package_name": "com.solact.academy"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBm_hcHVDfaFJDo8x21Ykqff8ZrOkNoKAo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

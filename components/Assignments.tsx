@@ -5,11 +5,13 @@ import { assignmentApi, uploadApi, resolveFileUrl, API_URL, getToken } from '../
 import { nativeBackgroundUpload } from '../services/nativeUpload';
 import { useAppData } from '../services/AppContext';
 import { useDataRefresh } from '../services/useWebSocket';
+import { useDebouncedValue } from '../services/useDebounce';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag,
-  Cta, Empty, InfoBox, ChipSelect, Avatar, Chevron, ListSkeleton, FlowTitle, toneColors,
+  Cta, Empty, InfoBox, ChipSelect, Avatar, Chevron, ListSkeleton, FlowTitle, toneColors, SearchBar, FilterChips,
 } from './toss/kit';
+import { MiniCalendar } from './toss/Calendar';
 
 function dueLabel(iso: string): string {
   return (iso || '').slice(5, 10).replace('-', '/');
@@ -43,11 +45,25 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
   const [openId, setOpenId] = useState<string | null>(null);   // 학생: 과제 상세
   const [groupKey, setGroupKey] = useState<string | null>(null); // 선생님: 과제 그룹 상세
   const [creating, setCreating] = useState(false);
+  const [status, setStatus] = useState('all');  // 학생=서버 status / 교사=그룹 완료여부(클라)
+  const [query, setQuery] = useState('');
+  const search = useDebouncedValue(query.trim(), 300);
+  const [selDate, setSelDate] = useState<string | null>(null);  // 캘린더에서 고른 마감일
+  const [calOpen, setCalOpen] = useState(false);
+  const [calMonth, setCalMonth] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
   const PAGE = 40;
 
+  // 서버사이드 파라미터 — 상태(학생만)·검색·마감일
+  const listParams = (skip: number) => ({
+    ...(isStaff ? {} : { studentId: user.id }),
+    ...(!isStaff && status !== 'all' ? { status } : {}),
+    ...(search ? { search } : {}),
+    ...(selDate ? { dueFrom: selDate, dueTo: selDate } : {}),
+    skip, limit: PAGE,
+  });
   const load = async () => {
     try {
-      const data = await assignmentApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: 0, limit: PAGE });
+      const data = await assignmentApi.list(listParams(0));
       setItems(data); setHasMore(data.length >= PAGE);
     } catch (e: any) {
       toast.error(e.message || '과제를 불러오지 못했어요');
@@ -56,7 +72,7 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
   const loadMore = async () => {
     setMore(true);
     try {
-      const data = await assignmentApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: items.length, limit: PAGE });
+      const data = await assignmentApi.list(listParams(items.length));
       setItems(prev => [...prev, ...data]); setHasMore(data.length >= PAGE);
     } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
     finally { setMore(false); }
@@ -65,7 +81,22 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
     <button onClick={loadMore} disabled={more} style={{ display: 'block', margin: '12px auto 20px', background: TOSS.surf, color: TOSS.sub, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{more ? '불러오는 중…' : '더 보기'}</button>
   ) : null;
   useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
+  // 상태(학생)/검색/마감일 변경 시 page 0부터 재조회(첫 진입만 스켈레톤)
+  useEffect(() => { if (!loading) load(); /* eslint-disable-next-line */ }, [status, search, selDate]);
   useDataRefresh(['assignments'], load);
+
+  // 캘린더 마감일 점(로드된 항목 기준) + 상태 칩 옵션(학생=제출상태 / 교사=그룹 완료여부)
+  const marked = new Set(items.map(a => (a.dueDate || '').slice(0, 10)));
+  const STATUS_OPTS = isStaff
+    ? [{ value: 'all', label: '전체' }, { value: 'incomplete', label: '미완료' }, { value: 'complete', label: '완료' }]
+    : [{ value: 'all', label: '전체' }, { value: 'pending', label: '미제출' }, { value: 'submitted', label: '제출' }, { value: 'graded', label: '채점' }];
+  const filterHeader = (
+    <>
+      <SearchBar value={query} onChange={setQuery} placeholder="과제 제목 검색" />
+      <FilterChips options={STATUS_OPTS} value={status} onChange={setStatus} />
+      <MiniCalendar marked={marked} selected={selDate} onSelect={setSelDate} open={calOpen} onToggle={() => setCalOpen(o => !o)} month={calMonth} onMonth={setCalMonth} toggleLabel="마감일" />
+    </>
+  );
 
   if (loading) return <ListSkeleton />;
   if (creating) return <CreateAssignment onBack={() => setCreating(false)} onDone={async () => { setCreating(false); await load(); }} />;
@@ -79,6 +110,7 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
     return (
       <Screen>
         <BigTitle title={todo.length ? <>과제 {todo.length}개가<br />남아 있어요</> : <>과제를 모두<br />끝냈어요</>} />
+        {filterHeader}
         <Scroll>
           <SectionLabel>해야 할 과제 {todo.length}개</SectionLabel>
           {todo.length === 0 ? <Empty>남은 과제가 없어요</Empty> : todo.map(a => (
@@ -120,12 +152,20 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
     if (g) return <TeacherGroupDetail group={g} onBack={() => setGroupKey(null)} onReload={load} />;
   }
 
+  // 상태 칩(교사)은 그룹 완료여부로 클라이언트 필터 — 서버 status는 행 단위라 그룹 카운트와 충돌
+  const visibleGroups = groups.filter(g => {
+    if (status === 'all') return true;
+    const complete = g.rows.filter(r => r.status !== 'pending').length === g.rows.length;
+    return status === 'complete' ? complete : !complete;
+  });
+
   return (
     <Screen>
       <BigTitle title={<>과제를<br />관리해요</>} />
+      {filterHeader}
       <Scroll>
-        <SectionLabel>내가 낸 과제 {groups.length}개</SectionLabel>
-        {groups.length === 0 ? <Empty>아직 낸 과제가 없어요</Empty> : groups.map(g => {
+        <SectionLabel>내가 낸 과제 {visibleGroups.length}개</SectionLabel>
+        {visibleGroups.length === 0 ? <Empty>{groups.length === 0 ? '아직 낸 과제가 없어요' : '조건에 맞는 과제가 없어요'}</Empty> : visibleGroups.map(g => {
           const submitted = g.rows.filter(r => r.status !== 'pending').length;
           const all = g.rows.length;
           const done = submitted === all;

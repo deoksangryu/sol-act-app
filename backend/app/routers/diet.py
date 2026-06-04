@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from pydantic import BaseModel
 from app.database import get_db
-from app.models.diet import DietLog, WeightLog
+from app.models.diet import DietLog, WeightLog, MealType
 from app.models.user import User, UserRole
 from app.schemas.diet import DietLogCreate, DietLogUpdate, DietLogResponse, WeightLogCreate, WeightLogResponse
 from app.services.ai import analyze_diet as ai_analyze_diet
@@ -34,6 +34,8 @@ def diet_to_response(d: DietLog) -> dict:
 def list_diet_logs(
     student_id: Optional[str] = Query(None),
     date: Optional[str] = Query(None, description="Filter by date (YYYY-MM-DD)"),
+    meal_type: Optional[str] = Query(None, description="끼니 필터 breakfast|lunch|dinner|snack"),
+    search: Optional[str] = Query(None, description="설명 부분일치"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
@@ -59,6 +61,13 @@ def list_diet_logs(
             query = query.filter(DietLog.date >= target, DietLog.date <= next_day)
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD")
+    if meal_type:
+        try:
+            query = query.filter(DietLog.meal_type == MealType(meal_type))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid meal_type: {meal_type}")
+    if search:
+        query = query.filter(DietLog.description.ilike(f"%{search.strip()}%"))
     logs = query.order_by(DietLog.date.desc()).offset(skip).limit(limit).all()
     return [diet_to_response(d) for d in logs]
 

@@ -4,11 +4,15 @@ import { User, UserRole, PortfolioItem } from '../types';
 import { portfolioApi, uploadApi, resolveFileUrl, API_URL, getToken } from '../services/api';
 import { nativeBackgroundUpload } from '../services/nativeUpload';
 import { useDataRefresh } from '../services/useWebSocket';
+import { useDebouncedValue } from '../services/useDebounce';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag,
-  Cta, Empty, InfoBox, ChipSelect, ListSkeleton, FlowTitle, toneColors,
+  Cta, Empty, InfoBox, ChipSelect, ListSkeleton, FlowTitle, toneColors, SearchBar, FilterChips,
 } from './toss/kit';
+
+// 영상 필터 칩(전체 + 카테고리)
+const VIDEO_FILTERS = [{ value: 'all', label: '전체' }, { value: 'acting', label: '자유연기' }, { value: 'monologue', label: '독백' }, { value: 'musical', label: '뮤지컬 넘버' }, { value: 'dance', label: '자유무용' }, { value: 'basics', label: '발성 연습' }];
 
 const VIDEO_CATS = [
   { value: 'acting', label: '자유연기' },
@@ -44,10 +48,20 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
   const [more, setMore] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [cat, setCat] = useState('all');
+  const [query, setQuery] = useState('');
+  const search = useDebouncedValue(query.trim(), 300);
 
+  // 서버사이드 필터/검색 — category(전체 제외) + search를 파라미터로
+  const listParams = (skip: number) => ({
+    ...(isStaff ? {} : { studentId: user.id }),
+    ...(cat !== 'all' ? { category: cat } : {}),
+    ...(search ? { search } : {}),
+    skip, limit: PAGE,
+  });
   const load = async () => {
     try {
-      const data = await portfolioApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: 0, limit: PAGE });
+      const data = await portfolioApi.list(listParams(0));
       setItems(data);
       setHasMore(data.length >= PAGE);
     } catch (e: any) {
@@ -57,13 +71,14 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
   const loadMore = async () => {
     setMore(true);
     try {
-      const data = await portfolioApi.list({ ...(isStaff ? {} : { studentId: user.id }), skip: items.length, limit: PAGE });
+      const data = await portfolioApi.list(listParams(items.length));
       setItems(prev => [...prev, ...data]);
       setHasMore(data.length >= PAGE);
     } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
     finally { setMore(false); }
   };
-  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
+  // 최초 + 카테고리/검색 변경 시 page 0부터 재조회(첫 진입만 스켈레톤, 이후 부드럽게 교체)
+  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, [cat, search]);
   useDataRefresh(['portfolios'], load);
   const renderMore = () => hasMore ? (
     <button onClick={loadMore} disabled={more} style={{ display: 'block', margin: '12px auto 20px', background: TOSS.surf, color: TOSS.sub, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{more ? '불러오는 중…' : '더 보기'}</button>
@@ -85,6 +100,8 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
     return (
       <Screen>
         <BigTitle title={<>학생 영상에<br />피드백을 남겨요</>} />
+        <SearchBar value={query} onChange={setQuery} placeholder="제목·학생 영상 검색" />
+        <FilterChips options={VIDEO_FILTERS} value={cat} onChange={setCat} />
         <Scroll>
           <SectionLabel>피드백 기다리는 영상 {pending.length}개</SectionLabel>
           {list.length === 0 ? <Empty>아직 올라온 영상이 없어요</Empty> : list.map(v => (
@@ -107,6 +124,8 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
   return (
     <Screen>
       <BigTitle title={<>연습 영상을<br />{items.length}개 모았어요</>} />
+      <SearchBar value={query} onChange={setQuery} placeholder="영상 제목 검색" />
+      <FilterChips options={VIDEO_FILTERS} value={cat} onChange={setCat} />
       <Scroll>
         <SectionLabel>내 연습 영상 {items.length}개</SectionLabel>
         {items.length === 0 ? <Empty>아직 올린 영상이 없어요</Empty> : items.map(v => (

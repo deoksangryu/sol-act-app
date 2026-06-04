@@ -395,11 +395,14 @@ export const journalApi = {
 
 // --- Assignment API ---
 export const assignmentApi = {
-  list(params?: { studentId?: string; assignedBy?: string; status?: string; skip?: number; limit?: number }): Promise<Assignment[]> {
+  list(params?: { studentId?: string; assignedBy?: string; status?: string; search?: string; dueFrom?: string; dueTo?: string; skip?: number; limit?: number }): Promise<Assignment[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.assignedBy) q.set('assigned_by', params.assignedBy);
     if (params?.status) q.set('status', params.status);
+    if (params?.search) q.set('search', params.search);
+    if (params?.dueFrom) q.set('due_from', params.dueFrom);
+    if (params?.dueTo) q.set('due_to', params.dueTo);
     if (params?.skip != null) q.set('skip', String(params.skip));
     if (params?.limit != null) q.set('limit', String(params.limit));
     const qs = q.toString();
@@ -445,10 +448,12 @@ export const assignmentApi = {
 
 // --- Diet API ---
 export const dietApi = {
-  list(params?: { studentId?: string; date?: string; skip?: number; limit?: number }): Promise<DietLog[]> {
+  list(params?: { studentId?: string; date?: string; mealType?: string; search?: string; skip?: number; limit?: number }): Promise<DietLog[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.date) q.set('date', params.date);
+    if (params?.mealType) q.set('meal_type', params.mealType);
+    if (params?.search) q.set('search', params.search);
     if (params?.skip != null) q.set('skip', String(params.skip));
     if (params?.limit != null) q.set('limit', String(params.limit));
     const qs = q.toString();
@@ -715,10 +720,11 @@ export const notificationApi = {
 
 // --- Portfolio API ---
 export const portfolioApi = {
-  async list(params?: { studentId?: string; category?: string; skip?: number; limit?: number }): Promise<PortfolioItem[]> {
+  async list(params?: { studentId?: string; category?: string; search?: string; skip?: number; limit?: number }): Promise<PortfolioItem[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.category) q.set('category', params.category);
+    if (params?.search) q.set('search', params.search);
     if (params?.skip != null) q.set('skip', String(params.skip));
     if (params?.limit != null) q.set('limit', String(params.limit));
     const qs = q.toString();

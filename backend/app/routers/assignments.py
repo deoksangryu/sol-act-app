@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_
 from typing import List, Optional
 from pydantic import BaseModel
 from app.database import get_db
@@ -42,6 +43,9 @@ def list_assignments(
     student_id: Optional[str] = Query(None),
     assigned_by: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
+    search: Optional[str] = Query(None, description="제목/설명 부분일치"),
+    due_from: Optional[str] = Query(None, description="마감일 YYYY-MM-DD 이상"),
+    due_to: Optional[str] = Query(None, description="마감일 YYYY-MM-DD 이하"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
@@ -65,6 +69,14 @@ def list_assignments(
             query = query.filter(Assignment.status == s)
         except ValueError:
             raise HTTPException(status_code=400, detail=f"Invalid status: {status_filter}")
+    if search:
+        like = f"%{search.strip()}%"
+        query = query.filter(or_(Assignment.title.ilike(like), Assignment.description.ilike(like)))
+    # 마감일 범위 — due_date(DateTime)를 날짜 경계로 비교(같은 날 전체 포함)
+    if due_from:
+        query = query.filter(Assignment.due_date >= f"{due_from}T00:00:00")
+    if due_to:
+        query = query.filter(Assignment.due_date <= f"{due_to}T23:59:59")
     assignments = query.order_by(Assignment.due_date.desc()).offset(skip).limit(limit).all()
     return [assignment_to_response(a) for a in assignments]
 
