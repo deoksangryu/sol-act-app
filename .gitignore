@@ -19,3 +19,4 @@ AuthKey_*.p8
 **/firebase-service-account*.json
 **/serviceAccount*.json
 **/*service-account*.json
+**/*firebase-adminsdk*.json

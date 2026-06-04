@@ -89,6 +89,7 @@ class PortfolioResponse(BaseModel):
     description: str
     video_url: Optional[str] = None
     thumbnail_url: Optional[str] = None
+    upload_status: Optional[str] = None  # ready | uploading | failed (파생)
     category: PortfolioCategory
     tags: Optional[str] = None
     ai_feedback: Optional[str] = None

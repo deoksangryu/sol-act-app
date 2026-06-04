@@ -249,6 +249,7 @@ export interface PortfolioItem {
   description: string;
   videoUrl: string;
   thumbnailUrl?: string;   // 커버 영상 썸네일
+  uploadStatus?: 'ready' | 'uploading' | 'failed';  // 백엔드 파생(없으면 클라가 생성나이로 추정)
   category: string;
   tags: string[];
   practiceGroup?: string;

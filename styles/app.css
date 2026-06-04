@@ -75,6 +75,10 @@ body {
   to { background-position: -200% 0; }
 }
 
+/* 회전 스피너 — 업로드 중 로더 아이콘(ti-loader-2 등) */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { display: inline-block; animation: spin 1s linear infinite; }
+
 /* Hide scrollbar for clean mobile look */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

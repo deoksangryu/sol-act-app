@@ -25,19 +25,49 @@ const catLabel = (v: string) => VIDEO_CATS.find(c => c.value === v)?.label || v;
 // 영상 길이(초) → ' · M:SS' (없으면 빈 문자열)
 const fmtDur = (s?: number) => (s && s > 0 ? ` · ${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
 
-// 영상 썸네일 (56x56) — 실제 <img loading="lazy">로 화면 밖은 지연 로드(느린 링크에서 동시요청↓)
-const PlayThumb: React.FC<{ thumb?: string; uploading?: boolean }> = ({ thumb, uploading }) => (
-  <div style={{ width: 56, height: 56, borderRadius: 12, flexShrink: 0, overflow: 'hidden', position: 'relative',
-    background: thumb ? '#000' : TOSS.surf, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-    {thumb && <img src={resolveFileUrl(thumb)} loading="lazy" decoding="async" alt=""
-      style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
-    <i className={`ti ${uploading ? 'ti-loader-2' : 'ti-player-play'}`}
-      style={{ position: 'relative', fontSize: thumb ? 18 : 20, color: thumb ? '#fff' : TOSS.sub, filter: thumb ? 'drop-shadow(0 1px 3px rgba(0,0,0,.6))' : undefined }} />
-  </div>
-);
 // 포트폴리오의 대표 썸네일(커버 우선, 없으면 추가 영상에서)
 const coverThumb = (v: PortfolioItem) => v.thumbnailUrl || v.videos?.find(x => x.thumbnailUrl)?.thumbnailUrl;
-const isUploadingItem = (v: PortfolioItem) => !v.videoUrl && !(v.videos && v.videos.length);
+
+// === 업로드 상태 분류 ===
+type UpState = 'ready' | 'uploading' | 'failed';
+const UPLOAD_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 백엔드 UPLOAD_TIMEOUT(2h)과 동일
+const hasVideo = (v: PortfolioItem) => !!v.videoUrl || !!(v.videos && v.videos.length);
+// created_at(naive UTC, 'YYYY-MM-DD HH:MM:SS')을 UTC로 파싱해 경과(ms)
+const ageMs = (v: PortfolioItem) => {
+  const s = v.date || '';
+  const t = Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(s) ? s : s.replace(' ', 'T') + 'Z');
+  return isFinite(t) ? Date.now() - t : 0;
+};
+// 서버 uploadStatus 우선, 없으면 영상유무 + 생성나이로 추정
+const classify = (v: PortfolioItem): UpState =>
+  v.uploadStatus ? v.uploadStatus : (hasVideo(v) ? 'ready' : (ageMs(v) < UPLOAD_TIMEOUT_MS ? 'uploading' : 'failed'));
+
+// 행 우측 상태 태그(업로드 상태 우선, 그 다음 피드백 상태)
+const stateTag = (v: PortfolioItem, staff: boolean): React.ReactNode => {
+  const s = classify(v);
+  if (s === 'failed') return <Tag {...toneColors('overdue')}>업로드 실패</Tag>;
+  if (s === 'uploading') return <Tag {...toneColors('pending')}>업로드 중</Tag>;
+  const hasC = (v.comments?.length ?? 0) > 0;
+  if (staff) return hasC ? <Tag bg={TOSS.successBg} fg={TOSS.success}>완료</Tag> : <Tag {...toneColors('pending')}>피드백 필요</Tag>;
+  return hasC ? <Tag bg={TOSS.successBg} fg={TOSS.success}>피드백 완료</Tag> : <Tag {...toneColors('pending')}>피드백 대기</Tag>;
+};
+
+// 영상 썸네일 (56x56) — 썸네일 로딩 중엔 회색 스켈레톤, 실패=경고, 업로드중=스피너
+const PlayThumb: React.FC<{ thumb?: string; status?: UpState }> = ({ thumb, status = 'ready' }) => {
+  const [loaded, setLoaded] = useState(false);
+  const icon = status === 'failed' ? 'ti-alert-triangle' : status === 'uploading' ? 'ti-loader-2 spin' : 'ti-player-play';
+  const iconColor = status === 'failed' ? TOSS.warn : thumb ? '#fff' : TOSS.sub;
+  return (
+    <div style={{ width: 56, height: 56, borderRadius: 12, flexShrink: 0, overflow: 'hidden', position: 'relative',
+      background: thumb ? '#000' : TOSS.surf, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      {thumb && <img src={resolveFileUrl(thumb)} loading="lazy" decoding="async" alt="" onLoad={() => setLoaded(true)} onError={() => setLoaded(true)}
+        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: loaded ? 1 : 0, transition: 'opacity .15s' }} />}
+      {thumb && !loaded && <div className="skel" style={{ position: 'absolute', inset: 0 }} />}
+      <i className={`ti ${icon}`}
+        style={{ position: 'relative', fontSize: thumb ? 18 : 20, color: iconColor, filter: thumb && status !== 'failed' ? 'drop-shadow(0 1px 3px rgba(0,0,0,.6))' : undefined }} />
+    </div>
+  );
+};
 
 export const Video: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
@@ -87,33 +117,35 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
   if (loading) return <ListSkeleton />;
 
   const open = openId ? items.find(i => i.id === openId) : null;
-  if (open) return <VideoDetail item={open} user={user} isStaff={isStaff} onBack={() => setOpenId(null)} onReload={load} onDeleted={async () => { setOpenId(null); await load(); }} />;
+  if (open) return <VideoDetail item={open} user={user} isStaff={isStaff} onBack={() => setOpenId(null)} onReload={load}
+    onDeleted={async () => { setOpenId(null); await load(); }}
+    onReupload={async () => { try { await portfolioApi.delete(open.id); } catch { /* 이미 없으면 무시 */ } setOpenId(null); setUploading(true); }} />;
   if (uploading) return <UploadScreen onBack={() => setUploading(false)} onDone={async () => { setUploading(false); await load(); }} />;
 
-  // ── 선생님: 학생 영상 피드백 ──
+  // ── 선생님: 학생 영상 피드백 (상태별 섹션 분리) ──
   if (isStaff) {
-    const uploading = items.filter(isUploadingItem);
-    const ready = items.filter(v => !isUploadingItem(v));
+    const failed = items.filter(v => classify(v) === 'failed');
+    const up = items.filter(v => classify(v) === 'uploading');
+    const ready = items.filter(v => classify(v) === 'ready');
     const pending = ready.filter(v => (v.comments?.length ?? 0) === 0);
     const done = ready.filter(v => (v.comments?.length ?? 0) > 0);
-    const list = [...pending, ...done, ...uploading];
+    const row = (v: PortfolioItem) => (
+      <ListRow key={v.id} left={<PlayThumb thumb={coverThumb(v)} status={classify(v)} />} title={v.title}
+        sub={`${v.studentName} · ${(v.date || '').slice(5, 10)}`}
+        right={stateTag(v, true)}
+        onClick={() => setOpenId(v.id)} />
+    );
     return (
       <Screen>
         <BigTitle title={<>학생 영상에<br />피드백을 남겨요</>} />
         <SearchBar value={query} onChange={setQuery} placeholder="제목·학생 영상 검색" />
         <FilterChips options={VIDEO_FILTERS} value={cat} onChange={setCat} />
         <Scroll>
-          <SectionLabel>피드백 기다리는 영상 {pending.length}개</SectionLabel>
-          {list.length === 0 ? <Empty>아직 올라온 영상이 없어요</Empty> : list.map(v => (
-            <ListRow key={v.id} left={<PlayThumb thumb={coverThumb(v)} uploading={isUploadingItem(v)} />} title={v.title}
-              sub={`${v.studentName} · ${(v.date || '').slice(5, 10)}`}
-              right={isUploadingItem(v)
-                ? <Tag bg={TOSS.surf} fg={TOSS.sub}>업로드 중</Tag>
-                : (v.comments?.length ?? 0) > 0
-                  ? <Tag bg={TOSS.successBg} fg={TOSS.success}>완료</Tag>
-                  : <Tag {...toneColors('pending')}>피드백 필요</Tag>}
-              onClick={() => setOpenId(v.id)} />
-          ))}
+          {items.length === 0 && <Empty>아직 올라온 영상이 없어요</Empty>}
+          {pending.length > 0 && <><SectionLabel>피드백 기다리는 영상 {pending.length}개</SectionLabel>{pending.map(row)}</>}
+          {done.length > 0 && <><SectionLabel>피드백 완료 {done.length}개</SectionLabel>{done.map(row)}</>}
+          {up.length > 0 && <><SectionLabel>업로드 중 {up.length}개</SectionLabel>{up.map(row)}</>}
+          {failed.length > 0 && <><SectionLabel>업로드 실패 {failed.length}개</SectionLabel>{failed.map(row)}</>}
           {renderMore()}
         </Scroll>
       </Screen>
@@ -129,13 +161,9 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
       <Scroll>
         <SectionLabel>내 연습 영상 {items.length}개</SectionLabel>
         {items.length === 0 ? <Empty>아직 올린 영상이 없어요</Empty> : items.map(v => (
-          <ListRow key={v.id} left={<PlayThumb thumb={coverThumb(v)} uploading={isUploadingItem(v)} />} title={v.title}
+          <ListRow key={v.id} left={<PlayThumb thumb={coverThumb(v)} status={classify(v)} />} title={v.title}
             sub={`${catLabel(v.category)}${(v.videos?.length ?? 0) > 0 ? ` · 영상 ${(v.videos!.length) + (v.videoUrl ? 1 : 0)}개` : ''} · ${(v.date || '').slice(5, 10)}${fmtDur(v.videoDuration)}`}
-            right={isUploadingItem(v)
-              ? <Tag bg={TOSS.surf} fg={TOSS.sub}>업로드 중</Tag>
-              : (v.comments?.length ?? 0) > 0
-                ? <Tag bg={TOSS.successBg} fg={TOSS.success}>피드백 완료</Tag>
-                : <Tag {...toneColors('pending')}>피드백 대기</Tag>}
+            right={stateTag(v, false)}
             onClick={() => setOpenId(v.id)} />
         ))}
         {renderMore()}
@@ -146,7 +174,7 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
 };
 
 // 영상 상세 (검은 플레이어 + 강사 피드백)
-const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean; onBack: () => void; onReload: () => Promise<void>; onDeleted: () => Promise<void> }> = ({ item, user, isStaff, onBack, onReload, onDeleted }) => {
+const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean; onBack: () => void; onReload: () => Promise<void>; onDeleted: () => Promise<void>; onReupload?: () => void }> = ({ item, user, isStaff, onBack, onReload, onDeleted, onReupload }) => {
   const [fb, setFb] = useState('');
   const [busy, setBusy] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -207,11 +235,17 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
         <div style={{ background: TOSS.ink, height: 184, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           {cur
             ? <video key={cur.id} src={resolveFileUrl(cur.videoUrl)} controls playsInline style={{ width: '100%', height: '100%' }} />
-            : <div style={{ textAlign: 'center', color: '#fff' }}>
-                <i className="ti ti-loader-2" style={{ fontSize: 30 }} />
-                <div style={{ fontSize: 13, marginTop: 8, opacity: 0.85 }}>영상을 올리는 중이에요</div>
-                <div style={{ fontSize: 11, marginTop: 2, opacity: 0.6 }}>앱을 닫아도 계속 업로드돼요</div>
-              </div>}
+            : classify(item) === 'failed'
+              ? <div style={{ textAlign: 'center', color: '#fff', padding: '0 24px' }}>
+                  <i className="ti ti-alert-triangle" style={{ fontSize: 30, color: TOSS.warn }} />
+                  <div style={{ fontSize: 14, marginTop: 8, fontWeight: 600 }}>업로드가 완료되지 않았어요</div>
+                  <div style={{ fontSize: 12, marginTop: 4, opacity: 0.7 }}>{isOwner ? '다시 올리거나 삭제할 수 있어요' : '학생에게 다시 업로드를 요청하세요'}</div>
+                </div>
+              : <div style={{ textAlign: 'center', color: '#fff' }}>
+                  <i className="ti ti-loader-2 spin" style={{ fontSize: 30 }} />
+                  <div style={{ fontSize: 13, marginTop: 8, opacity: 0.85 }}>영상을 올리는 중이에요</div>
+                  <div style={{ fontSize: 11, marginTop: 2, opacity: 0.6 }}>앱을 닫아도 계속 업로드돼요</div>
+                </div>}
         </div>
         {clips.length > 1 && (
           <div className="no-scrollbar" style={{ display: 'flex', gap: 8, overflowX: 'auto', padding: '10px 20px 0' }}>
@@ -252,29 +286,39 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
             </>
           )}
 
-          <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
-          <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>강사 피드백 {comments.length}개</div>
+          {/* 피드백 영역은 영상이 실제로 있는 ready 상태에서만 (실패/업로드중엔 의미 없음) */}
+          {classify(item) === 'ready' && (
+            <>
+              <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
+              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>강사 피드백 {comments.length}개</div>
 
-          {comments.length === 0 && !isStaff && (
-            <InfoBox tone="info">24시간 안에 피드백이 와요</InfoBox>
+              {comments.length === 0 && !isStaff && (
+                <InfoBox tone="info">24시간 안에 피드백이 와요</InfoBox>
+              )}
+
+              {comments.map(c => (
+                <div key={c.id} style={{ background: TOSS.surf, borderRadius: 13, padding: 13, marginBottom: 8, fontSize: 14, lineHeight: 1.7, color: TOSS.ink }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: TOSS.ink }}>{c.authorName}</span>
+                    <span style={{ fontSize: 11, color: TOSS.sub }}>{(c.date || '').slice(5, 10)}</span>
+                  </div>
+                  {c.content}
+                </div>
+              ))}
+
+              {isStaff && (
+                <>
+                  {comments.length === 0 && <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>피드백 남기기</div>}
+                  <textarea value={fb} onChange={e => setFb(e.target.value)} placeholder="구체적으로 알려주세요"
+                    style={{ width: '100%', boxSizing: 'border-box', minHeight: 90, border: `1px solid ${TOSS.inputLine}`, borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none', marginTop: 4 }} />
+                </>
+              )}
+            </>
           )}
 
-          {comments.map(c => (
-            <div key={c.id} style={{ background: TOSS.surf, borderRadius: 13, padding: 13, marginBottom: 8, fontSize: 14, lineHeight: 1.7, color: TOSS.ink }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: TOSS.ink }}>{c.authorName}</span>
-                <span style={{ fontSize: 11, color: TOSS.sub }}>{(c.date || '').slice(5, 10)}</span>
-              </div>
-              {c.content}
-            </div>
-          ))}
-
-          {isStaff && (
-            <>
-              {comments.length === 0 && <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>피드백 남기기</div>}
-              <textarea value={fb} onChange={e => setFb(e.target.value)} placeholder="구체적으로 알려주세요"
-                style={{ width: '100%', boxSizing: 'border-box', minHeight: 90, border: `1px solid ${TOSS.inputLine}`, borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none', marginTop: 4 }} />
-            </>
+          {/* 실패: 본인이면 다시 올리기 */}
+          {classify(item) === 'failed' && isOwner && onReupload && (
+            <button onClick={onReupload} style={{ width: '100%', marginTop: 16, background: TOSS.blue, color: '#fff', border: 'none', borderRadius: 12, padding: 13, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>다시 올리기</button>
           )}
 
           {isOwner && !editing && (
@@ -283,7 +327,7 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
           <div style={{ height: 14 }} />
         </div>
       </Scroll>
-      {isStaff && <Cta onClick={send} disabled={!fb.trim()} loading={busy}>피드백 보내기</Cta>}
+      {isStaff && classify(item) === 'ready' && <Cta onClick={send} disabled={!fb.trim()} loading={busy}>피드백 보내기</Cta>}
     </Screen>
   );
 };

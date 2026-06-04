@@ -13,8 +13,12 @@ from app.schemas.portfolio import (
 from app.utils.auth import get_current_user
 from app.services.ai import analyze_portfolio
 from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_teacher_ids_for_student, get_teacher_student_ids
+from datetime import datetime, timedelta
 import uuid
 import logging
+
+# 빈 placeholder가 이 시간 넘게 영상 없이 남으면 '업로드 실패'로 분류(청크 세션 TTL과 동일).
+UPLOAD_TIMEOUT = timedelta(hours=2)
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +26,13 @@ router = APIRouter()
 
 
 def portfolio_to_response(p: Portfolio) -> dict:
+    # 업로드 상태: 영상 있으면 ready / 없으면 생성 후 2h 이내=uploading, 초과=failed
+    has_video = bool((p.video_url or "").strip()) or bool(p.videos)
+    if has_video:
+        upload_status = "ready"
+    else:
+        age = (datetime.utcnow() - p.created_at) if p.created_at else timedelta(0)
+        upload_status = "uploading" if age < UPLOAD_TIMEOUT else "failed"
     return {
         "id": p.id,
         "student_id": p.student_id,
@@ -30,6 +41,7 @@ def portfolio_to_response(p: Portfolio) -> dict:
         "description": p.description,
         "video_url": p.video_url,
         "thumbnail_url": p.thumbnail_url,
+        "upload_status": upload_status,
         "category": p.category,
         "tags": p.tags,
         "ai_feedback": p.ai_feedback,
