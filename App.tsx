@@ -11,6 +11,7 @@ const Diet = React.lazy(() => import('./components/Diet').then(m => ({ default: 
 const Music = React.lazy(() => import('./components/Music').then(m => ({ default: m.Music })));
 const ProfileSettings = React.lazy(() => import('./components/ProfileSettings').then(m => ({ default: m.ProfileSettings })));
 import { Notifications } from './components/Notifications';
+import { Notices } from './components/Notices';
 import { InstallPrompt } from './components/InstallPrompt';
 import toast, { Toaster } from 'react-hot-toast';
 import { UploadProvider, useUpload } from './services/UploadContext';
@@ -41,6 +42,7 @@ const AppInner: React.FC = () => {
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
   const [badges, setBadges] = useState<Partial<Record<ViewState, number>>>({});
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -223,6 +225,9 @@ const AppInner: React.FC = () => {
 
       {/* 상단 바 — 벨 + 프로필 (프로토타입 상태바 위치) */}
       <header className="flex items-center justify-end gap-1 px-3 pb-1.5 shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}>
+        <button onClick={() => setIsNoticeOpen(true)} className="w-10 h-10 flex items-center justify-center" aria-label="공지사항">
+          <i className="ti ti-speakerphone" style={{ fontSize: 20, color: '#191F28' }} />
+        </button>
         <div className="relative">
           <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="relative w-10 h-10 flex items-center justify-center" aria-label="알림">
             <i className="ti ti-bell" style={{ fontSize: 20, color: '#191F28' }} />
@@ -255,6 +260,7 @@ const AppInner: React.FC = () => {
         </nav>
       )}
 
+      {isNoticeOpen && <Notices user={user} onClose={() => setIsNoticeOpen(false)} />}
       <InstallPrompt />
       <UploadIndicator />
       <Toaster

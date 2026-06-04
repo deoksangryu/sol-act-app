@@ -20,3 +20,7 @@ AuthKey_*.p8
 **/serviceAccount*.json
 **/*service-account*.json
 **/*firebase-adminsdk*.json
+
+# macOS 메타데이터
+.DS_Store
+**/.DS_Store

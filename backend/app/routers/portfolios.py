@@ -17,8 +17,10 @@ from datetime import datetime, timedelta
 import uuid
 import logging
 
-# 빈 placeholder가 이 시간 넘게 영상 없이 남으면 '업로드 실패'로 분류(청크 세션 TTL과 동일).
-UPLOAD_TIMEOUT = timedelta(hours=2)
+# 빈 placeholder가 이 시간 넘게 영상 없이 남으면 '업로드 실패'로 분류.
+# 30분: 대부분의 모바일 영상 업로드는 수분 내 끝나므로, 조용히 실패한 건을 빨리 '실패'로 전환.
+# (아주 느린 대용량 업로드는 잠깐 '실패'로 보였다 완료 시 'ready'로 뒤집힐 수 있음 — 절충)
+UPLOAD_TIMEOUT = timedelta(minutes=30)
 
 logger = logging.getLogger(__name__)
 

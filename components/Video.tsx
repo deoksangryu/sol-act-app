@@ -30,7 +30,7 @@ const coverThumb = (v: PortfolioItem) => v.thumbnailUrl || v.videos?.find(x => x
 
 // === 업로드 상태 분류 ===
 type UpState = 'ready' | 'uploading' | 'failed';
-const UPLOAD_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 백엔드 UPLOAD_TIMEOUT(2h)과 동일
+const UPLOAD_TIMEOUT_MS = 30 * 60 * 1000; // 백엔드 UPLOAD_TIMEOUT(30분)과 동일 — 실패를 빨리 인지
 const hasVideo = (v: PortfolioItem) => !!v.videoUrl || !!(v.videos && v.videos.length);
 // created_at(naive UTC, 'YYYY-MM-DD HH:MM:SS')을 UTC로 파싱해 경과(ms)
 const ageMs = (v: PortfolioItem) => {

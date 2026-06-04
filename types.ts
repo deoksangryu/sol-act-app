@@ -39,6 +39,7 @@ export interface Notice {
   author: string;
   important: boolean;
   classId?: string;
+  targetClassIds?: string[];   // 대상 반들 / 없거나 [] = 전체 공지
 }
 
 export interface Assignment {

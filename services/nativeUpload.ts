@@ -4,6 +4,7 @@
  */
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
+import toast from 'react-hot-toast';
 
 interface NativeUploadPlugin {
   compressAndUpload(options: {
@@ -116,7 +117,10 @@ export async function nativeBackgroundUpload(
       await NativeUpload.backgroundUpload({ ...base, displayName: opts.displayName });
     } else {
       // Android: 포그라운드 서비스가 백그라운드로 끝까지 처리 — 완료를 기다리지 않음(fire-and-forget)
-      NativeUpload.compressAndUpload(base).catch(() => { /* 서비스가 알림으로 결과 표시 */ });
+      // 단, 앱 실행 중 업로드가 실패하면(promise reject) 즉시 토스트로 알림(앱이 닫혀 있으면 OS 알림이 대신 표시)
+      NativeUpload.compressAndUpload(base).catch(() => {
+        toast.error('영상 업로드에 실패했어요. 다시 시도해 주세요.');
+      });
     }
     return true;
   } catch (e) {

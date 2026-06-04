@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -12,18 +12,21 @@ class NoticeBase(BaseModel):
 class NoticeCreate(NoticeBase):
     author: str
     class_id: Optional[str] = None
+    target_class_ids: Optional[List[str]] = None  # [] / None = 전체 공지
 
 
 class NoticeUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
     important: Optional[bool] = None
+    target_class_ids: Optional[List[str]] = None
 
 
 class NoticeResponse(NoticeBase):
     id: str
     author: str
     class_id: Optional[str] = None
+    target_class_ids: Optional[List[str]] = None
     created_at: datetime
 
     class Config:
