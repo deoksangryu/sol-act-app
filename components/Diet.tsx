@@ -87,7 +87,7 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
       const [m, w, sw] = await Promise.all([
         dietApi.list(mealParams(0)),
         // 체중 로드 실패가 식단 목록까지 막지 않도록 개별 방어
-        isStaff ? Promise.resolve([] as any[]) : dietApi.listWeight({ studentId: user.id, days: 30 }).catch(() => [] as any[]),
+        isStaff ? Promise.resolve([] as any[]) : dietApi.listWeight({ studentId: user.id, days: 365 }).catch(() => [] as any[]),
         // 선생님/원장: 학생별 체중 요약
         isStaff ? dietApi.weightStudents().catch(() => [] as StudentWeightSummary[]) : Promise.resolve([] as StudentWeightSummary[]),
       ]);
@@ -209,21 +209,35 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
               if (bmi) parts.push(`BMI ${bmi}`);
               return parts.length ? <div style={{ fontSize: 12, color: TOSS.sub, marginTop: 8, lineHeight: 1.6 }}>{parts.join(' · ')}</div> : null;
             })()}
-            {weights.length > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 10, fontSize: 11, color: TOSS.sub }}>
-                {weights.slice(-6).map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={async () => {
-                      if (!window.confirm(`${(p.date || '').slice(5, 10).replace('-', '/')} ${p.weight}kg 기록을 지울까요?`)) return;
-                      try { await dietApi.deleteWeight(p.id); await load(); toast.success('지웠어요'); }
-                      catch (e: any) { toast.error(e.message || '지우지 못했어요'); }
-                    }}
-                    style={{ background: 'none', border: 'none', padding: 0, whiteSpace: 'nowrap', fontSize: 11, color: TOSS.sub, cursor: 'pointer' }}
-                  >{(p.date || '').slice(5, 10).replace('-', '/')} {p.weight}</button>
-                ))}
-              </div>
-            )}
+            {weights.length > 0 && (() => {
+              // 최근 기록을 막대그래프로(탭하면 삭제). 30일 윈도우 → 365일로 넓혀 전체 이력이 보임
+              const ws = weights.slice(-10);
+              const min = Math.min(...ws.map(p => p.weight));
+              const max = Math.max(...ws.map(p => p.weight));
+              return (
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 5, height: 84, marginTop: 14 }}>
+                  {ws.map((p) => {
+                    const h = max > min ? 20 + ((p.weight - min) / (max - min)) * 52 : 42;
+                    return (
+                      <button
+                        key={p.id}
+                        onClick={async () => {
+                          if (!window.confirm(`${(p.date || '').slice(5, 10).replace('-', '/')} ${p.weight}kg 기록을 지울까요?`)) return;
+                          try { await dietApi.deleteWeight(p.id); await load(); toast.success('지웠어요'); }
+                          catch (e: any) { toast.error(e.message || '지우지 못했어요'); }
+                        }}
+                        style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, cursor: 'pointer' }}
+                      >
+                        <span style={{ fontSize: 9, color: TOSS.sub }}>{p.weight}</span>
+                        <div style={{ width: '100%', maxWidth: 22, height: h, borderRadius: 5, background: TOSS.blue, opacity: 0.85 }} />
+                        <span style={{ fontSize: 9, color: TOSS.sub, whiteSpace: 'nowrap' }}>{(p.date || '').slice(5).replace('-', '/')}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            {weights.length > 1 && <div style={{ fontSize: 11, color: TOSS.sub, marginTop: 8, textAlign: 'center' }}>최근 {Math.min(weights.length, 10)}개 · 막대를 누르면 삭제돼요</div>}
           </div>
         </div>
         </>}
