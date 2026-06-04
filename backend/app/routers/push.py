@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from app.database import get_db
 from app.models.push_subscription import PushSubscription
+from app.models.device_token import DeviceToken
 from app.models.user import User
 from app.utils.auth import get_current_user
 from app.config import settings
+from typing import Optional
 import uuid
 
 router = APIRouter()
@@ -63,3 +65,51 @@ def unsubscribe(
 @router.get("/vapid-public-key")
 def get_vapid_public_key():
     return {"publicKey": settings.VAPID_PUBLIC_KEY}
+
+
+# ── 네이티브 푸시 디바이스 토큰 (FCM=android / APNs=ios) ──
+
+class DeviceTokenRequest(BaseModel):
+    token: str
+    platform: str  # 'ios' | 'android'
+
+
+@router.post("/device-token")
+def register_device_token(
+    data: DeviceTokenRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """네이티브 앱이 발급받은 디바이스 토큰 등록(upsert)."""
+    platform = data.platform if data.platform in ("ios", "android") else "android"
+    existing = db.query(DeviceToken).filter(DeviceToken.token == data.token).first()
+    if existing:
+        existing.user_id = current_user.id
+        existing.platform = platform
+    else:
+        db.add(DeviceToken(
+            id=f"dt{uuid.uuid4().hex[:8]}",
+            user_id=current_user.id,
+            token=data.token,
+            platform=platform,
+        ))
+    db.commit()
+    return {"ok": True}
+
+
+class DeviceTokenDelete(BaseModel):
+    token: str
+
+
+@router.delete("/device-token")
+def remove_device_token(
+    data: DeviceTokenDelete,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    db.query(DeviceToken).filter(
+        DeviceToken.token == data.token,
+        DeviceToken.user_id == current_user.id,
+    ).delete()
+    db.commit()
+    return {"ok": True}

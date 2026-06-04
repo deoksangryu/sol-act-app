@@ -135,8 +135,10 @@ async def notify_user(
             })
     except Exception as e:
         logger.warning(f"Failed to send WS notification to {user_id}: {e}")
-    # Web Push for background/offline users (fire-and-forget in background thread)
+    # Web Push (PWA/브라우저) + 네이티브 푸시(FCM/APNs) — 둘 다 fire-and-forget, 미설정 시 무동작
     _send_web_push(user_id, message, tag=push_tag or entity or "general")
+    from app.services.native_push import send_native_push
+    send_native_push(user_id, "SOL-ACT", message, {"entity": entity or "general"})
 
 
 async def notify_users(
@@ -192,10 +194,12 @@ async def notify_users(
         except Exception as e:
             logger.warning(f"Failed to send WS to {notif.user_id}: {e}")
 
-    # 3) Fire-and-forget Web Push in background threads
+    # 3) Fire-and-forget Web Push + 네이티브 푸시 (미설정 시 무동작)
     tag = push_tag or entity or "general"
+    from app.services.native_push import send_native_push
     for uid in user_ids:
         _send_web_push(uid, message, tag=tag)
+        send_native_push(uid, "SOL-ACT", message, {"entity": entity or "general"})
 
 
 async def emit_data_changed(user_ids: List[str], entity: str) -> None:

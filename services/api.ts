@@ -1351,6 +1351,13 @@ export const pushApi = {
       body: JSON.stringify({ endpoint, p256dh, auth }),
     });
   },
+  // 네이티브 푸시(FCM/APNs) 디바이스 토큰
+  saveDeviceToken(token: string, platform: string): Promise<{ ok: boolean }> {
+    return apiRequest('/api/push/device-token', { method: 'POST', body: JSON.stringify({ token, platform }) });
+  },
+  removeDeviceToken(token: string): Promise<{ ok: boolean }> {
+    return apiRequest('/api/push/device-token', { method: 'DELETE', body: JSON.stringify({ token }) });
+  },
 };
 
 export const praiseStickerApi = {

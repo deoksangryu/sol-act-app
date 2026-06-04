@@ -17,6 +17,7 @@ import { AppDataProvider } from './services/AppContext';
 import { UploadIndicator } from './components/UploadIndicator';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { getSavedUser, clearAuth, userApi, classApi, notificationApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
+import { registerNativePush, unregisterNativePush } from './services/nativePush';
 import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
 
 /** Retry a function up to `n` times with exponential backoff */
@@ -105,8 +106,9 @@ const AppInner: React.FC = () => {
       setAllUsers(usersData);
       setClasses(classesData);
       setNotifications(notifsData);
-      // Register Web Push subscription (non-blocking)
+      // 푸시 등록(비차단): 웹푸시(PWA/브라우저) + 네이티브 푸시(FCM/APNs)
       registerPushSubscription();
+      registerNativePush();
     } catch (err) {
       console.error('Failed to load app data:', err);
     } finally {
@@ -128,6 +130,7 @@ const AppInner: React.FC = () => {
       }
     }
     unregisterPushSubscription();
+    unregisterNativePush();
     clearAuth();
     setUser(null);
     setAllUsers([]);

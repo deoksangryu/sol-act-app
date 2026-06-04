@@ -39,6 +39,16 @@ class Settings(BaseSettings):
     VAPID_PUBLIC_KEY: str = ""
     VAPID_CLAIMS_EMAIL: str = "mailto:admin@sol-manager.com"
 
+    # Native Push — 미설정 시 자동으로 비활성(앱은 정상 구동, 웹푸시/실시간만 동작)
+    # Android: Firebase 서비스계정 JSON 경로
+    FCM_CREDENTIALS_FILE: str = ""
+    # iOS: Apple APNs 키(.p8) — 직접 발송용
+    APNS_KEY_FILE: str = ""
+    APNS_KEY_ID: str = ""
+    APNS_TEAM_ID: str = ""
+    APNS_BUNDLE_ID: str = "com.solact.academy"
+    APNS_USE_SANDBOX: bool = False  # 개발 빌드는 True (api.sandbox.push.apple.com)
+
     # CORS — localhost origins only active when DEBUG=True
     CORS_ORIGINS: List[str] = [
         "https://sol-manager.com",

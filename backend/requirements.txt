@@ -22,6 +22,11 @@ pillow-heif==0.21.0  # HEIC(아이폰 기본 포맷) 읽기/JPEG 변환
 # Web Push Notifications
 pywebpush==2.0.1
 
+# 네이티브 푸시 (활성화 시에만 필요 — 미설치여도 백엔드는 정상 구동)
+# Android(FCM): firebase-admin / iOS(APNs): httpx[http2] (python-jose는 이미 포함)
+firebase-admin==6.5.0
+httpx[http2]==0.27.2
+
 # Utilities
 python-dotenv==1.0.1
 aiofiles>=24.0.0

@@ -14,6 +14,7 @@ from .portfolio import Portfolio, PortfolioComment
 from .audition import Audition, AuditionChecklist
 from .private_lesson import PrivateLessonRequest
 from .push_subscription import PushSubscription
+from .device_token import DeviceToken
 from .praise_sticker import PraiseSticker
 from .music import Track, MusicDownloadRequest
 
@@ -38,6 +39,7 @@ __all__ = [
     "AuditionChecklist",
     "PrivateLessonRequest",
     "PushSubscription",
+    "DeviceToken",
     "PraiseSticker",
     "Track",
     "MusicDownloadRequest",

@@ -54,70 +54,42 @@ print('PRIVATE=', base64.urlsafe_b64encode(v.private_key.private_bytes_raw()).de
 
 ---
 
-## 4. 네이티브 앱에서 진짜 푸시 받기 (FCM + APNs 추가)
+## 4. 네이티브 푸시 — **코드는 구현 완료**, 자격증명만 넣으면 켜짐
 
-TestFlight iOS / APK Android 앱 사용자에게 백그라운드 푸시를 보내려면 **네이티브 푸시 채널**을 추가해야 한다. 외부 자격증명(Apple APNs 키, Firebase 프로젝트)이 필요해 **코드만으로는 끝나지 않는다.** 단계:
+TestFlight iOS / APK Android 앱의 백그라운드 푸시 코드를 **이미 다 구현**해 뒀다. FCM/APNs **자격증명이 없으면 자동으로 무동작**(앱은 정상 구동)하고, 넣는 즉시 켜진다. 남은 건 외부 자격증명 발급 + 설정뿐이다.
 
-### 4-1. 플러그인 추가
+### 이미 구현된 것 (코드)
+- 플러그인: `@capacitor/push-notifications` 설치됨(package.json).
+- 프론트: [services/nativePush.ts](../services/nativePush.ts) `registerNativePush()` — 로그인 시 [App.tsx](../App.tsx)에서 호출, 권한 요청 → 토큰을 `POST /api/push/device-token`으로 저장. 로그아웃 시 해제.
+- 백엔드: `DeviceToken` 모델/테이블, `POST·DELETE /api/push/device-token`([routers/push.py](../backend/app/routers/push.py)), 발송기 [services/native_push.py](../backend/app/services/native_push.py)(Android=FCM, iOS=APNs), `notify_user`/`notify_users`에 **웹푸시와 나란히 네이티브 발송** 통합. → 1장의 모든 트리거가 네이티브에서도 발송된다.
+- iOS `Info.plist`에 `remote-notification` 백그라운드 모드 추가됨.
+
+### 활성화 절차 (자격증명 발급 + 설정)
+
+**A. 공통 — 패키지 설치 + 동기화**
 ```bash
-npm i @capacitor/push-notifications
-npx cap sync
+npm install                 # @capacitor/push-notifications 포함
+cd backend && pip install -r requirements.txt   # firebase-admin, httpx[http2]
+npx cap sync                # 네이티브 플러그인 반영
 ```
 
-### 4-2. Firebase 프로젝트 (FCM 허브 — iOS·Android 공통)
-1. Firebase 콘솔에서 프로젝트 생성.
-2. **Android 앱** 추가(패키지 `com.solact.academy`) → `google-services.json` 다운로드 → `android/app/google-services.json`에 저장. (이미 `build.gradle`이 이 파일을 감지하도록 돼 있음)
-3. **iOS 앱** 추가(번들 `com.solact.academy`) → `GoogleService-Info.plist` 다운로드 → Xcode의 App 타깃에 추가.
+**B. Android (FCM)**
+1. Firebase 콘솔 → 프로젝트 생성 → **Android 앱**(패키지 `com.solact.academy`) 추가 → `google-services.json` 다운로드 → `android/app/google-services.json`. (`build.gradle`이 자동 감지)
+2. Firebase 콘솔 → 프로젝트 설정 → **서비스 계정 → 새 비공개 키 생성** → JSON 다운로드 → 서버에 두고 환경변수 `FCM_CREDENTIALS_FILE=/경로/serviceAccount.json`.
 
-### 4-3. iOS APNs 연결
-1. Apple Developer → Keys → **APNs Auth Key(.p8)** 생성 → Key ID/Team ID 기록.
-2. Firebase 콘솔 → 프로젝트 설정 → Cloud Messaging → **APNs 인증 키 업로드**(.p8 + Key ID + Team ID).
-3. Xcode App 타깃 → **Signing & Capabilities → ＋ Capability → Push Notifications** 추가.
-4. 같은 화면에서 **Background Modes → Remote notifications** 체크 (Info.plist `UIBackgroundModes`에 `remote-notification` 추가됨).
+**C. iOS (APNs)**
+1. Apple Developer → Keys → **APNs Auth Key(.p8)** 생성 → `.p8` 파일 + **Key ID** + **Team ID** 기록.
+2. 서버 환경변수: `APNS_KEY_FILE=/경로/AuthKey_XXXX.p8`, `APNS_KEY_ID=...`, `APNS_TEAM_ID=...`, (개발 빌드 테스트면 `APNS_USE_SANDBOX=true`).
+3. Xcode → App 타깃 → **Signing & Capabilities → ＋ Push Notifications** 추가(여기서 `aps-environment` 엔타이틀먼트가 생성됨 — 이건 Xcode에서만 가능). Background Modes의 Remote notifications는 Info.plist에 이미 반영돼 있다.
+4. (선택) iOS도 Firebase로 묶고 싶으면 `GoogleService-Info.plist`를 추가하지만, 위 APNs 직접 발송 경로만으로도 동작한다.
 
-### 4-4. 프론트 등록 코드 (네이티브 토큰 → 백엔드)
-네이티브일 때는 웹푸시 대신 네이티브 토큰을 등록하도록 분기. 예:
-```ts
-import { Capacitor } from '@capacitor/core';
-import { PushNotifications } from '@capacitor/push-notifications';
+**D. 확인**: 서버 재시작 후 로그에 `native_push_configured=True`가 되면 활성. 다른 계정으로 트리거(영상 업로드 등) → 앱 닫은 상태에서 알림 수신 확인.
 
-export async function registerNativePush() {
-  if (!Capacitor.isNativePlatform()) return;            // 네이티브에서만
-  const perm = await PushNotifications.requestPermissions();
-  if (perm.receive !== 'granted') return;
-  await PushNotifications.register();
-  PushNotifications.addListener('registration', t =>
-    // 백엔드에 디바이스 토큰 저장 (신규 엔드포인트 필요: POST /api/push/device-token)
-    pushApi.saveDeviceToken(t.value, Capacitor.getPlatform()));
-}
-```
-- `App.tsx`의 로그인 후 `registerPushSubscription()` 옆에서 `registerNativePush()`도 호출.
-
-### 4-5. 백엔드: 디바이스 토큰 저장 + FCM 발송
-1. 모델/테이블 `DeviceToken(user_id, token, platform)` 추가, `POST /api/push/device-token` 엔드포인트 추가.
-2. 발송: `pywebpush`(웹) **와 함께** FCM HTTP v1로 네이티브 토큰에 발송.
-   ```bash
-   pip install firebase-admin   # backend/requirements.txt에 추가
-   ```
-   ```python
-   # notification_service.py 내 notify_user/notify_users 확장
-   import firebase_admin
-   from firebase_admin import messaging, credentials
-   # 앱 시작 시 1회: firebase_admin.initialize_app(credentials.Certificate("serviceAccount.json"))
-   def _send_fcm(tokens, title, body):
-       for t in tokens:
-           messaging.send(messaging.Message(
-               token=t, notification=messaging.Notification(title=title, body=body)))
-   ```
-3. 기존 `notify_user`/`notify_users`가 **웹푸시 구독 + 네이티브 토큰** 양쪽으로 보내도록 합치면, 위 1장의 모든 트리거가 네이티브에서도 동작한다.
-
-> 정리: **(4-2)(4-3)는 외부 콘솔 설정**(Firebase/Apple), **(4-4)(4-5)는 코드 작업**이다. 자격증명(파일 3종: `google-services.json`, `GoogleService-Info.plist`, Firebase 서비스계정 JSON 또는 APNs .p8)을 준비해 주면 4-4·4-5 코드는 바로 붙일 수 있다.
+> 환경변수는 `backend/.env`에 넣으면 된다(`app/config.py`의 `FCM_CREDENTIALS_FILE`, `APNS_*` 항목). 미설정이면 백엔드는 경고 없이 네이티브 발송만 건너뛴다.
 
 ---
 
 ## 5. 권장 로드맵
 
-1. **지금**: 백엔드 VAPID 키 확인 + PWA 사용자에게 "홈 화면 추가 → 알림 켜기" 안내(추가 개발 0). 네이티브 앱은 **앱 열려 있을 때 실시간 알림**으로 우선 운영.
-2. **다음(원장님이 자격증명 준비 시)**: 4장의 FCM/APNs를 붙여 TestFlight/APK 네이티브 앱에서도 백그라운드 푸시 활성화.
-
-필요한 자격증명을 받으면 4-4/4-5 코드 작성 + 백엔드 발송 통합까지 이어서 진행하겠다.
+1. **지금**: PWA 사용자에게 "홈 화면 추가 → 알림 켜기" 안내(이미 동작). 네이티브 앱은 코드가 준비됐으니 자격증명만 넣으면 백그라운드 푸시가 켜진다.
+2. **자격증명 발급 시**: 위 4장 A~C를 따라 환경변수만 설정 + Xcode에서 Push Notifications capability 추가 + 새 TestFlight/APK 빌드. 코드 추가 작업은 없다.
