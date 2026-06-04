@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { User, UserRole, PortfolioItem } from '../types';
+import { User, UserRole, PortfolioItem, FeedCard } from '../types';
 import { portfolioApi, uploadApi, resolveFileUrl, API_URL, getToken } from '../services/api';
 import { nativeBackgroundUpload } from '../services/nativeUpload';
 import { useDataRefresh } from '../services/useWebSocket';
@@ -52,6 +52,15 @@ const stateTag = (v: PortfolioItem, staff: boolean): React.ReactNode => {
   return hasC ? <Tag bg={TOSS.successBg} fg={TOSS.success}>피드백 완료</Tag> : <Tag {...toneColors('pending')}>피드백 대기</Tag>;
 };
 
+// 피드 카드 우측 상태 태그(업로드 상태 우선, 그 다음 피드백 집계)
+const cardTag = (c: FeedCard, staff: boolean): React.ReactNode => {
+  const s = c.uploadStatus || 'ready';
+  if (s === 'failed') return <Tag {...toneColors('overdue')}>업로드 실패</Tag>;
+  if (s === 'uploading') return <Tag {...toneColors('pending')}>업로드 중</Tag>;
+  if (c.pendingFeedback > 0) return <Tag {...toneColors('pending')}>{staff ? (c.kind === 'group' ? `피드백 ${c.pendingFeedback}개 필요` : '피드백 필요') : '피드백 대기'}</Tag>;
+  return <Tag bg={TOSS.successBg} fg={TOSS.success}>{staff ? '완료' : '피드백 완료'}</Tag>;
+};
+
 // 영상 썸네일 (56x56) — 썸네일 로딩 중엔 회색 스켈레톤, 실패=경고, 업로드중=스피너
 const PlayThumb: React.FC<{ thumb?: string; status?: UpState }> = ({ thumb, status = 'ready' }) => {
   const [loaded, setLoaded] = useState(false);
@@ -72,18 +81,19 @@ const PlayThumb: React.FC<{ thumb?: string; status?: UpState }> = ({ thumb, stat
 export const Video: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
   const PAGE = 24;
-  const [items, setItems] = useState<PortfolioItem[]>([]);
+  const [cards, setCards] = useState<FeedCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [more, setMore] = useState(false);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openItem, setOpenItem] = useState<PortfolioItem | null>(null);  // single 카드 → 상세
+  const [openGroup, setOpenGroup] = useState<FeedCard | null>(null);     // group 카드 → 그룹 상세
   const [uploading, setUploading] = useState(false);
   const [cat, setCat] = useState('all');
   const [query, setQuery] = useState('');
   const search = useDebouncedValue(query.trim(), 300);
 
-  // 서버사이드 필터/검색 — category(전체 제외) + search를 파라미터로
-  const listParams = (skip: number) => ({
+  // 카드 단위 피드(서버에서 individual=그룹, single/단일=개별로 묶음) + 검색/카테고리
+  const feedParams = (skip: number) => ({
     ...(isStaff ? {} : { studentId: user.id }),
     ...(cat !== 'all' ? { category: cat } : {}),
     ...(search ? { search } : {}),
@@ -91,9 +101,8 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
   });
   const load = async () => {
     try {
-      const data = await portfolioApi.list(listParams(0));
-      setItems(data);
-      setHasMore(data.length >= PAGE);
+      const data = await portfolioApi.listFeed(feedParams(0));
+      setCards(data); setHasMore(data.length >= PAGE);
     } catch (e: any) {
       toast.error(e.message || '영상을 불러오지 못했어요');
     }
@@ -101,9 +110,8 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
   const loadMore = async () => {
     setMore(true);
     try {
-      const data = await portfolioApi.list(listParams(items.length));
-      setItems(prev => [...prev, ...data]);
-      setHasMore(data.length >= PAGE);
+      const data = await portfolioApi.listFeed(feedParams(cards.length));
+      setCards(prev => [...prev, ...data]); setHasMore(data.length >= PAGE);
     } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
     finally { setMore(false); }
   };
@@ -116,59 +124,66 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
 
   if (loading) return <ListSkeleton />;
 
-  const open = openId ? items.find(i => i.id === openId) : null;
-  if (open) return <VideoDetail item={open} user={user} isStaff={isStaff} onBack={() => setOpenId(null)} onReload={load}
-    onDeleted={async () => { setOpenId(null); await load(); }}
-    onReupload={async () => { try { await portfolioApi.delete(open.id); } catch { /* 이미 없으면 무시 */ } setOpenId(null); setUploading(true); }} />;
+  if (openItem) return <VideoDetail item={openItem} user={user} isStaff={isStaff} onBack={() => setOpenItem(null)} onReload={load}
+    onDeleted={async () => { setOpenItem(null); await load(); }}
+    onReupload={async () => { try { await portfolioApi.delete(openItem.id); } catch { /* 이미 없으면 무시 */ } setOpenItem(null); setUploading(true); }} />;
+  if (openGroup) return <GroupDetail card={openGroup} user={user} isStaff={isStaff} cat={cat} search={search} onBack={() => setOpenGroup(null)} />;
   if (uploading) return <UploadScreen onBack={() => setUploading(false)} onDone={async () => { setUploading(false); await load(); }} />;
 
-  // ── 선생님: 학생 영상 피드백 (상태별 섹션 분리) ──
-  if (isStaff) {
-    const failed = items.filter(v => classify(v) === 'failed');
-    const up = items.filter(v => classify(v) === 'uploading');
-    const ready = items.filter(v => classify(v) === 'ready');
-    const pending = ready.filter(v => (v.comments?.length ?? 0) === 0);
-    const done = ready.filter(v => (v.comments?.length ?? 0) > 0);
-    const row = (v: PortfolioItem) => (
-      <ListRow key={v.id} left={<PlayThumb thumb={coverThumb(v)} status={classify(v)} />} title={v.title}
-        sub={`${v.studentName} · ${(v.date || '').slice(5, 10)}`}
-        right={stateTag(v, true)}
-        onClick={() => setOpenId(v.id)} />
-    );
-    return (
-      <Screen>
-        <BigTitle title={<>학생 영상에<br />피드백을 남겨요</>} />
-        <SearchBar value={query} onChange={setQuery} placeholder="제목·학생 영상 검색" />
-        <FilterChips options={VIDEO_FILTERS} value={cat} onChange={setCat} />
-        <Scroll>
-          {items.length === 0 && <Empty>아직 올라온 영상이 없어요</Empty>}
-          {pending.length > 0 && <><SectionLabel>피드백 기다리는 영상 {pending.length}개</SectionLabel>{pending.map(row)}</>}
-          {done.length > 0 && <><SectionLabel>피드백 완료 {done.length}개</SectionLabel>{done.map(row)}</>}
-          {up.length > 0 && <><SectionLabel>업로드 중 {up.length}개</SectionLabel>{up.map(row)}</>}
-          {failed.length > 0 && <><SectionLabel>업로드 실패 {failed.length}개</SectionLabel>{failed.map(row)}</>}
-          {renderMore()}
-        </Scroll>
-      </Screen>
-    );
-  }
+  const cardSub = (c: FeedCard) => {
+    const date = (c.date || '').slice(5, 10);
+    const count = c.kind === 'group' ? `영상 ${c.count}개` : (c.count > 1 ? `영상 ${c.count}개` : (c.portfolio ? catLabel(c.portfolio.category) : ''));
+    return [isStaff ? c.studentName : '', count, date].filter(Boolean).join(' · ');
+  };
+  const openCard = (c: FeedCard) => { if (c.kind === 'group') setOpenGroup(c); else if (c.portfolio) setOpenItem(c.portfolio); };
+  const cardRow = (c: FeedCard) => (
+    <ListRow key={c.key} left={<PlayThumb thumb={c.coverThumbnail} status={c.uploadStatus || 'ready'} />}
+      title={c.title} sub={cardSub(c)} right={cardTag(c, isStaff)} onClick={() => openCard(c)} />
+  );
 
-  // ── 학생: 내 영상 + 업로드 ──
   return (
     <Screen>
-      <BigTitle title={<>연습 영상을<br />{items.length}개 모았어요</>} />
-      <SearchBar value={query} onChange={setQuery} placeholder="영상 제목 검색" />
+      <BigTitle title={isStaff ? <>학생 영상에<br />피드백을 남겨요</> : <>연습 영상을<br />모아봐요</>} />
+      <SearchBar value={query} onChange={setQuery} placeholder={isStaff ? '제목·학생 영상 검색' : '영상 제목 검색'} />
       <FilterChips options={VIDEO_FILTERS} value={cat} onChange={setCat} />
       <Scroll>
-        <SectionLabel>내 연습 영상 {items.length}개</SectionLabel>
-        {items.length === 0 ? <Empty>아직 올린 영상이 없어요</Empty> : items.map(v => (
-          <ListRow key={v.id} left={<PlayThumb thumb={coverThumb(v)} status={classify(v)} />} title={v.title}
-            sub={`${catLabel(v.category)}${(v.videos?.length ?? 0) > 0 ? ` · 영상 ${(v.videos!.length) + (v.videoUrl ? 1 : 0)}개` : ''} · ${(v.date || '').slice(5, 10)}${fmtDur(v.videoDuration)}`}
-            right={stateTag(v, false)}
-            onClick={() => setOpenId(v.id)} />
-        ))}
+        <SectionLabel>{isStaff ? '학생 영상' : '내 연습 영상'} {cards.length}{hasMore ? '+' : ''}</SectionLabel>
+        {cards.length === 0 ? <Empty>{isStaff ? '아직 올라온 영상이 없어요' : '아직 올린 영상이 없어요'}</Empty> : cards.map(cardRow)}
         {renderMore()}
       </Scroll>
-      <Cta onClick={() => setUploading(true)}>새 영상 올리기</Cta>
+      {!isStaff && <Cta onClick={() => setUploading(true)}>새 영상 올리기</Cta>}
+    </Screen>
+  );
+};
+
+// 그룹(연습묶음) 상세 — 같은 practice_group 멤버 영상 목록 → 각 영상 상세
+const GroupDetail: React.FC<{ card: FeedCard; user: User; isStaff: boolean; cat: string; search: string; onBack: () => void }> = ({ card, user, isStaff, cat, search, onBack }) => {
+  const [members, setMembers] = useState<PortfolioItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sel, setSel] = useState<PortfolioItem | null>(null);
+  const load = async () => {
+    // 피드와 동일한 필터(카테고리/검색) 적용 → 카드 count와 멤버 목록이 일치
+    try { setMembers(await portfolioApi.list({ practiceGroup: card.title, studentId: card.studentId, ...(cat !== 'all' ? { category: cat } : {}), ...(search ? { search } : {}), limit: 200 })); }
+    catch (e: any) { toast.error(e.message || '불러오지 못했어요'); }
+  };
+  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, []);
+  useDataRefresh(['portfolios'], load);
+  if (sel) return <VideoDetail item={sel} user={user} isStaff={isStaff} onBack={() => setSel(null)} onReload={load} onDeleted={async () => { setSel(null); await load(); }} />;
+  return (
+    <Screen>
+      <BackHeader title={card.title} onBack={onBack} />
+      <Scroll>
+        {loading ? <ListSkeleton /> : members.length === 0 ? <Empty>영상이 없어요</Empty> : (
+          <>
+            <SectionLabel>영상 {members.length}개{isStaff ? ` · ${card.studentName}` : ''}</SectionLabel>
+            {members.map(v => (
+              <ListRow key={v.id} left={<PlayThumb thumb={coverThumb(v)} status={classify(v)} />} title={v.title}
+                sub={`${catLabel(v.category)} · ${(v.date || '').slice(5, 10)}${fmtDur(v.videoDuration)}`}
+                right={stateTag(v, isStaff)} onClick={() => setSel(v)} />
+            ))}
+          </>
+        )}
+      </Scroll>
     </Screen>
   );
 };

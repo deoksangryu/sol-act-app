@@ -260,6 +260,21 @@ export interface PortfolioItem {
   date: string;
 }
 
+// 영상 탭 피드 카드 — group(연습묶음) 또는 single(단일/묶기 1포트폴리오)
+export interface FeedCard {
+  key: string;
+  kind: 'group' | 'single';
+  title: string;
+  studentId: string;
+  studentName: string;
+  count: number;
+  pendingFeedback: number;    // ready인데 코멘트 0개인 멤버 수(피드백 필요)
+  coverThumbnail?: string;
+  date: string;               // 대표(최신) 생성일
+  uploadStatus?: 'ready' | 'uploading' | 'failed';
+  portfolio?: PortfolioItem;  // kind=single일 때만(상세 즉시 오픈)
+}
+
 export interface PortfolioAttachmentItem {
   id: string;
   fileUrl: string;

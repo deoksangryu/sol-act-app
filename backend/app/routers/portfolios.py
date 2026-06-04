@@ -25,14 +25,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _upload_status(p: Portfolio) -> str:
+    # 영상 있으면 ready / 없으면 생성 후 2h 이내=uploading, 초과=failed
+    if bool((p.video_url or "").strip()) or bool(p.videos):
+        return "ready"
+    age = (datetime.utcnow() - p.created_at) if p.created_at else timedelta(0)
+    return "uploading" if age < UPLOAD_TIMEOUT else "failed"
+
+
+def _cover_thumb(p: Portfolio):
+    # 대표 썸네일: 커버 우선, 없으면 자식 영상에서
+    if p.thumbnail_url:
+        return p.thumbnail_url
+    return next((v.thumbnail_url for v in (p.videos or []) if v.thumbnail_url), None)
+
+
 def portfolio_to_response(p: Portfolio) -> dict:
-    # 업로드 상태: 영상 있으면 ready / 없으면 생성 후 2h 이내=uploading, 초과=failed
-    has_video = bool((p.video_url or "").strip()) or bool(p.videos)
-    if has_video:
-        upload_status = "ready"
-    else:
-        age = (datetime.utcnow() - p.created_at) if p.created_at else timedelta(0)
-        upload_status = "uploading" if age < UPLOAD_TIMEOUT else "failed"
+    upload_status = _upload_status(p)
     return {
         "id": p.id,
         "student_id": p.student_id,
@@ -225,6 +234,7 @@ def list_portfolios(
     student_id: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
     search: Optional[str] = Query(None, description="제목/설명 부분일치"),
+    practice_group: Optional[str] = Query(None, description="그룹(연습묶음) 필터 — 그룹 상세에서 멤버 조회"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
@@ -254,8 +264,85 @@ def list_portfolios(
     if search:
         like = f"%{search.strip()}%"
         query = query.filter(or_(Portfolio.title.ilike(like), Portfolio.description.ilike(like)))
+    if practice_group:
+        query = query.filter(Portfolio.practice_group == practice_group)
     portfolios = query.order_by(Portfolio.created_at.desc()).offset(skip).limit(limit).all()
     return [portfolio_to_response(p) for p in portfolios]
+
+
+@router.get("/feed")
+def portfolio_feed(
+    student_id: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
+    search: Optional[str] = Query(None, description="제목/설명 부분일치"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(24, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """영상 탭 피드 — individual 모드(같은 practice_group)는 (student_id, practice_group)로 묶은
+    group 카드, single 모드·단일은 single 카드. 카드 단위로 페이지네이션.
+    그룹핑 정확성 위해 스코프 전건 로드 후 집계·슬라이스(/practice-groups와 동일 방식, 규모상 허용)."""
+    query = db.query(Portfolio).options(
+        joinedload(Portfolio.student),
+        joinedload(Portfolio.comments).joinedload(PortfolioComment.author),
+        joinedload(Portfolio.videos),
+        joinedload(Portfolio.attachments),
+    )
+    if current_user.role == UserRole.TEACHER:
+        my_student_ids = get_teacher_student_ids(db, current_user.id)
+        query = query.filter(Portfolio.student_id.in_(my_student_ids))
+    elif current_user.role == UserRole.STUDENT:
+        query = query.filter(Portfolio.student_id == current_user.id)
+    if student_id:
+        query = query.filter(Portfolio.student_id == student_id)
+    if category:
+        try:
+            query = query.filter(Portfolio.category == PortfolioCategory(category))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid category: {category}")
+    if search:
+        like = f"%{search.strip()}%"
+        query = query.filter(or_(Portfolio.title.ilike(like), Portfolio.description.ilike(like)))
+
+    rows = query.order_by(Portfolio.created_at.desc()).all()
+
+    cards = []
+    index = {}  # group key -> card
+    for p in rows:
+        pg = (p.practice_group or "").strip()
+        st = _upload_status(p)
+        # 피드백 필요: 재생가능(ready)인데 코멘트 0개
+        needs = 1 if (st == "ready" and len(p.comments or []) == 0) else 0
+        if pg:
+            key = f"{p.student_id}::{pg}"
+            card = index.get(key)
+            if card is None:
+                card = {
+                    "key": key, "kind": "group", "title": pg,
+                    "student_id": p.student_id, "student_name": p.student.name if p.student else "",
+                    "count": 1, "pending_feedback": needs, "cover_thumbnail": _cover_thumb(p),
+                    "latest_date": p.created_at, "upload_status": st, "portfolio": None,
+                }
+                index[key] = card
+                cards.append(card)
+            else:
+                card["count"] += 1
+                card["pending_feedback"] += needs
+                if card["upload_status"] != "ready" and st == "ready":
+                    card["upload_status"] = "ready"
+                if not card["cover_thumbnail"]:
+                    card["cover_thumbnail"] = _cover_thumb(p)
+        else:
+            rep = portfolio_to_response(p)
+            cards.append({
+                "key": p.id, "kind": "single", "title": p.title,
+                "student_id": p.student_id, "student_name": p.student.name if p.student else "",
+                "count": 1 + len(rep.get("videos", [])), "pending_feedback": needs,
+                "cover_thumbnail": _cover_thumb(p),
+                "latest_date": p.created_at, "upload_status": st, "portfolio": rep,
+            })
+    return cards[skip: skip + limit]
 
 
 @router.get("/{portfolio_id}", response_model=PortfolioResponse)

@@ -3,7 +3,7 @@ import type {
   Assignment, DietLog, Evaluation, Question, Answer,
   ChatMessage, Notice, Notification, PortfolioItem, PortfolioComment,
   CompetitionEvent, ChecklistItem, PrivateLessonRequest,
-  JournalComment, Track, MusicDownloadRequest,
+  JournalComment, Track, MusicDownloadRequest, FeedCard,
 } from '../types';
 
 // --- Config ---
@@ -720,11 +720,35 @@ export const notificationApi = {
 
 // --- Portfolio API ---
 export const portfolioApi = {
-  async list(params?: { studentId?: string; category?: string; search?: string; skip?: number; limit?: number }): Promise<PortfolioItem[]> {
+  async listFeed(params?: { studentId?: string; category?: string; search?: string; skip?: number; limit?: number }): Promise<FeedCard[]> {
     const q = new URLSearchParams();
     if (params?.studentId) q.set('student_id', params.studentId);
     if (params?.category) q.set('category', params.category);
     if (params?.search) q.set('search', params.search);
+    if (params?.skip != null) q.set('skip', String(params.skip));
+    if (params?.limit != null) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    const data = await apiRequest<Record<string, unknown>[]>(`/api/portfolios/feed${qs ? '?' + qs : ''}`);
+    return data.map(c => ({
+      key: c.key as string,
+      kind: c.kind as 'group' | 'single',
+      title: c.title as string,
+      studentId: c.studentId as string,
+      studentName: c.studentName as string,
+      count: c.count as number,
+      pendingFeedback: (c.pendingFeedback as number) ?? 0,
+      coverThumbnail: (c.coverThumbnail as string) || undefined,
+      date: (c.latestDate as string) || '',
+      uploadStatus: c.uploadStatus as FeedCard['uploadStatus'],
+      portfolio: c.portfolio ? mapPortfolio(c.portfolio as Record<string, unknown>) : undefined,
+    }));
+  },
+  async list(params?: { studentId?: string; category?: string; search?: string; practiceGroup?: string; skip?: number; limit?: number }): Promise<PortfolioItem[]> {
+    const q = new URLSearchParams();
+    if (params?.studentId) q.set('student_id', params.studentId);
+    if (params?.category) q.set('category', params.category);
+    if (params?.search) q.set('search', params.search);
+    if (params?.practiceGroup) q.set('practice_group', params.practiceGroup);
     if (params?.skip != null) q.set('skip', String(params.skip));
     if (params?.limit != null) q.set('limit', String(params.limit));
     const qs = q.toString();
