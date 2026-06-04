@@ -44,9 +44,16 @@ fi
 # ── 백엔드 시작 ──
 echo -e "${GREEN}[2/3] 백엔드 서버 시작 (포트 $BACKEND_PORT)...${NC}"
 cd backend
+# requirements.txt가 설치된 venv를 우선 사용 (시스템 python3는 새 의존성이 없음)
+if [ -x "venv/bin/python" ]; then
+    PY="venv/bin/python"
+else
+    PY="python3"
+fi
+echo -e "  ${CYAN}  파이썬: $($PY --version 2>&1)${NC}"
 # 로그는 "파일로만" 기록 (터미널 스크롤백 누적으로 인한 슬로우다운 방지)
 # --no-access-log: 요청마다 찍히는 로그 제거 / --reload 제거: 프로덕션
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --no-access-log --log-level warning >> "../$LOG_FILE" 2>&1 &
+$PY -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --no-access-log --log-level warning >> "../$LOG_FILE" 2>&1 &
 BACKEND_PID=$!
 cd ..
 sleep 2
