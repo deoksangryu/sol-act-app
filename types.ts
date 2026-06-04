@@ -316,7 +316,8 @@ export interface Track {
   category: string;       // 장르 (시네마틱 / 컨템포러리 / 국악퓨전 등)
   mood?: string | null;
   duration?: string | null; // "M:SS"
-  fileUrl?: string | null;
+  fileUrl?: string | null;   // 학생에겐 null (정적 경로 비노출)
+  streamUrl?: string | null; // 서명된 인앱 청취 스트림(전원)
   thumbnailUrl?: string | null;
   createdAt: string;
   myRequest?: MyMusicRequest | null; // 학생 관점

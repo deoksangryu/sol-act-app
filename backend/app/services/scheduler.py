@@ -79,13 +79,55 @@ async def check_registration_deadlines() -> None:
         db.close()
 
 
+def complete_past_lessons() -> int:
+    """Flip SCHEDULED lessons whose end time has passed to COMPLETED.
+
+    Enables the post-lesson flow (수업일지/학생일지/코칭댓글, 지난수업 목록) which is
+    gated on COMPLETED status. The frontend also treats past-dated lessons as
+    completed for immediacy, so this is the backend's eventual-consistency pass.
+    """
+    from datetime import datetime
+    from app.models.lesson import Lesson, LessonStatus
+
+    db = SessionLocal()
+    try:
+        now = datetime.now()
+        today = now.date()
+        cur_hm = now.strftime("%H:%M")
+        lessons = db.query(Lesson).filter(Lesson.status == LessonStatus.SCHEDULED).all()
+        n = 0
+        for l in lessons:
+            try:
+                ended = (l.date < today) or (l.date == today and (l.end_time or "00:00") <= cur_hm)
+            except TypeError:
+                ended = l.date < today
+            if ended:
+                l.status = LessonStatus.COMPLETED
+                n += 1
+        if n:
+            db.commit()
+            logger.info(f"Auto-completed {n} past lesson(s)")
+        return n
+    except Exception as e:
+        logger.error(f"Lesson auto-complete failed: {e}")
+        db.rollback()
+        return 0
+    finally:
+        db.close()
+
+
 async def start_scheduler() -> None:
-    """Start the daily scheduler loop."""
-    logger.info("Registration deadline scheduler started")
+    """Start the scheduler loop (runs at startup, then every hour)."""
+    logger.info("Scheduler started (audition reminders + lesson auto-complete)")
+    ticks = 0
     while True:
         try:
-            await check_registration_deadlines()
+            complete_past_lessons()
+            # 가입마감 알림은 하루 1회로 충분 (스케줄러는 1시간 주기라 24틱마다)
+            if ticks % 24 == 0:
+                await check_registration_deadlines()
         except Exception as e:
             logger.error(f"Scheduler error: {e}")
-        # Run once per day (86400 seconds)
-        await asyncio.sleep(86400)
+        ticks += 1
+        # 1시간 주기 — 종료된 수업을 1시간 내 완료 처리
+        await asyncio.sleep(3600)

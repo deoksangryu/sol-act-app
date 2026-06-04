@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Capacitor } from '@capacitor/core';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -11,6 +12,8 @@ export const InstallPrompt: React.FC = () => {
   const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
+    // 네이티브 앱(Capacitor WKWebView/WebView) 안에서는 설치 배너를 띄우지 않음
+    if (Capacitor.isNativePlatform()) return;
     // Already installed as PWA
     if (window.matchMedia('(display-mode: standalone)').matches) return;
     // Show again after 24 hours

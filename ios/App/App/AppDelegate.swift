@@ -7,8 +7,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Override point for customization after application launch.
+        // 백그라운드 업로드 세션 재부착 (재시작 후 완료 이벤트 수신용)
+        BackgroundUploader.shared.activate()
         return true
+    }
+
+    // OS가 백그라운드 업로드 완료 이벤트를 전달할 때 호출 (앱이 깨어남)
+    func application(_ application: UIApplication,
+                     handleEventsForBackgroundURLSession identifier: String,
+                     completionHandler: @escaping () -> Void) {
+        if identifier == BackgroundUploader.sessionIdentifier {
+            BackgroundUploader.shared.backgroundCompletionHandler = completionHandler
+            BackgroundUploader.shared.activate()
+        } else {
+            completionHandler()
+        }
     }
 
     func applicationWillResignActive(_ application: UIApplication) {

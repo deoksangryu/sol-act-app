@@ -34,7 +34,7 @@ UPLOAD_DIR = _resolve_upload_dir()
 
 
 ALLOWED_VIDEO = {".mp4", ".mov", ".webm"}
-ALLOWED_DOCS = {".pdf", ".jpg", ".jpeg", ".png", ".mp3", ".m4a", ".wav", ".doc", ".docx"}
+ALLOWED_DOCS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".webp", ".gif", ".mp3", ".m4a", ".wav", ".doc", ".docx"}
 ALLOWED_ALL = ALLOWED_VIDEO | ALLOWED_DOCS
 MAX_VIDEO_SIZE = 10 * 1024 * 1024 * 1024  # 10GB (effectively no limit — server compresses after upload)
 MAX_DOC_SIZE = 50 * 1024 * 1024  # 50MB
@@ -127,7 +127,7 @@ async def save_file(
     return relative_url, file.filename
 
 
-ALLOWED_IMAGE = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+ALLOWED_IMAGE = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".heic"}
 IMAGE_MAX_DIMENSION = 1280  # Max width or height
 IMAGE_QUALITY = 80  # JPEG quality
 
@@ -137,17 +137,31 @@ def is_image(filename: str) -> bool:
 
 
 def compress_image_sync(file_path: str) -> None:
-    """Compress and resize image. Replaces original file on success."""
+    """Compress and resize image IN PLACE (writes JPEG bytes into the original path).
+
+    The extension is intentionally NOT changed so the URL already stored on the
+    record (portfolio/diet/assignment) stays valid. <img>/<video poster> sniff the
+    image bytes, so a .png/.heic path holding JPEG bytes still renders everywhere.
+    HEIC (iPhone default) is read via pillow-heif when available; if not, the file
+    is left as-is (iOS can still render HEIC natively).
+    """
     try:
         from PIL import Image
+        # Register HEIC/HEIF opener if the optional plugin is installed
+        try:
+            from pillow_heif import register_heif_opener
+            register_heif_opener()
+        except Exception:
+            pass
+
         src = Path(file_path)
         if not src.exists():
             return
 
         img = Image.open(src)
 
-        # Convert RGBA/P to RGB for JPEG
-        if img.mode in ('RGBA', 'P'):
+        # Convert RGBA/P/LA to RGB for JPEG
+        if img.mode not in ('RGB', 'L'):
             img = img.convert('RGB')
 
         # Resize if larger than max dimension
@@ -156,18 +170,9 @@ def compress_image_sync(file_path: str) -> None:
             img.thumbnail((IMAGE_MAX_DIMENSION, IMAGE_MAX_DIMENSION), Image.LANCZOS)
 
         original_size = src.stat().st_size
-
-        # Save as JPEG (keep original extension if already jpg/jpeg)
-        if src.suffix.lower() in ('.jpg', '.jpeg'):
-            out_path = src
-        else:
-            out_path = src.with_suffix('.jpg')
-        img.save(out_path, 'JPEG', quality=IMAGE_QUALITY, optimize=True)
-        compressed_size = out_path.stat().st_size
-
-        # Remove original if extension changed (e.g. .png → .jpg)
-        if out_path != src:
-            src.unlink(missing_ok=True)
+        # Always write JPEG bytes into the SAME path (format forced; extension kept)
+        img.save(src, format='JPEG', quality=IMAGE_QUALITY, optimize=True)
+        compressed_size = src.stat().st_size
 
         logger.info(
             f"Image compressed: {original_size // 1024}KB -> {compressed_size // 1024}KB "

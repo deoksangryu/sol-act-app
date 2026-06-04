@@ -25,6 +25,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.JSONObject;
 
@@ -47,6 +48,8 @@ public class UploadForegroundService extends Service {
     private ExecutorService executor;
     private PowerManager.WakeLock wakeLock;
     private NotificationManager notificationManager;
+    // 다중 파일 업로드: 모든 작업이 끝나기 전에는 서비스를 종료하지 않는다(작업 유실 방지)
+    private final AtomicInteger activeJobs = new AtomicInteger(0);
 
     @Override
     public void onCreate() {
@@ -75,6 +78,7 @@ public class UploadForegroundService extends Service {
         // Start as foreground immediately
         startForeground(NOTIFICATION_ID, buildProgressNotification("영상 준비 중...", 0));
 
+        activeJobs.incrementAndGet();
         executor.execute(() -> {
             try {
                 doWork(filePath, fileName, apiUrl, token, subfolder, targetType, targetId);
@@ -83,8 +87,11 @@ public class UploadForegroundService extends Service {
                 broadcastError(e.getMessage());
                 showCompleteNotification("업로드 실패", "다시 시도해주세요.");
             } finally {
-                stopForeground(STOP_FOREGROUND_REMOVE);
-                stopSelf();
+                // 마지막 작업이 끝났을 때만 포그라운드/서비스 종료 (대기 중인 다른 파일 보존)
+                if (activeJobs.decrementAndGet() <= 0) {
+                    stopForeground(STOP_FOREGROUND_REMOVE);
+                    stopSelf();
+                }
             }
         });
 

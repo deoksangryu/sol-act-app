@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { User, UserRole, Assignment } from '../types';
-import { assignmentApi, uploadApi, resolveFileUrl } from '../services/api';
+import { assignmentApi, uploadApi, resolveFileUrl, API_URL, getToken } from '../services/api';
+import { nativeBackgroundUpload } from '../services/nativeUpload';
 import { useAppData } from '../services/AppContext';
 import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
@@ -9,12 +10,6 @@ import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag,
   Cta, Empty, InfoBox, ChipSelect, Avatar, Chevron,
 } from './toss/kit';
-
-const BookIcon: React.FC<{ color?: string }> = ({ color = TOSS.blue }) => (
-  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.247m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.247" />
-  </svg>
-);
 
 function dueLabel(iso: string): string {
   return (iso || '').slice(5, 10).replace('-', '/');
@@ -63,17 +58,20 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
     return (
       <Screen>
         <BigTitle title={todo.length ? <>과제 {todo.length}개가<br />남아 있어요</> : <>과제를 모두<br />끝냈어요</>} />
-        <Scroll className="px-1">
+        <Scroll>
           <SectionLabel>해야 할 과제 {todo.length}개</SectionLabel>
           {todo.length === 0 ? <Empty>남은 과제가 없어요</Empty> : todo.map(a => (
-            <ListRow key={a.id} left={<IconChip bg={TOSS.blueBg}><BookIcon /></IconChip>} title={a.title}
-              sub="제출하면 24시간 안에 피드백" right={<Tag bg={TOSS.warnBg} fg={TOSS.warn}>{dueLabel(a.dueDate)}까지</Tag>}
+            <ListRow key={a.id}
+              left={<IconChip bg={TOSS.blueBg}><i className="ti ti-book-2" style={{ fontSize: 21, color: TOSS.blue }} /></IconChip>}
+              title={a.title} sub="24시간 안에 피드백"
+              right={<Tag bg={TOSS.warnBg} fg={TOSS.warn}>{dueLabel(a.dueDate)}까지</Tag>}
               onClick={() => setOpenId(a.id)} />
           ))}
           <SectionLabel>제출한 과제 {done.length}개</SectionLabel>
           {done.map(a => (
-            <ListRow key={a.id} left={<IconChip bg={TOSS.successBg}><BookIcon color={TOSS.success} /></IconChip>} title={a.title}
-              sub={a.status === 'graded' ? '채점 완료' : '제출 완료'}
+            <ListRow key={a.id}
+              left={<IconChip bg={TOSS.successBg}><i className="ti ti-check" style={{ fontSize: 21, color: TOSS.success }} /></IconChip>}
+              title={a.title} sub={a.status === 'graded' ? '채점 완료' : '제출 완료'}
               right={a.grade ? <Tag bg={TOSS.successBg} fg={TOSS.success}>{a.grade}</Tag> : <Chevron />}
               onClick={() => setOpenId(a.id)} />
           ))}
@@ -83,15 +81,17 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
   }
 
   // ── 선생님: 과제를 제목+마감 기준으로 그룹화 ──
-  const groups = useMemo(() => {
+  // (훅이 아닌 일반 계산 — early-return 뒤라 useMemo를 쓰면 훅 규칙 위반/크래시)
+  const groups = (() => {
     const map = new Map<string, { key: string; title: string; dueDate: string; rows: Assignment[] }>();
     for (const a of items) {
-      const k = `${a.title}|${a.dueDate}`;
+      // 출제자까지 키에 포함 — 다른 교사/다른 반의 동명·동마감 과제가 합쳐지지 않도록
+      const k = `${a.assignedBy || ''}|${a.title}|${a.dueDate}`;
       if (!map.has(k)) map.set(k, { key: k, title: a.title, dueDate: a.dueDate, rows: [] });
       map.get(k)!.rows.push(a);
     }
-    return Array.from(map.values()).sort((x, y) => (y.dueDate > x.dueDate ? 1 : -1));
-  }, [items]);
+    return Array.from(map.values()).sort((x, y) => (x.dueDate < y.dueDate ? 1 : x.dueDate > y.dueDate ? -1 : 0));
+  })();
 
   if (groupKey) {
     const g = groups.find(x => x.key === groupKey);
@@ -101,15 +101,16 @@ export const Assignments: React.FC<{ user: User }> = ({ user }) => {
   return (
     <Screen>
       <BigTitle title={<>과제를<br />관리해요</>} />
-      <Scroll className="px-1">
+      <Scroll>
         <SectionLabel>내가 낸 과제 {groups.length}개</SectionLabel>
         {groups.length === 0 ? <Empty>아직 낸 과제가 없어요</Empty> : groups.map(g => {
           const submitted = g.rows.filter(r => r.status !== 'pending').length;
           const all = g.rows.length;
           const done = submitted === all;
           return (
-            <ListRow key={g.key} left={<IconChip bg={TOSS.purpleBg}><BookIcon color={TOSS.purple} /></IconChip>} title={g.title}
-              sub={`${dueLabel(g.dueDate)}까지`}
+            <ListRow key={g.key}
+              left={<IconChip bg={TOSS.purpleBg}><i className="ti ti-clipboard-list" style={{ fontSize: 21, color: TOSS.purple }} /></IconChip>}
+              title={g.title} sub={`${dueLabel(g.dueDate)}까지`}
               right={<Tag bg={done ? TOSS.successBg : TOSS.surf} fg={done ? TOSS.success : TOSS.sub}>{submitted}/{all} 제출</Tag>}
               onClick={() => setGroupKey(g.key)} />
           );
@@ -131,68 +132,90 @@ const StudentDetail: React.FC<{ a: Assignment; onBack: () => void; onReload: () 
   const submit = async () => {
     if (!text.trim() && !file) return;
     setBusy(true);
+    // 1) 텍스트 제출 — 실패하면 화면 유지하고 중단(이미 제출됐다고 오인 방지)
     try {
-      let submissionFileUrl: string | undefined;
-      if (file) {
-        const { url } = await uploadApi.upload(file, p => setProgress(p), 'assignments', undefined, undefined,
-          (ph, p) => { setProgress(p); });
-        submissionFileUrl = url;
-      }
-      await assignmentApi.submit(a.id, { submissionText: text.trim(), ...(submissionFileUrl ? { submissionFileUrl } : {}) });
-      toast.success('과제를 제출했어요');
-      await onReload();
-      onBack();
+      await assignmentApi.submit(a.id, { submissionText: text.trim() });
     } catch (e: any) {
       toast.error(e.message || '제출하지 못했어요');
-    } finally {
       setBusy(false);
-      setProgress(null);
+      return;
     }
+    // 2) 제출은 확정됨 → 첨부 업로드는 별도. 실패해도 제출은 유지되고 화면은 넘어감
+    let bg = false, attachFailed = false;
+    if (file) {
+      const isVideo = /\.(mp4|mov|webm|m4v|avi|mkv|3gp)$/i.test(file.name);
+      try {
+        // 영상만 네이티브 백그라운드(앱 닫혀도 계속). 음성·PDF·이미지는 원본 그대로 웹 업로드(확장자 보존)
+        if (isVideo) {
+          bg = await nativeBackgroundUpload(file, API_URL, getToken() || '', {
+            subfolder: 'assignments', targetType: 'assignment', targetId: a.id, displayName: a.title,
+          });
+        }
+        if (!bg) {
+          await uploadApi.upload(file, p => setProgress(p), 'assignments', 'assignment', a.id, (_ph, p) => setProgress(p));
+        }
+      } catch {
+        attachFailed = true;
+      }
+    }
+    setBusy(false);
+    setProgress(null);
+    if (attachFailed) toast.error('제출은 됐지만 첨부 업로드에 실패했어요. 상세에서 다시 첨부해주세요');
+    else if (bg) toast.success('제출했어요. 첨부는 백그라운드로 올라가요(앱을 닫아도 계속)');
+    else toast.success('과제를 제출했어요');
+    await onReload();
+    onBack();
   };
   return (
     <Screen>
       <BackHeader title="과제" onBack={onBack} />
-      <Scroll className="px-1">
-        <div className="mt-2">
-          {submitted ? <Tag bg={TOSS.successBg} fg={TOSS.success}>제출 완료</Tag> : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>{dueLabel(a.dueDate)}까지 제출</Tag>}
-        </div>
-        <div className="text-[21px] font-bold leading-[1.4] text-toss-ink mt-3">{a.title}</div>
-        <div className="text-[15px] text-toss-sub leading-relaxed mt-3.5 whitespace-pre-wrap">{a.description}</div>
+      <Scroll>
+        <div style={{ padding: '8px 20px' }}>
+          <div>
+            {submitted
+              ? <Tag bg={TOSS.successBg} fg={TOSS.success}>제출 완료</Tag>
+              : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>{dueLabel(a.dueDate)}까지 제출</Tag>}
+          </div>
+          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink, marginTop: 12 }}>{a.title}</div>
+          <div style={{ fontSize: 15, color: TOSS.sub, lineHeight: 1.7, marginTop: 14, whiteSpace: 'pre-wrap' }}>{a.description}</div>
 
-        {a.submissionText && (
-          <div className="mt-5">
-            <div className="text-[13px] font-medium text-toss-sub mb-2">내가 제출한 내용</div>
-            <InfoBox>{a.submissionText}</InfoBox>
-          </div>
-        )}
-        {submitted && a.submissionFileUrl && (
-          <a href={resolveFileUrl(a.submissionFileUrl)} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-2 text-[13px] text-toss-blue font-medium">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-            제출한 파일 보기
-          </a>
-        )}
-        {a.feedback && (
-          <div className="mt-4">
-            <div className="text-[13px] font-medium text-toss-sub mb-2">선생님 피드백 {a.grade ? `· ${a.grade}` : ''}</div>
-            <InfoBox tone="success">{a.feedback}</InfoBox>
-          </div>
-        )}
-        {!submitted && (
-          <div className="mt-5">
-            <div className="text-[13px] font-medium text-toss-sub mb-2">제출 내용</div>
-            <textarea value={text} onChange={e => setText(e.target.value)} placeholder="과제를 어떻게 했는지 적어요" className="w-full min-h-[120px] rounded-xl border border-slate-200 p-3 text-base outline-none focus:border-toss-blue resize-none" />
-            <input ref={fileRef} type="file" accept="video/*,image/*,audio/*,.pdf" className="hidden" onChange={e => setFile(e.target.files?.[0] || null)} />
-            <button onClick={() => fileRef.current?.click()} className="mt-2 w-full rounded-xl border border-dashed border-slate-300 py-3 text-[13px] flex items-center justify-center gap-2" style={{ color: file ? TOSS.success : TOSS.sub }}>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d={file ? 'M5 13l4 4L19 7' : 'M12 4v16m8-8H4'} /></svg>
-              {file ? file.name : '영상·사진·파일 첨부 (선택)'}
-            </button>
-            {progress != null && (
-              <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: TOSS.surf }}>
-                <div className="h-full" style={{ width: `${progress}%`, background: TOSS.blue }} />
-              </div>
-            )}
-          </div>
-        )}
+          {a.submissionText && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 8 }}>내가 제출한 내용</div>
+              <InfoBox>{a.submissionText}</InfoBox>
+            </div>
+          )}
+          {submitted && a.submissionFileUrl && (
+            <a href={resolveFileUrl(a.submissionFileUrl)} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 13, fontWeight: 500, color: TOSS.blue }}>
+              <i className="ti ti-paperclip" style={{ fontSize: 16 }} />
+              제출한 파일 보기
+            </a>
+          )}
+          {a.feedback && (
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 8 }}>선생님 피드백 {a.grade ? `· ${a.grade}` : ''}</div>
+              <InfoBox tone="success">{a.feedback}</InfoBox>
+            </div>
+          )}
+          {!submitted && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 8 }}>제출 내용</div>
+              <textarea value={text} onChange={e => setText(e.target.value)} placeholder="과제를 어떻게 했는지 적어요"
+                style={{ width: '100%', boxSizing: 'border-box', minHeight: 120, border: '1px solid #E5E8EB', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none', resize: 'none' }} />
+              <input ref={fileRef} type="file" accept="video/*,image/*,audio/*,.pdf" style={{ display: 'none' }} onChange={e => setFile(e.target.files?.[0] || null)} />
+              <button onClick={() => fileRef.current?.click()}
+                style={{ marginTop: 8, width: '100%', background: '#fff', border: '1px dashed #CDD3DA', borderRadius: 12, padding: '12px 6px', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: file ? TOSS.success : TOSS.sub, cursor: 'pointer' }}>
+                <i className={`ti ${file ? 'ti-check' : 'ti-paperclip'}`} style={{ fontSize: 16 }} />
+                {file ? file.name : '영상·사진·파일 첨부 (선택)'}
+              </button>
+              {progress != null && (
+                <div style={{ marginTop: 8, height: 6, borderRadius: 999, overflow: 'hidden', background: TOSS.surf }}>
+                  <div style={{ height: '100%', width: `${progress}%`, background: TOSS.blue }} />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </Scroll>
       {!submitted && <Cta onClick={submit} disabled={!text.trim() && !file} loading={busy}>지금 제출하기</Cta>}
     </Screen>
@@ -208,20 +231,33 @@ const TeacherGroupDetail: React.FC<{ group: { title: string; dueDate: string; ro
   return (
     <Screen>
       <BackHeader title="과제 관리" onBack={onBack} />
-      <Scroll className="px-1">
-        <div className="text-[20px] font-bold text-toss-ink mt-2">{group.title}</div>
-        <div className="text-[13px] text-toss-sub mt-1.5">{dueLabel(group.dueDate)}까지</div>
-        <div className="rounded-2xl p-3.5 mt-3.5 flex items-center justify-between" style={{ background: TOSS.surf }}>
-          <span className="text-toss-sub">제출 현황</span>
-          <span className="text-[17px] font-bold text-toss-ink">{submitted} <span className="text-[13px] font-medium text-toss-sub">/ {group.rows.length}명</span></span>
+      <Scroll>
+        <div style={{ padding: '8px 20px' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: TOSS.ink }}>{group.title}</div>
+          <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{dueLabel(group.dueDate)}까지</div>
+          <div style={{ background: TOSS.surf, borderRadius: 14, padding: '14px 16px', marginTop: 14, display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ color: TOSS.sub }}>제출 현황</span>
+            <span style={{ fontSize: 17, fontWeight: 700, color: TOSS.ink }}>{submitted} <span style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub }}>/ {group.rows.length}명</span></span>
+          </div>
         </div>
         <SectionLabel>학생별 제출</SectionLabel>
-        {group.rows.map(r => (
-          <ListRow key={r.id} left={<Avatar name={r.studentName} bg={r.status !== 'pending' ? TOSS.successBg : TOSS.surf} fg={r.status !== 'pending' ? TOSS.success : TOSS.sub} />}
-            title={r.studentName} sub={r.status === 'graded' ? '채점 완료' : r.status === 'submitted' ? '제출함 · 채점 대기' : '아직 제출 전'}
-            right={r.status === 'pending' ? <Tag>대기</Tag> : r.status === 'graded' ? <Tag bg={TOSS.successBg} fg={TOSS.success}>{r.grade || '완료'}</Tag> : <Tag bg={TOSS.blueBg} fg={TOSS.blue}>채점하기</Tag>}
-            onClick={r.status === 'submitted' || r.status === 'graded' ? () => setGradeId(r.id) : undefined} />
-        ))}
+        <div style={{ borderTop: `0.5px solid ${TOSS.line}` }}>
+          {group.rows.map(r => {
+            const sb = r.status !== 'pending';
+            return (
+              <ListRow key={r.id}
+                left={<Avatar name={r.studentName} size={40} bg={sb ? TOSS.successBg : TOSS.surf} fg={sb ? TOSS.success : TOSS.sub} />}
+                title={r.studentName}
+                sub={r.status === 'graded' ? '채점 완료' : r.status === 'submitted' ? '제출함 · 채점 대기' : '아직 제출 전'}
+                right={r.status === 'pending'
+                  ? <Tag bg={TOSS.surf} fg={TOSS.sub}>대기</Tag>
+                  : r.status === 'graded'
+                    ? <Tag bg={TOSS.successBg} fg={TOSS.success}>{r.grade || '완료'}</Tag>
+                    : <Tag bg={TOSS.blueBg} fg={TOSS.blue}>채점하기</Tag>}
+                onClick={r.status === 'submitted' || r.status === 'graded' ? () => setGradeId(r.id) : undefined} />
+            );
+          })}
+        </div>
       </Scroll>
     </Screen>
   );
@@ -249,20 +285,23 @@ const GradeScreen: React.FC<{ a: Assignment; onBack: () => void; onReload: () =>
   return (
     <Screen>
       <BackHeader title="채점" onBack={onBack} />
-      <Scroll className="px-1">
-        <div className="text-[20px] font-bold text-toss-ink mt-2">{a.studentName}님의 과제</div>
-        <div className="text-[13px] text-toss-sub mt-1.5">{a.title}</div>
-        {a.submissionText && <div className="mt-4"><InfoBox>{a.submissionText}</InfoBox></div>}
-        {a.submissionFileUrl && (
-          <a href={resolveFileUrl(a.submissionFileUrl)} target="_blank" rel="noreferrer" className="mt-3 flex items-center gap-2 text-[13px] text-toss-blue font-medium">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
-            제출한 파일 보기
-          </a>
-        )}
-        <div className="text-[13px] font-medium text-toss-sub mt-5 mb-2">등급</div>
-        <ChipSelect options={GRADES.map(g => ({ value: g, label: g }))} value={grade} onChange={setGrade} />
-        <div className="text-[13px] font-medium text-toss-sub mt-4 mb-2">피드백</div>
-        <textarea value={fb} onChange={e => setFb(e.target.value)} placeholder="구체적으로 알려주세요" className="w-full min-h-[100px] rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-toss-blue resize-none" />
+      <Scroll>
+        <div style={{ padding: '8px 20px' }}>
+          <div style={{ fontSize: 20, fontWeight: 700, color: TOSS.ink }}>{a.studentName}님의 과제</div>
+          <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{a.title}</div>
+          {a.submissionText && <div style={{ marginTop: 16 }}><InfoBox>{a.submissionText}</InfoBox></div>}
+          {a.submissionFileUrl && (
+            <a href={resolveFileUrl(a.submissionFileUrl)} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, fontSize: 13, fontWeight: 500, color: TOSS.blue }}>
+              <i className="ti ti-paperclip" style={{ fontSize: 16 }} />
+              제출한 파일 보기
+            </a>
+          )}
+          <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginTop: 20, marginBottom: 8 }}>등급</div>
+          <ChipSelect options={GRADES.map(g => ({ value: g, label: g }))} value={grade} onChange={setGrade} />
+          <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginTop: 16, marginBottom: 8 }}>피드백</div>
+          <textarea value={fb} onChange={e => setFb(e.target.value)} placeholder="구체적으로 알려주세요"
+            style={{ width: '100%', boxSizing: 'border-box', minHeight: 100, border: '1px solid #E5E8EB', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none', resize: 'none' }} />
+        </div>
       </Scroll>
       <Cta onClick={submit} disabled={!grade} loading={busy}>채점 완료하기</Cta>
     </Screen>
@@ -291,21 +330,29 @@ const CreateAssignment: React.FC<{ onBack: () => void; onDone: () => Promise<voi
       setBusy(false);
     }
   };
+  const labelStyle: React.CSSProperties = { fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '16px 0 8px' };
+  const inputStyle: React.CSSProperties = { width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none' };
   return (
     <Screen>
       <BackHeader title="새 과제" onBack={onBack} />
-      <Scroll className="px-1">
-        <div className="text-[21px] font-bold leading-[1.4] text-toss-ink mt-2">어떤 과제를<br />낼까요?</div>
-        <div className="text-[13px] font-medium text-toss-sub mt-4 mb-2">과제 이름</div>
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 자유연기 독백 외우기" className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-toss-blue" />
-        <div className="text-[13px] font-medium text-toss-sub mt-4 mb-2">설명</div>
-        <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="예: 지정 대본 3분 분량" className="w-full min-h-[80px] rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-toss-blue resize-none" />
-        <div className="text-[13px] font-medium text-toss-sub mt-4 mb-2">반 선택</div>
-        {classes.length === 0 ? <InfoBox tone="warn">담당 반이 없어요</InfoBox> : (
-          <ChipSelect options={classes.map(c => ({ value: c.id, label: c.name }))} value={classId} onChange={setClassId} wrap />
-        )}
-        <div className="text-[13px] font-medium text-toss-sub mt-4 mb-2">제출 기한</div>
-        <ChipSelect options={dates} value={due} onChange={setDue} />
+      <Scroll>
+        <div style={{ padding: '8px 20px' }}>
+          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>어떤 과제를<br />낼까요?</div>
+          <div style={labelStyle}>과제 이름</div>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="예: 자유연기 독백 외우기" style={inputStyle} />
+          <div style={labelStyle}>설명</div>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="예: 지정 대본 3분 분량"
+            style={{ ...inputStyle, minHeight: 80, resize: 'none' }} />
+          <div style={labelStyle}>반 선택</div>
+          {classes.length === 0 ? <InfoBox tone="warn">담당 반이 없어요</InfoBox> : (
+            <ChipSelect options={classes.map(c => ({ value: c.id, label: c.name }))} value={classId} onChange={setClassId} wrap />
+          )}
+          <div style={labelStyle}>제출 기한</div>
+          <ChipSelect options={dates} value={due} onChange={setDue} />
+          <div style={{ background: TOSS.purpleBg, borderRadius: 12, padding: 12, marginTop: 16, fontSize: 13, color: '#473A9E', lineHeight: 1.6 }}>
+            학생들에게 알림이 가요
+          </div>
+        </div>
       </Scroll>
       <Cta onClick={submit} disabled={!title.trim() || !classId} loading={busy}>과제 내기</Cta>
     </Screen>

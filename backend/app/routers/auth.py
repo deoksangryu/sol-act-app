@@ -10,25 +10,30 @@ from app.utils.auth import verify_password, get_password_hash, create_access_tok
 from app.services.notification_service import emit_data_changed, get_all_user_ids
 from typing import Optional, List
 from collections import defaultdict
+from datetime import timedelta
 import uuid
 import secrets
 import string
 import time
 
-# Simple in-memory rate limiter for login
-_login_attempts: dict[str, list[float]] = defaultdict(list)
-_LOGIN_WINDOW = 60  # seconds
-_LOGIN_MAX = 10  # max attempts per window
+# Simple in-memory rate limiter (per IP, per named bucket)
+_rate_buckets: dict[str, list[float]] = defaultdict(list)
+
+# Issued login tokens expire after this many days (was: never)
+ACCESS_TOKEN_EXPIRE = timedelta(days=60)
+
+
+def _rate_limit(key: str, window: int, max_calls: int, detail: str) -> None:
+    now = time.time()
+    _rate_buckets[key] = [t for t in _rate_buckets[key] if now - t < window]
+    if len(_rate_buckets[key]) >= max_calls:
+        raise HTTPException(status_code=429, detail=detail)
+    _rate_buckets[key].append(now)
 
 
 def _check_rate_limit(ip: str) -> None:
-    now = time.time()
-    attempts = _login_attempts[ip]
-    # Remove expired entries
-    _login_attempts[ip] = [t for t in attempts if now - t < _LOGIN_WINDOW]
-    if len(_login_attempts[ip]) >= _LOGIN_MAX:
-        raise HTTPException(status_code=429, detail="Too many login attempts. Please try again later.")
-    _login_attempts[ip].append(now)
+    # Login: 10 attempts / 60s per IP
+    _rate_limit(f"login:{ip}", 60, 10, "로그인 시도가 너무 많아요. 잠시 후 다시 시도해주세요.")
 
 router = APIRouter()
 
@@ -106,7 +111,7 @@ def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db))
         )
     
     # Create access token
-    access_token = create_access_token(data={"sub": user.id})
+    access_token = create_access_token(data={"sub": user.id}, expires_delta=ACCESS_TOKEN_EXPIRE)
     
     return {
         "access_token": access_token,
@@ -129,7 +134,7 @@ def login_oauth(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token = create_access_token(data={"sub": user.id})
+    access_token = create_access_token(data={"sub": user.id}, expires_delta=ACCESS_TOKEN_EXPIRE)
 
     return {
         "access_token": access_token,
@@ -169,9 +174,15 @@ class ResetPasswordRequest(BaseModel):
 
 
 @router.post("/find-email")
-def find_email(data: FindEmailRequest, db: Session = Depends(get_db)):
-    """이름으로 이메일(아이디) 찾기 — 마스킹 처리하여 반환"""
-    users = db.query(User).filter(User.name == data.name).all()
+def find_email(data: FindEmailRequest, request: Request, db: Session = Depends(get_db)):
+    """이름으로 이메일(아이디) 찾기 — 마스킹 처리하여 반환 (원장 계정 제외)"""
+    ip = request.client.host if request.client else "unknown"
+    _rate_limit(f"find:{ip}", 300, 5, "요청이 너무 많아요. 잠시 후 다시 시도해주세요.")
+    # 원장(원장 권한 노출 방지) 계정은 자가 조회 결과에서 제외
+    users = db.query(User).filter(
+        User.name == data.name,
+        User.role != UserRole.DIRECTOR,
+    ).all()
     if not users:
         raise HTTPException(status_code=404, detail="해당 이름의 계정을 찾을 수 없습니다.")
 
@@ -192,11 +203,15 @@ def find_email(data: FindEmailRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/reset-password")
-def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
-    """이메일 + 이름 확인 후 임시 비밀번호 발급"""
+def reset_password(data: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    """이메일 + 이름 확인 후 임시 비밀번호 발급 (원장 계정은 자가 초기화 불가)"""
+    ip = request.client.host if request.client else "unknown"
+    # 무차별 추측 차단: IP당 1시간 5회
+    _rate_limit(f"reset:{ip}", 3600, 5, "비밀번호 초기화 요청이 너무 많아요. 잠시 후 다시 시도해주세요.")
     user = db.query(User).filter(
         User.email == data.email,
-        User.name == data.name
+        User.name == data.name,
+        User.role != UserRole.DIRECTOR,  # 원장은 자가 초기화 차단(관리자 직접 처리)
     ).first()
     if not user:
         raise HTTPException(status_code=404, detail="이메일과 이름이 일치하는 계정을 찾을 수 없습니다.")

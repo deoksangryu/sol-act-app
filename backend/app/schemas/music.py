@@ -32,7 +32,8 @@ class TrackResponse(BaseModel):
     category: str
     mood: Optional[str] = None
     duration: Optional[str] = None
-    file_url: Optional[str] = None
+    file_url: Optional[str] = None               # 학생에게는 null (정적 경로 비노출)
+    stream_url: Optional[str] = None             # 서명된 인앱 청취 스트림(전원)
     thumbnail_url: Optional[str] = None
     created_at: datetime
     my_request: Optional[MyRequestInfo] = None  # 학생: 본인 요청 상태

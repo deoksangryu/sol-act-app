@@ -300,13 +300,18 @@ async def create_portfolio(
         .first()
     )
 
+    # 영상이 이미 있을 때만 즉시 교사 알림. 백그라운드 업로드(create-first, video_url='')는
+    # 실제 영상이 도착한 뒤 upload._emit_target_patched에서 알림한다.
     teacher_ids = get_teacher_ids_for_student(db, current_user.id)
-    if teacher_ids:
+    if teacher_ids and (data.video_url or '').strip():
         await notify_users(
             db, teacher_ids,
             f"{current_user.name}님이 새 포트폴리오를 등록했습니다: {data.title}",
             entity="portfolios",
         )
+    elif teacher_ids:
+        # 영상 없는 빈 레코드 생성 — 교사 화면 목록만 갱신(알림은 영상 도착 후)
+        await emit_data_changed(teacher_ids, "portfolios")
 
     return portfolio_to_response(p)
 

@@ -42,9 +42,10 @@ def list_diet_logs(
         query = query.filter(DietLog.student_id == current_user.id)
     elif current_user.role == UserRole.TEACHER:
         my_student_ids = get_teacher_student_ids(db, current_user.id)
-        if student_id:
+        if student_id and student_id in my_student_ids:
             query = query.filter(DietLog.student_id == student_id)
         else:
+            # 담당하지 않는 학생 id를 줘도 본인 담당 학생으로만 한정(IDOR 방지)
             query = query.filter(DietLog.student_id.in_(my_student_ids))
     elif student_id:
         query = query.filter(DietLog.student_id == student_id)

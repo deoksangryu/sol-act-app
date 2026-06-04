@@ -44,7 +44,9 @@ fi
 # ── 백엔드 시작 ──
 echo -e "${GREEN}[2/3] 백엔드 서버 시작 (포트 $BACKEND_PORT)...${NC}"
 cd backend
-python3 -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --reload 2>&1 | tee "../$LOG_FILE" &
+# 로그는 "파일로만" 기록 (터미널 스크롤백 누적으로 인한 슬로우다운 방지)
+# --no-access-log: 요청마다 찍히는 로그 제거 / --reload 제거: 프로덕션
+python3 -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --no-access-log --log-level warning >> "../$LOG_FILE" 2>&1 &
 BACKEND_PID=$!
 cd ..
 sleep 2
@@ -57,6 +59,7 @@ echo -e "  ${GREEN}✓ 백엔드 실행 중 (PID: $BACKEND_PID)${NC}"
 echo -e "  ${CYAN}  로컬: http://localhost:$BACKEND_PORT${NC}"
 echo -e "  ${CYAN}  API 문서: http://localhost:$BACKEND_PORT/docs${NC}"
 echo -e "  ${CYAN}  로그 파일: $LOG_FILE${NC}"
+echo -e "  ${CYAN}  로그 실시간 보기: tail -f $LOG_FILE${NC}"
 
 # ── ngrok 시작 ──
 echo -e "${GREEN}[3/3] ngrok 터널 시작...${NC}"

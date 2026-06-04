@@ -6,7 +6,7 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag,
-  Cta, GhostButton, Empty, InfoBox, ChipSelect, Chevron,
+  Cta, GhostButton, Empty, Chevron,
 } from './toss/kit';
 
 const MEAL_TYPES = [
@@ -16,6 +16,14 @@ const MEAL_TYPES = [
   { value: 'snack', label: '간식' },
 ];
 const mealLabel = (t: string) => MEAL_TYPES.find(m => m.value === t)?.label || t;
+// 식단 기록 화면의 끼니 칩 (프로토타입: 아침/점심/저녁)
+const MEAL_PICKS = [
+  { value: 'breakfast', label: '아침' },
+  { value: 'lunch', label: '점심' },
+  { value: 'dinner', label: '저녁' },
+];
+// 끼니별 아이콘 (프로토타입 sBd: 아침=bowl, 점심=salad, 그 외=soup)
+const mealIcon = (t: string) => (t === 'breakfast' ? 'ti-bowl' : t === 'lunch' ? 'ti-salad' : 'ti-soup');
 
 function todayStr(): string {
   const d = new Date();
@@ -24,12 +32,6 @@ function todayStr(): string {
 }
 
 interface Weight { id: string; weight: number; date: string; memo?: string; }
-
-const ForkIcon: React.FC<{ color?: string }> = ({ color = TOSS.blue }) => (
-  <svg width={22} height={22} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M4 3v6a2 2 0 002 2h0a2 2 0 002-2V3M6 11v10M18 3c-1.66 0-3 2-3 5s1.34 4 3 4m0 0v9" />
-  </svg>
-);
 
 export const Diet: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
@@ -64,19 +66,25 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
 
   // ── 선생님: 학생 식단 검토 ──
   if (isStaff) {
-    const need = meals.filter(m => !m.teacherComment);
+    const need = meals.filter(m => !m.teacherComment).length;
     return (
       <Screen>
         <BigTitle title={<>학생 식단을<br />살펴봐요</>} />
-        <Scroll className="px-1">
-          <SectionLabel>피드백 필요 {need.length}개</SectionLabel>
+        <Scroll>
+          <SectionLabel>학생 식단 · 피드백 필요 {need}개</SectionLabel>
           {meals.length === 0 ? <Empty>아직 올라온 식단이 없어요</Empty> : meals.map(m => (
             <ListRow
               key={m.id}
-              left={<IconChip bg={m.teacherComment ? TOSS.surf : TOSS.warnBg}><ForkIcon color={m.teacherComment ? TOSS.sub : TOSS.warn} /></IconChip>}
+              left={
+                <IconChip bg={m.teacherComment ? TOSS.surf : TOSS.warnBg}>
+                  <i className="ti ti-tools-kitchen-2" style={{ fontSize: 21, color: m.teacherComment ? TOSS.sub : TOSS.warn }} />
+                </IconChip>
+              }
               title={m.description}
               sub={`${m.studentName} · ${mealLabel(m.mealType)}`}
-              right={m.teacherComment ? <Tag bg={TOSS.successBg} fg={TOSS.success}>완료</Tag> : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>피드백 필요</Tag>}
+              right={m.teacherComment
+                ? <Tag bg={TOSS.successBg} fg={TOSS.success}>완료</Tag>
+                : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>피드백 필요</Tag>}
               onClick={() => setOpenId(m.id)}
             />
           ))}
@@ -92,50 +100,59 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
   return (
     <Screen>
       <BigTitle title={<>오늘도 잘<br />챙기고 있어요</>} />
-      <Scroll className="px-1">
+      <Scroll>
         <SectionLabel>체중 추이</SectionLabel>
-        <div className="rounded-2xl p-3.5" style={{ background: TOSS.surf }}>
-          <div className="flex items-baseline gap-2">
-            <span className="text-[30px] font-bold tracking-[-0.02em] text-toss-ink">{cur == null ? '–' : cur.toFixed(1)}</span>
-            <span className="text-sm text-toss-sub">kg</span>
-            {weights.length > 1 && (
-              <span className="ml-auto text-xs font-medium" style={{ color: diff <= 0 ? TOSS.success : TOSS.warn }}>
-                처음보다 {Math.abs(diff).toFixed(1)}kg {diff <= 0 ? '↓' : '↑'}
-              </span>
+        <div style={{ padding: '0 20px' }}>
+          <div style={{ background: TOSS.surf, borderRadius: 14, padding: 14 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-.02em', color: TOSS.ink }}>{cur == null ? '–' : cur.toFixed(1)}</span>
+              <span style={{ fontSize: 14, color: TOSS.sub }}>kg</span>
+              {weights.length > 1 && (
+                <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 500, color: diff <= 0 ? TOSS.success : TOSS.warn }}>
+                  처음보다 {Math.abs(diff).toFixed(1)}kg {diff <= 0 ? '↓' : '↑'}
+                </span>
+              )}
+            </div>
+            {weights.length > 0 && (
+              <div className="no-scrollbar" style={{ display: 'flex', gap: 10, marginTop: 10, fontSize: 11, color: TOSS.sub, overflowX: 'auto' }}>
+                {weights.slice(-6).map((p) => (
+                  <button
+                    key={p.id}
+                    onClick={async () => {
+                      if (!window.confirm(`${(p.date || '').slice(5, 10)} ${p.weight}kg 기록을 지울까요?`)) return;
+                      try { await dietApi.deleteWeight(p.id); await load(); toast.success('지웠어요'); }
+                      catch (e: any) { toast.error(e.message || '지우지 못했어요'); }
+                    }}
+                    style={{ background: 'none', border: 'none', padding: 0, whiteSpace: 'nowrap', flexShrink: 0, fontSize: 11, color: TOSS.sub, cursor: 'pointer' }}
+                  >{(p.date || '').slice(5, 10)} {p.weight}</button>
+                ))}
+              </div>
             )}
           </div>
-          {weights.length > 0 && (
-            <div className="flex mt-2.5 text-[11px] text-toss-sub overflow-x-auto no-scrollbar gap-2.5">
-              {weights.slice(-6).map((p) => (
-                <button
-                  key={p.id}
-                  onClick={async () => {
-                    if (!window.confirm(`${(p.date || '').slice(5, 10)} ${p.weight}kg 기록을 지울까요?`)) return;
-                    try { await dietApi.deleteWeight(p.id); await load(); toast.success('지웠어요'); }
-                    catch (e: any) { toast.error(e.message || '지우지 못했어요'); }
-                  }}
-                  className="whitespace-nowrap shrink-0 active:opacity-60"
-                >{(p.date || '').slice(5, 10)} {p.weight}</button>
-              ))}
-            </div>
-          )}
         </div>
 
-        <SectionLabel>오늘 먹은 것 · {todays.length}끼</SectionLabel>
+        <SectionLabel>오늘 먹은 것 · {todays.length}/3끼</SectionLabel>
         {todays.length === 0 ? <Empty>오늘 기록한 식단이 없어요</Empty> : todays.map(m => (
           <ListRow
             key={m.id}
-            left={<IconChip bg={TOSS.blueBg}><ForkIcon /></IconChip>}
+            left={
+              <IconChip bg={TOSS.blueBg}>
+                <i className={`ti ${mealIcon(m.mealType)}`} style={{ fontSize: 21, color: TOSS.blue }} />
+              </IconChip>
+            }
             title={m.description}
-            sub={`${mealLabel(m.mealType)}`}
+            sub={mealLabel(m.mealType)}
             right={m.teacherComment ? <Tag bg={TOSS.successBg} fg={TOSS.success}>피드백</Tag> : <Chevron />}
             onClick={() => setOpenId(m.id)}
           />
         ))}
       </Scroll>
-      <div className="flex gap-2 px-1 pt-3 pb-4 shrink-0">
-        <div className="flex-1"><GhostButton onClick={() => setScreen('addWeight')}>체중 기록</GhostButton></div>
-        <button onClick={() => setScreen('addMeal')} className="flex-1 rounded-2xl py-[14px] text-sm font-semibold text-white" style={{ background: TOSS.blue }}>식단 올리기</button>
+      <div style={{ display: 'flex', gap: 8, padding: '12px 20px 16px', flexShrink: 0 }}>
+        <div style={{ flex: 1 }}><GhostButton onClick={() => setScreen('addWeight')}>체중 기록</GhostButton></div>
+        <button
+          onClick={() => setScreen('addMeal')}
+          style={{ flex: 1, background: TOSS.blue, color: '#fff', border: 'none', borderRadius: 14, padding: '14px 6px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
+        >식단 올리기</button>
       </div>
     </Screen>
   );
@@ -169,29 +186,41 @@ const MealDetail: React.FC<{ meal: DietLog; user: User; isStaff: boolean; onBack
     <Screen>
       <BackHeader title="식단" onBack={onBack} />
       <Scroll>
-        <div className="h-36 flex items-center justify-center overflow-hidden" style={{ background: '#D9E6CC' }}>
+        <div style={{ height: 140, background: '#D9E6CC', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {meal.imageUrl
-            ? <img src={resolveFileUrl(meal.imageUrl)} alt="" className="w-full h-full object-cover" />
-            : <ForkIcon color={TOSS.success} />}
+            ? <img src={resolveFileUrl(meal.imageUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <i className="ti ti-salad" style={{ fontSize: 44, color: TOSS.success }} />}
         </div>
-        <div className="px-1 pt-4">
-          <div className="text-[19px] font-bold text-toss-ink">{meal.description}</div>
-          <div className="text-[13px] text-toss-sub mt-1.5">{meal.studentName} · {mealLabel(meal.mealType)}</div>
+        <div style={{ padding: '16px 20px 0' }}>
+          <div style={{ fontSize: 19, fontWeight: 700, color: TOSS.ink }}>{meal.description}</div>
+          <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{meal.studentName} · {mealLabel(meal.mealType)}</div>
           {meal.teacherComment ? (
-            <div className="mt-4">
-              <div className="text-[13px] font-medium text-toss-sub mb-2.5">선생님 피드백</div>
-              <InfoBox>{meal.teacherComment}</InfoBox>
-            </div>
+            <>
+              <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
+              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>선생님 피드백</div>
+              <div style={{ background: TOSS.surf, borderRadius: 13, padding: 13, fontSize: 14, lineHeight: 1.7, color: TOSS.ink }}>{meal.teacherComment}</div>
+              <div style={{ height: 14 }} />
+            </>
           ) : isStaff ? (
-            <div className="mt-4">
-              <div className="text-[13px] font-medium text-toss-sub mb-2.5">피드백 남기기</div>
-              <textarea value={fb} onChange={e => setFb(e.target.value)} placeholder="조언해 주세요" className="w-full min-h-[86px] rounded-xl border border-slate-200 p-3 text-sm outline-none focus:border-toss-blue resize-none" />
-            </div>
+            <>
+              <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
+              <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 10 }}>피드백 남기기</div>
+              <textarea
+                value={fb}
+                onChange={e => setFb(e.target.value)}
+                placeholder="조언해 주세요"
+                style={{ width: '100%', boxSizing: 'border-box', minHeight: 86, border: '1px solid #E5E8EB', borderRadius: 13, padding: 12, fontSize: 14, fontFamily: 'inherit', resize: 'none', color: TOSS.ink, outline: 'none' }}
+              />
+              <div style={{ height: 8 }} />
+            </>
           ) : (
-            <div className="mt-4"><InfoBox tone="warn">피드백을 기다리고 있어요</InfoBox></div>
+            <>
+              <div style={{ background: TOSS.warnBg, borderRadius: 12, padding: 12, marginTop: 16, fontSize: 13, color: TOSS.warn, lineHeight: 1.6 }}>피드백을 기다리고 있어요</div>
+              <div style={{ height: 14 }} />
+            </>
           )}
           {isOwner && (
-            <button onClick={remove} className="mt-5 text-[13px] text-toss-warn font-medium">이 식단 지우기</button>
+            <button onClick={remove} style={{ background: 'none', border: 'none', padding: 0, marginTop: 4, fontSize: 13, fontWeight: 500, color: TOSS.warn, cursor: 'pointer' }}>이 식단 지우기</button>
           )}
         </div>
       </Scroll>
@@ -235,21 +264,43 @@ const AddMeal: React.FC<{ user: User; onBack: () => void; onDone: () => Promise<
   return (
     <Screen>
       <BackHeader title="식단 기록" onBack={onBack} />
-      <Scroll className="px-1">
-        <div className="text-[21px] font-bold leading-[1.4] text-toss-ink mt-2">사진 한 장이면<br />충분해요</div>
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '8px 20px' }}>
+        <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>사진 한 장이면<br />충분해요</div>
 
-        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => pick(e.target.files?.[0] || null)} />
-        <div onClick={() => fileRef.current?.click()} className="rounded-2xl h-36 mt-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer overflow-hidden" style={{ background: preview ? '#000' : TOSS.surf }}>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => pick(e.target.files?.[0] || null)} />
+        <div
+          onClick={() => fileRef.current?.click()}
+          style={{ background: preview ? '#D9E6CC' : TOSS.surf, borderRadius: 16, height: 138, marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7, cursor: 'pointer', overflow: 'hidden' }}
+        >
           {preview
-            ? <img src={preview} alt="" className="w-full h-full object-cover" />
-            : <><svg className="w-7 h-7" fill="none" stroke={TOSS.faint} strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><circle cx="12" cy="13" r="3" /></svg><span className="text-[13px] text-toss-sub">사진 찍거나 불러오기</span></>}
+            ? <img src={preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <>
+                <i className="ti ti-camera" style={{ fontSize: 30, color: TOSS.faint }} />
+                <span style={{ fontSize: 13, color: TOSS.sub }}>사진 찍거나 불러오기</span>
+              </>}
         </div>
 
-        <div className="text-[13px] font-medium text-toss-sub mt-4 mb-2">어떤 끼니예요?</div>
-        <ChipSelect options={MEAL_TYPES} value={mealType} onChange={setMealType} />
-        <div className="text-[13px] font-medium text-toss-sub mt-4 mb-2">무엇을 먹었나요?</div>
-        <input value={desc} onChange={e => setDesc(e.target.value)} placeholder="예: 닭가슴살 샐러드" className="w-full rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-toss-blue" />
-      </Scroll>
+        <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '16px 0 8px' }}>어떤 끼니예요?</div>
+        <div style={{ display: 'flex', gap: 7, marginBottom: 14 }}>
+          {MEAL_PICKS.map(o => {
+            const on = mealType === o.value;
+            return (
+              <button
+                key={o.value}
+                onClick={() => setMealType(o.value)}
+                style={{ flex: 1, background: on ? TOSS.blueBg : '#fff', border: `1.5px solid ${on ? TOSS.blue : '#E5E8EB'}`, borderRadius: 11, padding: '10px 2px', fontSize: 14, fontWeight: 500, color: on ? TOSS.blue : TOSS.sub, cursor: 'pointer' }}
+              >{o.label}</button>
+            );
+          })}
+        </div>
+
+        <input
+          value={desc}
+          onChange={e => setDesc(e.target.value)}
+          placeholder="예: 닭가슴살 샐러드"
+          style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: 12, fontSize: 14, fontFamily: 'inherit', color: TOSS.ink, outline: 'none' }}
+        />
+      </div>
       <Cta onClick={submit} disabled={!desc.trim()} loading={busy}>식단 올리기</Cta>
     </Screen>
   );
@@ -274,18 +325,24 @@ const AddWeight: React.FC<{ current: number; onBack: () => void; onDone: () => P
   return (
     <Screen>
       <BackHeader title="체중 기록" onBack={onBack} />
-      <Scroll className="px-1">
-        <div className="text-[21px] font-bold leading-[1.4] text-toss-ink mt-2">오늘 체중을<br />알려줘요</div>
-        <div className="flex items-baseline justify-center gap-1.5 my-7">
-          <span className="text-[46px] font-bold tracking-[-0.03em]" style={{ color: TOSS.blue }}>{w.toFixed(1)}</span>
-          <span className="text-lg font-medium text-toss-sub">kg</span>
+      <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '8px 20px' }}>
+        <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>오늘 체중을<br />알려줘요</div>
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6, margin: '28px 0 12px' }}>
+          <span style={{ fontSize: 46, fontWeight: 700, letterSpacing: '-.03em', color: TOSS.blue }}>{w.toFixed(1)}</span>
+          <span style={{ fontSize: 18, fontWeight: 500, color: TOSS.sub }}>kg</span>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={() => setW(v => Math.max(30, +(v - 0.1).toFixed(1)))} className="w-12 h-12 rounded-full border border-slate-200 text-2xl text-toss-ink">−</button>
-          <input type="range" min={35} max={110} step={0.1} value={w} onChange={e => setW(Number(e.target.value))} className="flex-1" />
-          <button onClick={() => setW(v => Math.min(110, +(v + 0.1).toFixed(1)))} className="w-12 h-12 rounded-full border border-slate-200 text-2xl text-toss-ink">+</button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <button
+            onClick={() => setW(v => Math.max(35, +(v - 0.1).toFixed(1)))}
+            style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E8EB', background: '#fff', fontSize: 24, color: TOSS.ink, cursor: 'pointer' }}
+          >−</button>
+          <input type="range" min={35} max={110} step={0.1} value={w} onChange={e => setW(Number(e.target.value))} style={{ flex: 1 }} />
+          <button
+            onClick={() => setW(v => Math.min(110, +(v + 0.1).toFixed(1)))}
+            style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E8EB', background: '#fff', fontSize: 24, color: TOSS.ink, cursor: 'pointer' }}
+          >+</button>
         </div>
-      </Scroll>
+      </div>
       <Cta onClick={submit} loading={busy}>체중 저장하기</Cta>
     </Screen>
   );

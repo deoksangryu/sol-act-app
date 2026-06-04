@@ -5,16 +5,11 @@ import { musicApi, resolveFileUrl } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
 import {
-  Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag,
-  Cta, Empty, InfoBox, ChipSelect, Avatar,
+  Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag, Chevron,
+  Empty, InfoBox, ChipSelect, Avatar,
 } from './toss/kit';
 
-const MusicNote: React.FC<{ color?: string; size?: number }> = ({ color = TOSS.blue, size = 22 }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M9 18V5l12-2v13M9 18a3 3 0 11-6 0 3 3 0 016 0zm12-2a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-
+// 트랙 상태 → 칩 (프로토타입 pill 대응)
 function statusTag(t: Track): React.ReactNode {
   const r = t.myRequest;
   if (!r) return null;
@@ -34,6 +29,7 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);     // 트랙 상세
   const [requestId, setRequestId] = useState<string | null>(null); // 다운로드 요청 화면
+  const [reviewId, setReviewId] = useState<string | null>(null);   // 요청 승인/거절 화면(원장)
 
   const load = async () => {
     try {
@@ -55,6 +51,8 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
     const set = new Set(tracks.map(t => t.category).filter(Boolean));
     return ['all', ...Array.from(set).sort()];
   }, [tracks]);
+  // 선택한 카테고리가 목록에서 사라지면(데이터 갱신 등) '전체'로 복귀 — 빈 목록 갇힘 방지
+  useEffect(() => { if (!categories.includes(cat)) setCat('all'); }, [categories, cat]);
 
   const filtered = useMemo(() => {
     return tracks.filter(t =>
@@ -65,15 +63,21 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
 
   const openTrack = openId ? tracks.find(t => t.id === openId) : null;
   const requestTrack = requestId ? tracks.find(t => t.id === requestId) : null;
+  const reviewReq = reviewId ? requests.find(r => r.id === reviewId) : null;
 
   if (loading) return <Empty>불러오는 중…</Empty>;
 
-  // ── 다운로드 요청 화면 ──
+  // ── 다운로드 요청 화면 (학생) ── sMr
   if (requestTrack) {
     return <RequestScreen track={requestTrack} onBack={() => setRequestId(null)} onDone={async () => { setRequestId(null); setOpenId(null); await load(); }} />;
   }
 
-  // ── 트랙 상세(플레이어) ──
+  // ── 요청 승인/거절 화면 (원장) ── sMm
+  if (reviewReq) {
+    return <ReviewScreen req={reviewReq} onBack={() => setReviewId(null)} onDone={async () => { setReviewId(null); await load(); }} />;
+  }
+
+  // ── 트랙 상세(플레이어) ── sMp
   if (openTrack) {
     return (
       <TrackDetail
@@ -81,33 +85,46 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
         isStaff={isStaff}
         onBack={() => setOpenId(null)}
         onRequest={() => setRequestId(openTrack.id)}
-        onReload={load}
       />
     );
   }
 
-  // ── 스태프: (원장만) 승인 대기 + 라이브러리 ──
+  // ── 스태프: (원장만) 승인 대기 + 라이브러리 ── sMu(teacher)
   if (isStaff) {
     const pending = requests.filter(r => r.status === 'pending');
     return (
       <Screen>
-        <BigTitle title={isDirector ? <>무용 음악을<br />관리해요</> : <>무용 음악<br />라이브러리예요</>} />
-        <Scroll className="px-1">
+        <BigTitle title={<>무용 음악을<br />관리해요</>} />
+        <Scroll>
           {isDirector && (pending.length > 0 ? (
             <>
               <SectionLabel>승인 대기 {pending.length}개</SectionLabel>
               {pending.map(r => (
-                <PendingCard key={r.id} req={r} onDone={load} />
+                <div
+                  key={r.id}
+                  onClick={() => setReviewId(r.id)}
+                  style={{ margin: '0 20px 8px', padding: '13px 14px', border: '1.5px solid #FCD9B5', background: TOSS.warnBg, borderRadius: 13, cursor: 'pointer' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <Avatar name={r.studentName} size={28} bg="#fff" fg={TOSS.warn} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: TOSS.ink }}>{r.studentName}님이 요청했어요</span>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: TOSS.ink }}>{r.trackTitle}</div>
+                  <div style={{ fontSize: 12, color: TOSS.sub, marginTop: 3 }}>목적: {r.purpose}</div>
+                </div>
               ))}
             </>
           ) : (
-            <div className="px-1 mt-3"><InfoBox tone="success">대기 중인 요청이 없어요</InfoBox></div>
+            <div style={{ margin: '14px 20px', padding: '13px 15px', background: TOSS.successBg, borderRadius: 13, display: 'flex', gap: 8, alignItems: 'center' }}>
+              <i className="ti ti-circle-check" style={{ fontSize: 18, color: TOSS.success }} />
+              <span style={{ fontSize: 13, color: '#15662F' }}>대기 중인 요청이 없어요</span>
+            </div>
           ))}
           <SectionLabel>음악 라이브러리 {tracks.length}곡</SectionLabel>
           {filtered.map(t => (
             <ListRow
               key={t.id}
-              left={<IconChip bg={TOSS.surf}><MusicNote color={TOSS.sub} /></IconChip>}
+              left={<IconChip bg={TOSS.surf}><i className="ti ti-music" style={{ fontSize: 21, color: TOSS.sub }} /></IconChip>}
               title={t.title}
               sub={`${t.category}${t.duration ? ' · ' + t.duration : ''}`}
               onClick={() => setOpenId(t.id)}
@@ -118,32 +135,41 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
     );
   }
 
-  // ── 학생: 목록 + 카테고리 필터 + 검색 ──
+  // ── 학생: 카테고리 필터 + 검색 + 곡 목록 ── sMu(student)
   return (
     <Screen>
       <BigTitle title={<>무용 음악을<br />들어봐요</>} sub="연습실 안에서 자유롭게 들어요" />
-      <div className="px-1 pb-1">
+      <div style={{ padding: '0 20px 2px' }}>
         <input
           value={query}
           onChange={e => setQuery(e.target.value)}
           placeholder="곡 제목 검색"
-          className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm mb-2 outline-none focus:border-toss-blue"
-        />
-        <ChipSelect
-          options={categories.map(c => ({ value: c, label: c === 'all' ? '전체' : c }))}
-          value={cat}
-          onChange={setCat}
+          style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: '10px 13px', fontSize: 14, color: TOSS.ink, outline: 'none', marginBottom: 8 }}
         />
       </div>
-      <Scroll className="px-1">
+      <div style={{ display: 'flex', gap: 7, padding: '0 20px 2px', overflowX: 'auto' }} className="no-scrollbar">
+        {categories.map(c => {
+          const on = cat === c;
+          return (
+            <button
+              key={c}
+              onClick={() => setCat(c)}
+              style={{ flexShrink: 0, background: on ? TOSS.ink : '#fff', border: `1px solid ${on ? TOSS.ink : '#E5E8EB'}`, borderRadius: 999, padding: '7px 13px', fontSize: 13, fontWeight: 500, color: on ? '#fff' : TOSS.sub, cursor: 'pointer' }}
+            >
+              {c === 'all' ? '전체' : c}
+            </button>
+          );
+        })}
+      </div>
+      <Scroll>
         <SectionLabel>무용 음악 {filtered.length}곡</SectionLabel>
         {filtered.length === 0 ? <Empty>해당하는 음악이 없어요</Empty> : filtered.map(t => (
           <ListRow
             key={t.id}
-            left={<IconChip bg={TOSS.blueBg}><MusicNote color={TOSS.blue} /></IconChip>}
+            left={<IconChip bg={TOSS.blueBg}><i className="ti ti-music" style={{ fontSize: 21, color: TOSS.blue }} /></IconChip>}
             title={t.title}
             sub={`${t.category}${t.mood ? ' · ' + t.mood : ''}${t.duration ? ' · ' + t.duration : ''}`}
-            right={statusTag(t)}
+            right={statusTag(t) || <Chevron />}
             onClick={() => setOpenId(t.id)}
           />
         ))}
@@ -152,8 +178,184 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
   );
 };
 
-// 선생님 승인 대기 카드
-const PendingCard: React.FC<{ req: MusicDownloadRequest; onDone: () => void }> = ({ req, onDone }) => {
+// 트랙 상세 + 플레이어 ── sMp
+const TrackDetail: React.FC<{
+  track: Track; isStaff: boolean; onBack: () => void; onRequest: () => void;
+}> = ({ track, isStaff, onBack, onRequest }) => {
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playing, setPlaying] = useState(false);
+  const [cur, setCur] = useState(0);
+  const [dur, setDur] = useState(0);
+  const r = track.myRequest;
+  // 서명된 스트림 우선(학생은 fileUrl이 비어있음). 정적 경로 직접 노출 방지.
+  const playUrl = track.streamUrl || track.fileUrl;
+
+  const toggle = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) { a.play().catch(() => toast.error('재생할 수 없어요')); } else { a.pause(); }
+  };
+  const seek = (v: number) => { const a = audioRef.current; if (a) { a.currentTime = v; setCur(v); } };
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  // 앱 내 다운로드는 제공하지 않아요 — 승인되면 원장님이 음원을 직접 전달해요.
+  const cta: { label: string; on: boolean } | null = (() => {
+    if (isStaff) return null;
+    if (!r) return { label: '음원 요청하기', on: true };
+    if (r.status === 'pending') return { label: '승인을 기다리고 있어요', on: false };
+    if (r.status === 'approved') return { label: '승인됐어요 · 곧 전달해드려요', on: false };
+    if (r.status === 'rejected') return { label: '다시 요청하기', on: true };
+    return null;
+  })();
+
+  const total = dur ? fmt(dur) : (track.duration || '0:00');
+  const progress = dur > 0 ? Math.min(100, (cur / dur) * 100) : 0;
+
+  return (
+    <Screen>
+      <BackHeader title="음악" onBack={onBack} />
+      <Scroll>
+        {/* 그라데이션 앨범아트 */}
+        <div style={{ padding: '8px 28px 0' }}>
+          <div style={{ width: '100%', paddingBottom: '100%', position: 'relative', background: `linear-gradient(135deg, ${TOSS.blueBg} 0%, ${TOSS.purpleBg} 100%)`, borderRadius: 24, overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <i className="ti ti-music" style={{ fontSize: 90, color: TOSS.blue, opacity: 0.85 }} />
+            </div>
+          </div>
+        </div>
+        {/* 제목 */}
+        <div style={{ padding: '18px 20px 0', textAlign: 'center' }}>
+          <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', color: TOSS.ink }}>{track.title}</div>
+          <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{track.category}{track.mood ? ' · ' + track.mood : ''}</div>
+        </div>
+        {/* 진행바 */}
+        <div style={{ padding: '24px 24px 0' }}>
+          <input
+            type="range" min={0} max={dur || 0} step={0.1} value={cur}
+            onChange={e => seek(Number(e.target.value))}
+            disabled={!playUrl}
+            style={{ width: '100%', accentColor: TOSS.blue }}
+          />
+          {!playUrl && <div style={{ height: 4, background: TOSS.surf, borderRadius: 2, position: 'relative', overflow: 'hidden' }}><div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: `${progress}%`, background: TOSS.blue }} /></div>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 7, fontSize: 11, color: TOSS.sub }}>
+            <span>{fmt(cur)}</span>
+            <span>{total}</span>
+          </div>
+        </div>
+        {/* 큰 재생 버튼 */}
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16, paddingBottom: 16 }}>
+          <button
+            onClick={toggle}
+            disabled={!playUrl}
+            style={{ width: 62, height: 62, borderRadius: '50%', background: TOSS.blue, border: 'none', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: playUrl ? 'pointer' : 'default', opacity: playUrl ? 1 : 0.4 }}
+          >
+            <i className={`ti ${playing ? 'ti-player-pause-filled' : 'ti-player-play-filled'}`} style={{ fontSize: 28 }} />
+          </button>
+        </div>
+        {!playUrl && <div style={{ textAlign: 'center', fontSize: 12, color: TOSS.faint }}>음원 파일이 아직 준비 중이에요</div>}
+        {playUrl && (
+          <audio
+            ref={audioRef}
+            src={resolveFileUrl(playUrl)}
+            onPlay={() => setPlaying(true)}
+            onPause={() => setPlaying(false)}
+            onEnded={() => { setPlaying(false); setCur(0); }}
+            onTimeUpdate={() => setCur(audioRef.current?.currentTime || 0)}
+            onLoadedMetadata={() => setDur(audioRef.current?.duration || 0)}
+            onError={() => { setPlaying(false); toast.error('음원을 불러오지 못했어요'); }}
+            playsInline
+            preload="metadata"
+          />
+        )}
+        {/* 요청 상태 안내 */}
+        {r && (
+          <div style={{ margin: '4px 20px 14px', background: TOSS.surf, borderRadius: 12, padding: 12, fontSize: 13, color: TOSS.sub, lineHeight: 1.6 }}>
+            {r.status === 'pending' ? '요청을 검토 중이에요' : r.status === 'approved' ? '요청이 승인됐어요. 원장님이 음원을 전달해드려요.' : `요청이 거절됐어요.${r.responseNote ? ' ' + r.responseNote : ' 다시 요청할 수 있어요.'}`}
+          </div>
+        )}
+        <div style={{ padding: '0 20px 14px' }}>
+          <InfoBox>연습실 안에서는 자유롭게 들을 수 있어요. 외부 공유는 저작권 문제가 될 수 있어요.</InfoBox>
+        </div>
+      </Scroll>
+      {cta && (
+        <div style={{ padding: '12px 20px 16px', flexShrink: 0 }}>
+          <button
+            onClick={cta.on ? onRequest : undefined}
+            disabled={!cta.on}
+            style={{ width: '100%', background: cta.on ? TOSS.blue : TOSS.surf, color: cta.on ? '#fff' : TOSS.faint, border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 600, cursor: cta.on ? 'pointer' : 'default' }}
+          >
+            {cta.label}
+          </button>
+        </div>
+      )}
+    </Screen>
+  );
+};
+
+// 다운로드 요청 (목적 선택) ── sMr
+const RequestScreen: React.FC<{ track: Track; onBack: () => void; onDone: () => Promise<void> }> = ({ track, onBack, onDone }) => {
+  const [purpose, setPurpose] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async () => {
+    if (!purpose) return;
+    setBusy(true);
+    try {
+      await musicApi.createRequest({ trackId: track.id, purpose });
+      toast.success('원장님께 요청을 보냈어요');
+      await onDone();
+    } catch (e: any) {
+      toast.error(e.message || '요청하지 못했어요');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Screen>
+      <BackHeader title="다운로드 권한 요청" onBack={onBack} />
+      <Scroll>
+        <div style={{ padding: '8px 20px' }}>
+          <div style={{ fontSize: 21, fontWeight: 700, lineHeight: 1.4, color: TOSS.ink }}>왜 다운로드가<br />필요한가요?</div>
+          <div style={{ fontSize: 14, color: TOSS.sub, marginTop: 6 }}>원장님이 사용 목적을 보고 승인해요</div>
+          <div style={{ background: TOSS.surf, borderRadius: 14, padding: 13, marginTop: 18, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <IconChip bg={TOSS.blueBg} size={40}><i className="ti ti-music" style={{ fontSize: 19, color: TOSS.blue }} /></IconChip>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: TOSS.ink }}>{track.title}</div>
+              <div style={{ fontSize: 12, color: TOSS.sub, marginTop: 2 }}>{track.category}{track.duration ? ' · ' + track.duration : ''}</div>
+            </div>
+          </div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '18px 0 8px' }}>사용 목적</div>
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+            {MUSIC_PURPOSES.map(pp => {
+              const on = purpose === pp;
+              return (
+                <button
+                  key={pp}
+                  onClick={() => setPurpose(pp)}
+                  style={{ background: on ? TOSS.blueBg : '#fff', border: `1.5px solid ${on ? TOSS.blue : '#E5E8EB'}`, borderRadius: 10, padding: '9px 12px', fontSize: 13, color: on ? TOSS.blue : TOSS.sub, cursor: 'pointer' }}
+                >
+                  {pp}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ background: TOSS.blueBg, borderRadius: 12, padding: 12, marginTop: 18, fontSize: 13, color: '#1B4F8A', lineHeight: 1.6 }}>입시 연습 용도로만 써요. 외부 공유는 저작권 문제가 될 수 있어요</div>
+        </div>
+      </Scroll>
+      <div style={{ padding: '12px 20px 16px', flexShrink: 0 }}>
+        <button
+          onClick={purpose && !busy ? submit : undefined}
+          disabled={!purpose || busy}
+          style={{ width: '100%', background: purpose && !busy ? TOSS.blue : TOSS.surf, color: purpose && !busy ? '#fff' : TOSS.faint, border: 'none', borderRadius: 14, padding: 15, fontSize: 16, fontWeight: 600, cursor: purpose && !busy ? 'pointer' : 'default' }}
+        >
+          {busy ? '잠시만요…' : '요청 보내기'}
+        </button>
+      </div>
+    </Screen>
+  );
+};
+
+// 요청 승인/거절 (원장) ── sMm
+const ReviewScreen: React.FC<{ req: MusicDownloadRequest; onBack: () => void; onDone: () => Promise<void> }> = ({ req, onBack, onDone }) => {
   const [busy, setBusy] = useState(false);
   const respond = async (status: 'approved' | 'rejected') => {
     setBusy(true);
@@ -167,147 +369,47 @@ const PendingCard: React.FC<{ req: MusicDownloadRequest; onDone: () => void }> =
       setBusy(false);
     }
   };
-  return (
-    <div className="mx-1 mb-2 rounded-xl p-3.5 border" style={{ borderColor: '#FCD9B5', background: TOSS.warnBg }}>
-      <div className="flex items-center gap-2 mb-1.5">
-        <Avatar name={req.studentName} size={28} bg="#fff" fg={TOSS.warn} />
-        <span className="text-[13px] font-semibold text-toss-ink">{req.studentName}님이 요청했어요</span>
-      </div>
-      <div className="text-sm font-medium text-toss-ink">🎵 {req.trackTitle}</div>
-      <div className="text-xs text-toss-sub mt-0.5">목적: {req.purpose}{req.createdAt ? ` · ${(req.createdAt || '').slice(5, 10)}` : ''}</div>
-      <div className="flex gap-2 mt-3">
-        <button disabled={busy} onClick={() => respond('rejected')} className="flex-1 rounded-xl py-2.5 text-sm font-semibold bg-white border border-slate-200 text-toss-sub">거절</button>
-        <button disabled={busy} onClick={() => respond('approved')} className="flex-1 rounded-xl py-2.5 text-sm font-semibold text-white" style={{ background: TOSS.blue }}>승인하기</button>
-      </div>
-    </div>
-  );
-};
-
-// 트랙 상세 + 플레이어
-const TrackDetail: React.FC<{
-  track: Track; isStaff: boolean; onBack: () => void; onRequest: () => void; onReload: () => Promise<void>;
-}> = ({ track, isStaff, onBack, onRequest, onReload }) => {
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const [playing, setPlaying] = useState(false);
-  const [cur, setCur] = useState(0);
-  const [dur, setDur] = useState(0);
-  const r = track.myRequest;
-
-  const toggle = () => {
-    const a = audioRef.current;
-    if (!a) return;
-    if (a.paused) { a.play().catch(() => toast.error('재생할 수 없어요')); } else { a.pause(); }
-  };
-  const seek = (v: number) => { const a = audioRef.current; if (a) { a.currentTime = v; setCur(v); } };
-  const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-
-  // 앱 내 다운로드는 제공하지 않아요 — 승인되면 원장님이 음원을 직접 전달해요.
-  let cta: React.ReactNode = null;
-  if (!isStaff) {
-    if (!r) cta = <Cta onClick={onRequest}>음원 요청하기</Cta>;
-    else if (r.status === 'pending') cta = <Cta disabled>승인을 기다리고 있어요</Cta>;
-    else if (r.status === 'approved') cta = <Cta disabled>승인됐어요 · 곧 전달해드려요</Cta>;
-    else if (r.status === 'rejected') cta = <Cta onClick={onRequest}>다시 요청하기</Cta>;
-  }
-
+  const reqDate = (req.createdAt || '').slice(0, 10);
   return (
     <Screen>
-      <BackHeader title="음악" onBack={onBack} />
+      <BackHeader title="다운로드 요청" onBack={onBack} />
       <Scroll>
-        <div className="px-6 pt-2">
-          <div className="w-full rounded-3xl overflow-hidden relative" style={{ paddingBottom: '100%', background: `linear-gradient(135deg, ${TOSS.blueBg} 0%, ${TOSS.purpleBg} 100%)` }}>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <MusicNote color={TOSS.blue} size={90} />
+        <div style={{ padding: '8px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 13, marginBottom: 18 }}>
+            <Avatar name={req.studentName} size={48} bg={TOSS.blueBg} fg={TOSS.blue} />
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: TOSS.ink }}>{req.studentName}</div>
+              <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 3 }}>{reqDate ? `${reqDate}에 요청` : '요청'}</div>
             </div>
           </div>
-        </div>
-        <div className="px-5 pt-4 text-center">
-          <div className="text-[22px] font-bold tracking-[-0.02em] text-toss-ink">{track.title}</div>
-          <div className="text-[13px] text-toss-sub mt-1.5">{track.category}{track.mood ? ' · ' + track.mood : ''}</div>
-        </div>
-        <div className="px-6 mt-5">
-          <input
-            type="range" min={0} max={dur || 0} step={0.1} value={cur}
-            onChange={e => seek(Number(e.target.value))}
-            className="w-full accent-toss-blue"
-            disabled={!track.fileUrl}
-          />
-          <div className="flex justify-between text-[11px] text-toss-sub mt-1">
-            <span>{fmt(cur)}</span>
-            <span>{dur ? fmt(dur) : (track.duration || '')}</span>
+          <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, marginBottom: 8 }}>요청한 음악</div>
+          <div style={{ background: TOSS.surf, borderRadius: 13, padding: 13, display: 'flex', alignItems: 'center', gap: 12 }}>
+            <IconChip bg={TOSS.blueBg} size={42}><i className="ti ti-music" style={{ fontSize: 20, color: TOSS.blue }} /></IconChip>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: TOSS.ink }}>{req.trackTitle}</div>
+            </div>
           </div>
-        </div>
-        <div className="flex justify-center mt-3 mb-2">
-          <button onClick={toggle} disabled={!track.fileUrl} className="w-16 h-16 rounded-full flex items-center justify-center text-white disabled:opacity-40" style={{ background: TOSS.blue }}>
-            {playing
-              ? <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z" /></svg>
-              : <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>}
-          </button>
-        </div>
-        {!track.fileUrl && <div className="text-center text-xs text-toss-faint">음원 파일이 아직 준비 중이에요</div>}
-        {track.fileUrl && (
-          <audio
-            ref={audioRef}
-            src={resolveFileUrl(track.fileUrl)}
-            onPlay={() => setPlaying(true)}
-            onPause={() => setPlaying(false)}
-            onEnded={() => { setPlaying(false); setCur(0); }}
-            onTimeUpdate={() => setCur(audioRef.current?.currentTime || 0)}
-            onLoadedMetadata={() => setDur(audioRef.current?.duration || 0)}
-            playsInline
-            preload="metadata"
-          />
-        )}
-        {r && (
-          <div className="px-1 mt-4">
-            <InfoBox tone={r.status === 'approved' ? 'success' : r.status === 'pending' ? 'info' : 'warn'}>
-              {r.status === 'pending' ? '요청을 검토 중이에요' : r.status === 'approved' ? '요청이 승인됐어요. 원장님이 음원을 전달해드려요.' : '이번 요청은 검토 후 보류됐어요'}
-            </InfoBox>
-          </div>
-        )}
-        <div className="px-1 mt-4 mb-2">
-          <InfoBox>연습실 안에서는 자유롭게 들을 수 있어요. 외부 공유는 저작권 문제가 될 수 있어요.</InfoBox>
+          <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '18px 0 8px' }}>사용 목적</div>
+          <div style={{ background: TOSS.surf, borderRadius: 12, padding: 13, fontSize: 14, lineHeight: 1.6, color: TOSS.ink }}>{req.purpose}</div>
+          <div style={{ background: TOSS.blueBg, borderRadius: 12, padding: 12, marginTop: 14, fontSize: 13, color: '#1B4F8A', lineHeight: 1.6 }}>결정하면 {req.studentName}님에게 즉시 알림이 가요</div>
         </div>
       </Scroll>
-      {cta}
-    </Screen>
-  );
-};
-
-// 다운로드 요청 (목적 선택)
-const RequestScreen: React.FC<{ track: Track; onBack: () => void; onDone: () => Promise<void> }> = ({ track, onBack, onDone }) => {
-  const [purpose, setPurpose] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const submit = async () => {
-    if (!purpose) return;
-    setBusy(true);
-    try {
-      await musicApi.createRequest({ trackId: track.id, purpose });
-      toast.success('선생님께 요청을 보냈어요');
-      await onDone();
-    } catch (e: any) {
-      toast.error(e.message || '요청하지 못했어요');
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <Screen>
-      <BackHeader title="다운로드 권한 요청" onBack={onBack} />
-      <Scroll className="px-1">
-        <div className="text-[21px] font-bold leading-[1.4] text-toss-ink mt-2">왜 다운로드가<br />필요한가요?</div>
-        <div className="text-sm text-toss-sub mt-1.5">선생님이 사용 목적을 보고 승인해요</div>
-        <div className="rounded-2xl p-3.5 mt-4 flex items-center gap-3" style={{ background: TOSS.surf }}>
-          <IconChip bg={TOSS.blueBg} size={40}><MusicNote color={TOSS.blue} size={20} /></IconChip>
-          <div>
-            <div className="text-sm font-semibold text-toss-ink">{track.title}</div>
-            <div className="text-xs text-toss-sub mt-0.5">{track.category}{track.duration ? ' · ' + track.duration : ''}</div>
-          </div>
-        </div>
-        <div className="text-[13px] font-medium text-toss-sub mt-[18px] mb-2">사용 목적</div>
-        <ChipSelect wrap options={MUSIC_PURPOSES.map(p => ({ value: p, label: p }))} value={purpose} onChange={setPurpose} />
-      </Scroll>
-      <Cta onClick={submit} disabled={!purpose} loading={busy}>요청 보내기</Cta>
+      <div style={{ display: 'flex', gap: 8, padding: '12px 20px 16px', flexShrink: 0 }}>
+        <button
+          onClick={busy ? undefined : () => respond('rejected')}
+          disabled={busy}
+          style={{ flex: 1, background: '#fff', border: '1.5px solid #E5E8EB', color: TOSS.sub, borderRadius: 14, padding: 14, fontSize: 15, fontWeight: 600, cursor: busy ? 'default' : 'pointer' }}
+        >
+          거절
+        </button>
+        <button
+          onClick={busy ? undefined : () => respond('approved')}
+          disabled={busy}
+          style={{ flex: 2, background: TOSS.blue, border: 'none', color: '#fff', borderRadius: 14, padding: 14, fontSize: 15, fontWeight: 600, cursor: busy ? 'default' : 'pointer' }}
+        >
+          승인하기
+        </button>
+      </div>
     </Screen>
   );
 };

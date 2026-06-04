@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime
 from app.database import get_db
 from app.models.music import Track, MusicDownloadRequest, RequestStatus
+from app.models.notification import NotificationType
 from app.models.user import User, UserRole
 from app.schemas.music import (
     TrackCreate, TrackResponse,
@@ -14,9 +15,35 @@ from app.services.notification_service import (
     notify_user, notify_users, emit_data_changed,
     get_teacher_ids_for_student, get_teacher_student_ids,
 )
+from app.config import settings
+from datetime import timedelta
+from jose import jwt, JWTError
 import uuid
 
 router = APIRouter()
+
+# ── 서명된 스트리밍 URL ──
+# <audio> 요소는 Authorization 헤더를 못 보내므로, 짧은 만료의 서명 토큰을 쿼리로 실어
+# 인앱 청취만 허용하고 영구 정적 경로(/music-files/...)는 학생에게 노출하지 않는다.
+_STREAM_TTL = timedelta(hours=6)
+
+
+def _sign_stream_token(track_id: str) -> str:
+    from datetime import datetime
+    payload = {"trk": track_id, "exp": datetime.utcnow() + _STREAM_TTL}
+    return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def _verify_stream_token(token: str, track_id: str) -> bool:
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        return payload.get("trk") == track_id
+    except JWTError:
+        return False
+
+
+def _stream_url(track_id: str) -> str:
+    return f"/api/music/tracks/{track_id}/stream?t={_sign_stream_token(track_id)}"
 
 
 def _my_request_info(req: MusicDownloadRequest) -> dict:
@@ -44,13 +71,17 @@ def track_to_response(t: Track, current_user: User) -> dict:
             my_request = _my_request_info(mine)
     elif current_user.role == UserRole.DIRECTOR:
         pending_count = sum(1 for r in t.requests if r.status == RequestStatus.PENDING)
+    # 학생에게는 영구 정적 파일 경로를 숨기고(무단 다운로드/공유 방지) 서명된 스트림만 제공.
+    # 인앱 청취는 stream_url 로 가능하고, 실제 파일 전달은 원장이 직접 처리.
+    is_student = current_user.role == UserRole.STUDENT
     return {
         "id": t.id,
         "title": t.title,
         "category": t.category,
         "mood": t.mood,
         "duration": t.duration,
-        "file_url": t.file_url,
+        "file_url": None if is_student else t.file_url,
+        "stream_url": _stream_url(t.id) if t.file_url else None,
         "thumbnail_url": t.thumbnail_url,
         "created_at": t.created_at,
         "my_request": my_request,
@@ -95,6 +126,63 @@ def get_track(track_id: str, db: Session = Depends(get_db), current_user: User =
     if not t:
         raise HTTPException(status_code=404, detail="Track not found")
     return track_to_response(t, current_user)
+
+
+@router.get("/tracks/{track_id}/stream")
+def stream_track(track_id: str, t: str = Query(...), request: Request = None, db: Session = Depends(get_db)):
+    """서명 토큰(t)으로 인증된 인앱 청취 스트림. HTTP Range(206) 지원.
+
+    get_current_user를 쓰지 않는다 — <audio> 요소가 Authorization 헤더를 못 보내기 때문.
+    대신 짧은 만료의 서명 토큰으로만 접근을 허용한다(목록 응답이 매번 새로 발급)."""
+    import os
+    import mimetypes
+    from starlette.responses import Response, FileResponse as SFileResponse
+
+    if not _verify_stream_token(t, track_id):
+        raise HTTPException(status_code=403, detail="유효하지 않거나 만료된 링크예요")
+
+    track = db.query(Track).filter(Track.id == track_id).first()
+    if not track or not track.file_url:
+        raise HTTPException(status_code=404, detail="음원을 찾을 수 없어요")
+
+    # file_url: '/music-files/{rel}' → 외장 SSD의 실제 경로로 해석
+    if not track.file_url.startswith("/music-files/"):
+        raise HTTPException(status_code=404, detail="음원을 찾을 수 없어요")
+    rel = track.file_url[len("/music-files/"):]
+    name = settings.EXTERNAL_DRIVE_NAME
+    if not name:
+        raise HTTPException(status_code=404, detail="음원 저장소를 찾을 수 없어요")
+    base = os.path.realpath(f"/Volumes/{name}/music")
+    music_file = os.path.realpath(os.path.join(base, rel))
+    if not (music_file == base or music_file.startswith(base + os.sep)) or not os.path.isfile(music_file):
+        raise HTTPException(status_code=404, detail="음원 파일을 찾을 수 없어요")
+
+    media_type = mimetypes.guess_type(music_file)[0] or "audio/mpeg"
+    common = {"Accept-Ranges": "bytes", "Cache-Control": "private, max-age=3600"}
+    range_header = request.headers.get("range") if request else None
+    if range_header and range_header.startswith("bytes="):
+        file_size = os.path.getsize(music_file)
+        try:
+            start_s, end_s = range_header[len("bytes="):].split("-", 1)
+            start = int(start_s) if start_s else 0
+            end = int(end_s) if end_s else file_size - 1
+        except ValueError:
+            start, end = 0, file_size - 1
+        start = max(0, start)
+        end = min(end, file_size - 1)
+        if start > end:
+            return Response(status_code=416, headers={**common, "Content-Range": f"bytes */{file_size}"})
+        with open(music_file, "rb") as f:
+            f.seek(start)
+            data = f.read(end - start + 1)
+        return Response(
+            content=data, status_code=206, media_type=media_type,
+            headers={**common, "Content-Range": f"bytes {start}-{end}/{file_size}", "Content-Length": str(len(data))},
+        )
+    resp = SFileResponse(music_file, media_type=media_type)
+    for k, v in common.items():
+        resp.headers[k] = v
+    return resp
 
 
 @router.post("/tracks", response_model=TrackResponse, status_code=status.HTTP_201_CREATED)
@@ -255,7 +343,14 @@ async def respond_request(
     db.commit()
     db.refresh(r)
 
-    msg = "음원 다운로드가 승인됐어요" if data.status == RequestStatus.APPROVED else "음원 요청이 검토됐어요"
-    await notify_user(db, r.student_id, msg, entity="music")
+    if data.status == RequestStatus.APPROVED:
+        msg = "음원 다운로드가 승인됐어요"
+        notif_type = NotificationType.SUCCESS
+    else:
+        # 거절은 명확히 — 사유가 있으면 함께 전달
+        note = (r.response_note or "").strip()
+        msg = "음원 요청이 거절됐어요" + (f": {note}" if note else "")
+        notif_type = NotificationType.WARNING
+    await notify_user(db, r.student_id, msg, notif_type, entity="music")
 
     return request_to_response(r)

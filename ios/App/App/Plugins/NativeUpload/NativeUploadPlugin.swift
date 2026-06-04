@@ -9,6 +9,7 @@ public class NativeUploadPlugin: CAPPlugin, CAPBridgedPlugin {
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "compressAndUpload", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "backgroundUpload", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestNotificationPermission", returnType: CAPPluginReturnPromise),
     ]
 
@@ -109,6 +110,55 @@ public class NativeUploadPlugin: CAPPlugin, CAPBridgedPlugin {
                     }
                 }
             }
+        }
+    }
+
+    /// 진짜 백그라운드 업로드 — OS가 관리하는 background URLSession에 등록만 하고 즉시 반환.
+    /// 앱이 백그라운드/종료돼도 업로드가 끝까지 진행되고, 서버가 target(포트폴리오/과제)에 URL을 패치한다.
+    @objc func backgroundUpload(_ call: CAPPluginCall) {
+        guard let fileUri = call.getString("fileUri"),
+              let apiUrl = call.getString("apiUrl"),
+              let token = call.getString("token") else {
+            call.reject("Missing required parameters")
+            return
+        }
+        let subfolder = call.getString("subfolder") ?? "portfolios"
+        let targetType = call.getString("targetType")
+        let targetId = call.getString("targetId")
+        let displayName = call.getString("displayName") ?? "영상"
+
+        guard let filePath = resolveFilePath(fileUri), FileManager.default.fileExists(atPath: filePath) else {
+            call.reject("File not found")
+            return
+        }
+
+        // 영상은 .mp4로(서버가 재인코딩), 그 외(이미지/음성/문서)는 원본 확장자·이름 보존
+        let lastComp = (filePath as NSString).lastPathComponent
+        let ext = ((lastComp as NSString).pathExtension).lowercased()
+        let videoExts = ["mp4", "mov", "webm", "m4v", "avi", "mkv", "3gp"]
+        let imageExts = ["jpg", "jpeg", "png", "heic", "webp", "gif"]
+        let mimeType: String
+        let uploadFileName: String
+        if videoExts.contains(ext) {
+            mimeType = "video/mp4"
+            uploadFileName = (lastComp as NSString).deletingPathExtension + ".mp4"
+        } else if imageExts.contains(ext) {
+            mimeType = "image/\(ext == "jpg" ? "jpeg" : ext)"
+            uploadFileName = lastComp
+        } else {
+            mimeType = "application/octet-stream"
+            uploadFileName = lastComp
+        }
+
+        let ok = BackgroundUploader.shared.enqueue(
+            filePath: filePath, apiUrl: apiUrl, token: token,
+            subfolder: subfolder, targetType: targetType, targetId: targetId,
+            mimeType: mimeType, uploadFileName: uploadFileName, displayName: displayName
+        )
+        if ok {
+            call.resolve(["enqueued": true])
+        } else {
+            call.reject("Failed to enqueue background upload")
         }
     }
 

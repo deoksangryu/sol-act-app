@@ -2,7 +2,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { User, UserRole, ViewState, ClassInfo, Notification } from './types';
 import { Login } from './components/Login';
-import { Sidebar } from './components/Sidebar';
 import { MobileNav } from './components/MobileNav';
 import { Classes } from './components/Classes';
 import { Assignments } from './components/Assignments';
@@ -180,10 +179,10 @@ const AppInner: React.FC = () => {
   // Show loading while checking saved token
   if (loading && !user) {
     return (
-      <div className="min-h-[100dvh] bg-slate-50 flex items-center justify-center">
+      <div className="min-h-[100dvh] bg-white flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-3xl font-extrabold text-yellow-400 mb-3 tracking-tighter">SOL-ACT</h1>
-          <div className="w-6 h-6 border-2 border-slate-300 border-t-yellow-400 rounded-full animate-spin mx-auto"></div>
+          <h1 className="text-3xl font-extrabold mb-3 tracking-tight" style={{ color: '#3182F6' }}>SOL-ACT</h1>
+          <div className="w-6 h-6 border-2 border-slate-200 rounded-full animate-spin mx-auto" style={{ borderTopColor: '#3182F6' }}></div>
         </div>
       </div>
     );
@@ -198,115 +197,60 @@ const AppInner: React.FC = () => {
     );
   }
 
-  // Define views that need full height (App-like behavior) vs scrolling views (Page-like behavior)
-  const isAppView = ['classes', 'assignments', 'video', 'diet', 'music'].includes(currentView);
+  // 하단 5탭을 보여주는 메인 화면 (프로필 등 하위화면은 자체 back 헤더 사용)
+  const showNav = ['classes', 'assignments', 'video', 'diet', 'music'].includes(currentView);
 
   return (
     <AppDataProvider value={{ allUsers, classes, setClasses }}>
-    <div className="flex flex-col h-[100dvh] bg-slate-50 text-slate-800 overflow-hidden">
-      {/* Offline Banner */}
+    {/* 프로토타입 프레임: 흰 배경 · 상단 벨 · 본문 · 하단 5탭 */}
+    <div className="flex flex-col h-[100dvh] bg-white overflow-hidden" style={{ color: '#191F28', fontSize: 14 }}>
       {isOffline && (
         <div className="bg-red-500 text-white text-center py-2 text-sm font-medium shrink-0 z-50">
-          인터넷 연결이 끊어졌습니다. 연결 상태를 확인해주세요.
+          인터넷 연결이 끊어졌어요. 연결 상태를 확인해주세요.
         </div>
       )}
-      <div className="flex flex-1 min-h-0">
-      {/* Sidebar for Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-white border-r border-slate-200 shadow-sm z-20">
-        <Sidebar
-          currentView={currentView}
-          onChangeView={setCurrentView}
-          user={user}
-          onLogout={handleLogout}
-        />
-      </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden relative">
-        {/* Mobile Header */}
-        <header className="md:hidden min-h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 z-20 shrink-0" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-yellow-400 tracking-tighter">SOL-ACT</span>
-          </div>
-          <div className="flex items-center gap-3">
-             {/* Notification Bell (Mobile) */}
-             <div className="relative">
-                <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="p-2.5 text-slate-400 hover:text-slate-600 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="알림">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                  {unreadCount > 0 && <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>}
-                </button>
-                {isNotifOpen && <Notifications notifications={notifications} onClose={() => setIsNotifOpen(false)} onMarkAllRead={handleMarkAllRead} onNavigate={(v) => { setCurrentView(v); }} />}
-             </div>
-
-             <div className="text-right">
-                <p className="text-xs font-bold text-slate-700">{user.name}</p>
-                <p className="text-xs text-slate-400">{getRoleLabel(user.role)}</p>
-             </div>
-             <img src={resolveFileUrl(user.avatar)} alt="Profile" className="w-8 h-8 rounded-full border border-slate-100 cursor-pointer hover:ring-2 hover:ring-brand-300" onClick={() => setCurrentView('profile')} />
-             <button
-               onClick={handleLogout}
-               className="ml-1 p-2.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
-               aria-label="로그아웃"
-             >
-               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
-             </button>
-          </div>
-        </header>
-
-        {/* Desktop notification bell */}
-        <div className="hidden md:block absolute top-6 right-8 z-30">
-           <div className="relative">
-              <button
-                onClick={() => setIsNotifOpen(!isNotifOpen)}
-                className="bg-white p-2.5 rounded-full shadow-sm border border-slate-100 text-slate-400 hover:text-brand-500 hover:shadow-md transition-all relative"
-                aria-label="알림"
-              >
-                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
-                 {unreadCount > 0 && <span className="absolute top-0 right-0 w-3 h-3 bg-red-500 rounded-full border-2 border-white animate-pulse"></span>}
-              </button>
-              {isNotifOpen && <Notifications notifications={notifications} onClose={() => setIsNotifOpen(false)} onMarkAllRead={handleMarkAllRead} onNavigate={(v) => { setCurrentView(v); }} />}
-           </div>
+      {/* 상단 바 — 벨 + 프로필 (프로토타입 상태바 위치) */}
+      <header className="flex items-center justify-end gap-1 px-3 pb-1.5 shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}>
+        <div className="relative">
+          <button onClick={() => setIsNotifOpen(!isNotifOpen)} className="relative w-10 h-10 flex items-center justify-center" aria-label="알림">
+            <i className="ti ti-bell" style={{ fontSize: 20, color: '#191F28' }} />
+            {unreadCount > 0 && (
+              <span style={{ position: 'absolute', top: 5, right: 5, background: '#C2410C', color: '#fff', fontSize: 9, fontWeight: 700, minWidth: 14, height: 14, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px' }}>{unreadCount}</span>
+            )}
+          </button>
+          {isNotifOpen && <Notifications notifications={notifications} onClose={() => setIsNotifOpen(false)} onMarkAllRead={handleMarkAllRead} onNavigate={(v) => { setCurrentView(v); setIsNotifOpen(false); }} />}
         </div>
+        <img src={resolveFileUrl(user.avatar)} alt="" className="w-8 h-8 rounded-full object-cover cursor-pointer border border-slate-100" onClick={() => setCurrentView('profile')} />
+      </header>
 
-        <div className={`flex-1 flex flex-col ${isAppView ? 'overflow-hidden' : 'overflow-y-auto'} p-4 md:p-8 pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] md:pb-8 scroll-smooth`}>
-          <div className={`max-w-5xl mx-auto w-full flex-1 flex flex-col ${isAppView ? 'h-full min-h-0' : ''}`}>
-            <ErrorBoundary key={currentView}>
-              {renderView()}
-            </ErrorBoundary>
-          </div>
+      {/* 본문 (데스크톱에선 폰 폭으로 가운데 정렬) */}
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="w-full max-w-[480px] mx-auto flex-1 flex flex-col min-h-0 px-1.5">
+          <ErrorBoundary key={currentView}>
+            {renderView()}
+          </ErrorBoundary>
         </div>
-
-        {/* Mobile Bottom Nav */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-           <MobileNav currentView={currentView} onChangeView={setCurrentView} />
-        </nav>
       </main>
 
-      {/* PWA Install Prompt */}
+      {/* 하단 5탭 (프로토타입) — 메인 탭에서만 노출 */}
+      {showNav && (
+        <nav className="shrink-0 bg-white" style={{ borderTop: '0.5px solid #EEF0F2', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+          <div className="w-full max-w-[480px] mx-auto">
+            <MobileNav currentView={currentView} onChangeView={setCurrentView} />
+          </div>
+        </nav>
+      )}
+
       <InstallPrompt />
-
-      {/* Global Upload Progress Indicator */}
       <UploadIndicator />
-
-      {/* Global Toast Container */}
       <Toaster
         position="top-center"
         toastOptions={{
-          style: {
-            background: '#334155',
-            color: '#fff',
-            borderRadius: '12px',
-            fontSize: '14px',
-          },
-          success: {
-            iconTheme: {
-              primary: '#F97316',
-              secondary: '#fff',
-            },
-          },
+          style: { background: '#191F28', color: '#fff', borderRadius: '14px', fontSize: '14px' },
+          success: { iconTheme: { primary: '#3182F6', secondary: '#fff' } },
         }}
       />
-    </div>
     </div>
     </AppDataProvider>
   );

@@ -8,6 +8,7 @@ from app.services.file_upload import (
     save_file, is_video, is_image, compress_video_sync, compress_image_sync,
     extract_thumbnail, UPLOAD_DIR, get_max_size, validate_file_ext,
 )
+from app.services.notification_service import emit_data_changed, get_teacher_ids_for_student, notify_users
 from pathlib import Path
 from pydantic import BaseModel
 import uuid
@@ -71,12 +72,16 @@ async def upload_file(
     url, filename = await save_file(file, subfolder=subfolder, user_id=current_user.id)
 
     # Server-side DB patch: ensures file URL is saved even if client disconnects
+    patched_owner: Optional[str] = None
     if target_type and target_id:
-        if not _patch_target_file(db, target_type, target_id, url, current_user.id):
-            # DB patch failed — clean up orphaned file
+        patched_owner = _patch_target_file(db, target_type, target_id, url, current_user.id)
+        if patched_owner is None:
+            # DB patch failed (target gone / not owned) — clean up orphan + signal failure
+            # so the native background uploader shows '실패' instead of a false '완료'.
             file_path = UPLOAD_DIR / url.removeprefix("/uploads/")
             file_path.unlink(missing_ok=True)
             logger.warning(f"Cleaned up orphaned upload: {url}")
+            raise HTTPException(status_code=409, detail="업로드 대상을 찾을 수 없어요(삭제되었거나 권한이 없어요).")
 
     # Start background video compression for video files
     video = is_video(filename)
@@ -89,6 +94,10 @@ async def upload_file(
     elif is_image(filename):
         file_path = str(UPLOAD_DIR / url.removeprefix("/uploads/"))
         background_tasks.add_task(compress_image_sync, file_path)
+
+    # Live-refresh owner + teachers once the (possibly background) upload landed
+    if patched_owner is not None and target_type:
+        await _emit_target_patched(db, target_type, patched_owner)
 
     return {"url": url, "filename": filename, "is_video": video, "thumbnail_url": thumbnail_url}
 
@@ -242,10 +251,13 @@ async def chunked_complete(
     filename = meta["filename"]
 
     # DB patch
+    patched_owner: Optional[str] = None
     if meta.get("target_type") and meta.get("target_id"):
-        if not _patch_target_file(db, meta["target_type"], meta["target_id"], url, current_user.id):
+        patched_owner = _patch_target_file(db, meta["target_type"], meta["target_id"], url, current_user.id)
+        if patched_owner is None:
             target_path.unlink(missing_ok=True)
             logger.warning(f"Cleaned up orphaned chunked upload: {url}")
+            raise HTTPException(status_code=409, detail="업로드 대상을 찾을 수 없어요(삭제되었거나 권한이 없어요).")
 
     # Video compression / Image compression
     video = is_video(filename)
@@ -258,16 +270,22 @@ async def chunked_complete(
         file_path = str(UPLOAD_DIR / url.removeprefix("/uploads/"))
         background_tasks.add_task(compress_image_sync, file_path)
 
+    # Live-refresh owner + teachers once the (possibly background) upload landed
+    if patched_owner is not None and meta.get("target_type"):
+        await _emit_target_patched(db, meta["target_type"], patched_owner)
+
     logger.warning(f"Chunked upload complete: {url} by {current_user.name}({current_user.id}) ({actual_size // 1024}KB)")
     return {"url": url, "filename": filename, "is_video": video, "thumbnail_url": thumbnail_url}
 
 
 def _patch_target_file(
     db: Session, target_type: str, target_id: str, url: str, user_id: str
-) -> bool:
+) -> Optional[str]:
     """Patch the file URL on the target record directly after upload.
 
-    Returns True if the record was found and patched, False otherwise.
+    Enables the "create record first, upload in background" pattern: the URL is
+    saved on the target even if the client app is closed/suspended (true
+    background upload). Returns the owner student_id on success, None otherwise.
     """
     try:
         if target_type == "portfolio":
@@ -279,7 +297,34 @@ def _patch_target_file(
             if p:
                 p.video_url = url
                 db.commit()
-                return True
+                return p.student_id
+        elif target_type == "portfolio_video":
+            # 모드 A(한 포트폴리오에 여러 영상): 추가 영상을 PortfolioVideo 행으로 생성
+            from app.models.portfolio import Portfolio, PortfolioVideo
+            p = db.query(Portfolio).filter(
+                Portfolio.id == target_id,
+                Portfolio.student_id == user_id,
+            ).first()
+            if p:
+                order = db.query(PortfolioVideo).filter(
+                    PortfolioVideo.portfolio_id == target_id
+                ).count()
+                thumb = None
+                if url.startswith("/uploads/"):
+                    try:
+                        thumb = extract_thumbnail(str(UPLOAD_DIR / url.removeprefix("/uploads/")))
+                    except Exception:
+                        thumb = None
+                pv = PortfolioVideo(
+                    id=f"pv{uuid.uuid4().hex[:8]}",
+                    portfolio_id=target_id,
+                    video_url=url,
+                    thumbnail_url=thumb,
+                    sort_order=order,
+                )
+                db.add(pv)
+                db.commit()
+                return p.student_id
         elif target_type == "assignment":
             from app.models.assignment import Assignment
             a = db.query(Assignment).filter(
@@ -289,9 +334,28 @@ def _patch_target_file(
             if a:
                 a.submission_file_url = url
                 db.commit()
-                return True
-        return False
+                return a.student_id
+        return None
     except Exception as e:
         logger.warning(f"_patch_target_file failed ({target_type}/{target_id}): {e}")
         db.rollback()
-        return False
+        return None
+
+
+async def _emit_target_patched(db: Session, target_type: str, owner_id: str) -> None:
+    """Notify owner + their teachers so the freshly-uploaded file appears live,
+    even when the upload finished while the app was in the background.
+    For a portfolio cover video, also push the teacher notification HERE (when the
+    video actually landed) instead of at empty-record creation time."""
+    try:
+        entity = "assignments" if target_type == "assignment" else "portfolios"
+        teacher_ids = get_teacher_ids_for_student(db, owner_id)
+        await emit_data_changed([owner_id, *teacher_ids], entity)
+        # 새 영상 커버가 실제로 도착한 시점에 교사 알림(추가 영상 portfolio_video는 알림 생략)
+        if target_type == "portfolio" and teacher_ids:
+            from app.models.user import User
+            student = db.query(User).filter(User.id == owner_id).first()
+            name = student.name if student else "학생"
+            await notify_users(db, teacher_ids, f"{name}님이 새 영상을 올렸어요", entity="portfolios")
+    except Exception as e:
+        logger.warning(f"_emit_target_patched failed ({target_type}/{owner_id}): {e}")

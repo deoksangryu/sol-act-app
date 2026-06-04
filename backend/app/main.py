@@ -156,19 +156,57 @@ class SecureStaticFiles(StaticFiles):
 from starlette.responses import Response as StarletteFileResponse
 
 
+def _serve_file_ranged(file_path: str, request: Request, extra_headers: dict):
+    """Serve a file with HTTP Range (206) support.
+
+    iOS Safari / WKWebView require Range responses to play <video>/<audio>.
+    Falls back to a normal 200 FileResponse when there is no Range header.
+    """
+    import mimetypes
+    from starlette.responses import Response, FileResponse as SFileResponse
+    media_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
+    base = {"Accept-Ranges": "bytes", **extra_headers}
+
+    range_header = request.headers.get("range")
+    if range_header and range_header.startswith("bytes="):
+        file_size = os.path.getsize(file_path)
+        try:
+            start_s, end_s = range_header[len("bytes="):].split("-", 1)
+            start = int(start_s) if start_s else 0
+            end = int(end_s) if end_s else file_size - 1
+        except ValueError:
+            start, end = 0, file_size - 1
+        start = max(0, start)
+        end = min(end, file_size - 1)
+        if start > end:
+            return Response(status_code=416, headers={**base, "Content-Range": f"bytes */{file_size}"})
+        with open(file_path, "rb") as f:
+            f.seek(start)
+            data = f.read(end - start + 1)
+        return Response(
+            content=data, status_code=206, media_type=media_type,
+            headers={**base, "Content-Range": f"bytes {start}-{end}/{file_size}", "Content-Length": str(len(data))},
+        )
+
+    resp = SFileResponse(file_path, media_type=media_type)
+    for k, v in base.items():
+        resp.headers[k] = v
+    return resp
+
+
 @app.middleware("http")
 async def serve_uploads(request: Request, call_next):
-    """Serve /uploads/ files from external SSD first, then local."""
+    """Serve /uploads/ files from external SSD first, then local (Range-enabled)."""
     path = request.url.path
     if not path.startswith("/uploads/"):
         return await call_next(request)
 
     rel = path[len("/uploads/"):]  # strip prefix
 
-    # Cache headers for static uploads (images/videos don't change after upload)
+    # Cache headers for static uploads (images/videos don't change after upload).
+    # NOTE: no restrictive CSP here — it can interfere with media playback.
     cache_headers = {
         "x-content-type-options": "nosniff",
-        "content-security-policy": "default-src 'none'",
         "cache-control": "public, max-age=31536000, immutable",
     }
 
@@ -177,20 +215,12 @@ async def serve_uploads(request: Request, call_next):
     if name:
         ext_file = os.path.join(f"/Volumes/{name}/sol-act-uploads", rel)
         if os.path.isfile(ext_file):
-            from starlette.responses import FileResponse as SFileResponse
-            resp = SFileResponse(ext_file)
-            for k, v in cache_headers.items():
-                resp.headers[k] = v
-            return resp
+            return _serve_file_ranged(ext_file, request, cache_headers)
 
     # Fall back to local
     local_file = os.path.join("backend/uploads", rel)
     if os.path.isfile(local_file):
-        from starlette.responses import FileResponse as SFileResponse
-        resp = SFileResponse(local_file)
-        for k, v in cache_headers.items():
-            resp.headers[k] = v
-        return resp
+        return _serve_file_ranged(local_file, request, cache_headers)
 
     return JSONResponse(status_code=404, content={"detail": "Not found"})
 
