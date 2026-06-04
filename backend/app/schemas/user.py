@@ -38,6 +38,7 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
     avatar: Optional[str] = None
+    height: Optional[float] = None  # 키 cm
 
 
 class PasswordChange(BaseModel):
@@ -61,6 +62,7 @@ class UserResponse(BaseModel):
     email: str
     role: UserRole
     avatar: Optional[str] = None
+    height: Optional[float] = None  # 키 cm
 
     class Config:
         from_attributes = True

@@ -49,7 +49,11 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
 
   const categories = useMemo(() => {
     const set = new Set(tracks.map(t => t.category).filter(Boolean));
-    return ['all', ...Array.from(set).sort()];
+    // 프로토타입 노출 순서 우선, 그 외는 가나다순으로 뒤에
+    const PRIORITY = ['현대무용', '발레', '재즈댄스', '한국무용'];
+    const known = PRIORITY.filter(c => set.has(c));
+    const rest = Array.from(set).filter(c => !PRIORITY.includes(c)).sort();
+    return ['all', ...known, ...rest];
   }, [tracks]);
   // 선택한 카테고리가 목록에서 사라지면(데이터 갱신 등) '전체'로 복귀 — 빈 목록 갇힘 방지
   useEffect(() => { if (!categories.includes(cat)) setCat('all'); }, [categories, cat]);

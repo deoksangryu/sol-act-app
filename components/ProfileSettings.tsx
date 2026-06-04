@@ -21,6 +21,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
   // Profile edit
   const [name, setName] = useState(user.name);
   const [email, setEmail] = useState(user.email);
+  const [height, setHeight] = useState(user.height != null ? String(user.height) : '');
   const [isUploading, setIsUploading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -118,8 +119,11 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
     if (!name.trim()) { toast.error('이름을 입력해주세요.'); return; }
     setIsSaving(true);
     try {
-      const updated = await userApi.update(user.id, { name: name.trim(), email: email.trim() });
-      onUserUpdate({ ...user, name: updated.name, email: updated.email });
+      const h = height.trim() ? parseFloat(height) : undefined;
+      const payload: any = { name: name.trim(), email: email.trim() };
+      if (user.role === 'student' && h != null && !isNaN(h)) payload.height = h;
+      const updated = await userApi.update(user.id, payload);
+      onUserUpdate({ ...user, name: updated.name, email: updated.email, height: updated.height });
       toast.success('프로필이 저장되었습니다.');
     } catch { toast.error('프로필 저장에 실패했습니다.'); }
     finally { setIsSaving(false); }
@@ -144,7 +148,7 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
     finally { setIsChangingPw(false); }
   };
 
-  const hasProfileChanges = name !== user.name || email !== user.email;
+  const hasProfileChanges = name !== user.name || email !== user.email || (user.role === 'student' && height !== (user.height != null ? String(user.height) : ''));
 
   return (
     <div className="max-w-lg mx-auto space-y-6 animate-fade-in-up">
@@ -247,6 +251,20 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 text-sm"
             />
           </div>
+          {user.role === 'student' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 mb-1">키 (cm)</label>
+              <input
+                type="number"
+                inputMode="decimal"
+                value={height}
+                onChange={e => setHeight(e.target.value)}
+                placeholder="예: 168"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-brand-500 text-sm"
+              />
+              <p className="text-xs text-slate-400 mt-1">키는 자주 바뀌지 않아 프로필에 저장돼요. 체중·체지방은 식단 탭에서 기록해요.</p>
+            </div>
+          )}
           <div>
             <label className="block text-xs font-bold text-slate-500 mb-1">역할</label>
             <input

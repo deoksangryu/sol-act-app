@@ -16,7 +16,7 @@ import { UploadProvider, useUpload } from './services/UploadContext';
 import { AppDataProvider } from './services/AppContext';
 import { UploadIndicator } from './components/UploadIndicator';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { getSavedUser, clearAuth, userApi, classApi, notificationApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
+import { getSavedUser, clearAuth, userApi, classApi, notificationApi, badgeApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
 import { registerNativePush, unregisterNativePush } from './services/nativePush';
 import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
 
@@ -40,6 +40,7 @@ const AppInner: React.FC = () => {
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [badges, setBadges] = useState<Partial<Record<ViewState, number>>>({});
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const { isUploading } = useUpload();
@@ -201,6 +202,12 @@ const AppInner: React.FC = () => {
   }
 
   // 하단 5탭을 보여주는 메인 화면 (프로필 등 하위화면은 자체 back 헤더 사용)
+  // 탭 뱃지(미처리 항목 수) — 로그인 + 탭 이동 시 갱신(실패해도 무시)
+  useEffect(() => {
+    if (!user) return;
+    badgeApi.get().then(setBadges).catch(() => {});
+  }, [user, currentView]);
+
   const showNav = ['classes', 'assignments', 'video', 'diet', 'music'].includes(currentView);
 
   return (
@@ -240,7 +247,7 @@ const AppInner: React.FC = () => {
       {showNav && (
         <nav className="shrink-0 bg-white" style={{ borderTop: '0.5px solid #EEF0F2', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           <div className="w-full max-w-[480px] mx-auto">
-            <MobileNav currentView={currentView} onChangeView={setCurrentView} />
+            <MobileNav currentView={currentView} onChangeView={setCurrentView} counts={badges} />
           </div>
         </nav>
       )}

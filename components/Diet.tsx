@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { User, UserRole, DietLog } from '../types';
-import { dietApi, uploadApi, resolveFileUrl } from '../services/api';
+import { dietApi, uploadApi, resolveFileUrl, StudentWeightSummary } from '../services/api';
 import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
 import {
@@ -24,6 +24,8 @@ const MEAL_PICKS = [
 ];
 // 끼니별 아이콘 (프로토타입 sBd: 아침=bowl, 점심=salad, 그 외=soup)
 const mealIcon = (t: string) => (t === 'breakfast' ? 'ti-bowl' : t === 'lunch' ? 'ti-salad' : 'ti-soup');
+// 식사 시각(HH:MM) — date가 풀 ISO(타임 포함)일 때만, 아니면 빈 문자열
+const mealTime = (m: { date?: string }) => { const s = m.date || ''; return s.length > 10 && s[10] === 'T' ? ` · ${s.slice(11, 16)}` : ''; };
 
 function todayStr(): string {
   const d = new Date();
@@ -31,24 +33,36 @@ function todayStr(): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
-interface Weight { id: string; weight: number; date: string; memo?: string; }
+interface Weight { id: string; weight: number; date: string; memo?: string; bodyFat?: number; muscleMass?: number; visceralFat?: number; }
+// 키(cm)+체중(kg) → BMI 한 줄
+const bmiStr = (weightKg?: number, heightCm?: number) => {
+  if (!weightKg || !heightCm) return '';
+  const m = heightCm / 100;
+  return (weightKg / (m * m)).toFixed(1);
+};
 
 export const Diet: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
   const [meals, setMeals] = useState<DietLog[]>([]);
   const [weights, setWeights] = useState<Weight[]>([]);
+  const [studentWeights, setStudentWeights] = useState<StudentWeightSummary[]>([]);
+  const [weightOf, setWeightOf] = useState<StudentWeightSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState<'home' | 'addMeal' | 'addWeight'>('home');
   const [openId, setOpenId] = useState<string | null>(null);
 
   const load = async () => {
     try {
-      const [m, w] = await Promise.all([
+      const [m, w, sw] = await Promise.all([
         dietApi.list(isStaff ? undefined : { studentId: user.id }),
-        isStaff ? Promise.resolve([] as any[]) : dietApi.listWeight({ studentId: user.id, days: 30 }),
+        // 체중 로드 실패가 식단 목록까지 막지 않도록 개별 방어
+        isStaff ? Promise.resolve([] as any[]) : dietApi.listWeight({ studentId: user.id, days: 30 }).catch(() => [] as any[]),
+        // 선생님/원장: 학생별 체중 요약
+        isStaff ? dietApi.weightStudents().catch(() => [] as StudentWeightSummary[]) : Promise.resolve([] as StudentWeightSummary[]),
       ]);
       setMeals(m);
       setWeights((w as any[]) as Weight[]);
+      setStudentWeights(sw as StudentWeightSummary[]);
     } catch (e: any) {
       toast.error(e.message || '식단을 불러오지 못했어요');
     }
@@ -63,14 +77,35 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
   if (open) return <MealDetail meal={open} user={user} isStaff={isStaff} onBack={() => setOpenId(null)} onReload={load} onDeleted={async () => { setOpenId(null); await load(); }} />;
   if (screen === 'addMeal') return <AddMeal user={user} onBack={() => setScreen('home')} onDone={async () => { setScreen('home'); await load(); }} />;
   if (screen === 'addWeight') return <AddWeight current={weights.length ? weights[weights.length - 1].weight : 58} onBack={() => setScreen('home')} onDone={async () => { setScreen('home'); await load(); }} />;
+  if (weightOf) return <StaffWeightDetail s={weightOf} onBack={() => setWeightOf(null)} />;
 
-  // ── 선생님: 학생 식단 검토 ──
+  // ── 선생님: 학생 식단 검토 + 학생 체중 ──
   if (isStaff) {
     const need = meals.filter(m => !m.teacherComment).length;
     return (
       <Screen>
         <BigTitle title={<>학생 식단을<br />살펴봐요</>} />
         <Scroll>
+          {studentWeights.length > 0 && (
+            <>
+              <SectionLabel>학생 체중 · {studentWeights.length}명</SectionLabel>
+              {studentWeights.map(s => {
+                const diff = s.latest - s.first;
+                return (
+                  <ListRow
+                    key={s.studentId}
+                    left={<IconChip bg={TOSS.blueBg}><i className="ti ti-scale" style={{ fontSize: 21, color: TOSS.blue }} /></IconChip>}
+                    title={s.studentName}
+                    sub={`${s.latest.toFixed(1)}kg · ${s.count}회 기록`}
+                    right={s.count > 1
+                      ? <Tag bg={diff <= 0 ? TOSS.successBg : TOSS.warnBg} fg={diff <= 0 ? TOSS.success : TOSS.warn}>{diff <= 0 ? '▼' : '▲'} {Math.abs(diff).toFixed(1)}kg</Tag>
+                      : <Chevron />}
+                    onClick={() => setWeightOf(s)}
+                  />
+                );
+              })}
+            </>
+          )}
           <SectionLabel>학생 식단 · 피드백 필요 {need}개</SectionLabel>
           {meals.length === 0 ? <Empty>아직 올라온 식단이 없어요</Empty> : meals.map(m => (
             <ListRow
@@ -81,7 +116,7 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
                 </IconChip>
               }
               title={m.description}
-              sub={`${m.studentName} · ${mealLabel(m.mealType)}`}
+              sub={`${m.studentName} · ${mealLabel(m.mealType)}${mealTime(m)}`}
               right={m.teacherComment
                 ? <Tag bg={TOSS.successBg} fg={TOSS.success}>완료</Tag>
                 : <Tag bg={TOSS.warnBg} fg={TOSS.warn}>피드백 필요</Tag>}
@@ -113,18 +148,29 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
                 </span>
               )}
             </div>
+            {(() => {
+              const last = weights[weights.length - 1];
+              const bmi = bmiStr(cur ?? undefined, user.height);
+              const parts: string[] = [];
+              if (last?.bodyFat != null) parts.push(`체지방 ${last.bodyFat}%`);
+              if (last?.muscleMass != null) parts.push(`근육 ${last.muscleMass}kg`);
+              if (last?.visceralFat != null) parts.push(`내장지방 ${last.visceralFat}`);
+              if (user.height) parts.push(`키 ${user.height}cm`);
+              if (bmi) parts.push(`BMI ${bmi}`);
+              return parts.length ? <div style={{ fontSize: 12, color: TOSS.sub, marginTop: 8, lineHeight: 1.6 }}>{parts.join(' · ')}</div> : null;
+            })()}
             {weights.length > 0 && (
-              <div className="no-scrollbar" style={{ display: 'flex', gap: 10, marginTop: 10, fontSize: 11, color: TOSS.sub, overflowX: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, marginTop: 10, fontSize: 11, color: TOSS.sub }}>
                 {weights.slice(-6).map((p) => (
                   <button
                     key={p.id}
                     onClick={async () => {
-                      if (!window.confirm(`${(p.date || '').slice(5, 10)} ${p.weight}kg 기록을 지울까요?`)) return;
+                      if (!window.confirm(`${(p.date || '').slice(5, 10).replace('-', '/')} ${p.weight}kg 기록을 지울까요?`)) return;
                       try { await dietApi.deleteWeight(p.id); await load(); toast.success('지웠어요'); }
                       catch (e: any) { toast.error(e.message || '지우지 못했어요'); }
                     }}
-                    style={{ background: 'none', border: 'none', padding: 0, whiteSpace: 'nowrap', flexShrink: 0, fontSize: 11, color: TOSS.sub, cursor: 'pointer' }}
-                  >{(p.date || '').slice(5, 10)} {p.weight}</button>
+                    style={{ background: 'none', border: 'none', padding: 0, whiteSpace: 'nowrap', fontSize: 11, color: TOSS.sub, cursor: 'pointer' }}
+                  >{(p.date || '').slice(5, 10).replace('-', '/')} {p.weight}</button>
                 ))}
               </div>
             )}
@@ -141,7 +187,7 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
               </IconChip>
             }
             title={m.description}
-            sub={mealLabel(m.mealType)}
+            sub={`${mealLabel(m.mealType)}${mealTime(m)}`}
             right={m.teacherComment ? <Tag bg={TOSS.successBg} fg={TOSS.success}>피드백</Tag> : <Chevron />}
             onClick={() => setOpenId(m.id)}
           />
@@ -154,6 +200,60 @@ export const Diet: React.FC<{ user: User }> = ({ user }) => {
           style={{ flex: 1, background: TOSS.blue, color: '#fff', border: 'none', borderRadius: 14, padding: '14px 6px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}
         >식단 올리기</button>
       </div>
+    </Screen>
+  );
+};
+
+// 선생님/원장: 학생 체중 상세(미니 막대 그래프)
+const StaffWeightDetail: React.FC<{ s: StudentWeightSummary; onBack: () => void }> = ({ s, onBack }) => {
+  const diff = s.latest - s.first;
+  const ws = s.points || [];
+  const min = ws.length ? Math.min(...ws.map(p => p.weight)) : 0;
+  const max = ws.length ? Math.max(...ws.map(p => p.weight)) : 0;
+  return (
+    <Screen>
+      <BackHeader title={`${s.studentName} 체중`} onBack={onBack} />
+      <Scroll>
+        <div style={{ padding: '8px 20px' }}>
+          <div style={{ background: TOSS.surf, borderRadius: 14, padding: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+              <span style={{ fontSize: 32, fontWeight: 700, letterSpacing: '-.02em', color: TOSS.ink }}>{s.latest.toFixed(1)}</span>
+              <span style={{ fontSize: 14, color: TOSS.sub }}>kg</span>
+              {s.count > 1 && (
+                <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 500, color: diff <= 0 ? TOSS.success : TOSS.warn }}>
+                  처음보다 {Math.abs(diff).toFixed(1)}kg {diff <= 0 ? '↓' : '↑'}
+                </span>
+              )}
+            </div>
+            {(() => {
+              const parts: string[] = [];
+              if (s.bodyFat != null) parts.push(`체지방 ${s.bodyFat}%`);
+              if (s.muscleMass != null) parts.push(`근육 ${s.muscleMass}kg`);
+              if (s.visceralFat != null) parts.push(`내장지방 ${s.visceralFat}`);
+              if (s.height) parts.push(`키 ${s.height}cm`);
+              const bmi = bmiStr(s.latest, s.height ?? undefined);
+              if (bmi) parts.push(`BMI ${bmi}`);
+              return parts.length ? <div style={{ fontSize: 12, color: TOSS.sub, marginTop: 8, lineHeight: 1.6 }}>{parts.join(' · ')}</div> : null;
+            })()}
+            {ws.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 6, height: 96, marginTop: 18 }}>
+                {ws.map((p, i) => {
+                  const h = max > min ? 22 + ((p.weight - min) / (max - min)) * 62 : 50;
+                  return (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                      <span style={{ fontSize: 9, color: TOSS.sub }}>{p.weight}</span>
+                      <div style={{ width: '100%', maxWidth: 24, height: h, borderRadius: 6, background: TOSS.blue, opacity: 0.85 }} />
+                      <span style={{ fontSize: 9, color: TOSS.faint, whiteSpace: 'nowrap' }}>{(p.date || '').slice(5).replace('-', '/')}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: TOSS.faint, marginTop: 10 }}>최근 {ws.length}개 기록 · 마지막 {(s.updatedAt || '').slice(5).replace('-', '/')}</div>
+          <div style={{ height: 16 }} />
+        </div>
+      </Scroll>
     </Screen>
   );
 };
@@ -193,7 +293,7 @@ const MealDetail: React.FC<{ meal: DietLog; user: User; isStaff: boolean; onBack
         </div>
         <div style={{ padding: '16px 20px 0' }}>
           <div style={{ fontSize: 19, fontWeight: 700, color: TOSS.ink }}>{meal.description}</div>
-          <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{meal.studentName} · {mealLabel(meal.mealType)}</div>
+          <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{meal.studentName} · {mealLabel(meal.mealType)}{mealTime(meal)}</div>
           {meal.teacherComment ? (
             <>
               <div style={{ height: 1, background: TOSS.line, margin: '16px 0' }} />
@@ -309,11 +409,21 @@ const AddMeal: React.FC<{ user: User; onBack: () => void; onDone: () => Promise<
 // 체중 기록
 const AddWeight: React.FC<{ current: number; onBack: () => void; onDone: () => Promise<void> }> = ({ current, onBack, onDone }) => {
   const [w, setW] = useState(current);
+  const [bodyFat, setBodyFat] = useState('');
+  const [muscle, setMuscle] = useState('');
+  const [visceral, setVisceral] = useState('');
   const [busy, setBusy] = useState(false);
+  const num = (s: string) => { const n = parseFloat(s); return s.trim() && !isNaN(n) ? n : undefined; };
   const submit = async () => {
     setBusy(true);
     try {
-      await dietApi.createWeight({ weight: Number(w.toFixed(1)), date: todayStr() });
+      const bf = num(bodyFat), mm = num(muscle), vf = num(visceral);
+      await dietApi.createWeight({
+        weight: Number(w.toFixed(1)), date: todayStr(),
+        ...(bf != null ? { body_fat: bf } : {}),
+        ...(mm != null ? { muscle_mass: mm } : {}),
+        ...(vf != null ? { visceral_fat: Math.round(vf) } : {}),
+      });
       toast.success('체중을 기록했어요');
       await onDone();
     } catch (e: any) {
@@ -342,6 +452,23 @@ const AddWeight: React.FC<{ current: number; onBack: () => void; onDone: () => P
             style={{ width: 48, height: 48, borderRadius: '50%', border: '1px solid #E5E8EB', background: '#fff', fontSize: 24, color: TOSS.ink, cursor: 'pointer' }}
           >+</button>
         </div>
+
+        {/* 인바디 측정값 (선택) */}
+        <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '28px 0 8px' }}>인바디 측정값 <span style={{ color: TOSS.faint, fontWeight: 400 }}>(선택)</span></div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {([
+            { label: '체지방률 %', v: bodyFat, set: setBodyFat, ph: '18.5' },
+            { label: '근육량 kg', v: muscle, set: setMuscle, ph: '32.0' },
+            { label: '내장지방', v: visceral, set: setVisceral, ph: '5' },
+          ] as const).map(f => (
+            <div key={f.label} style={{ flex: 1 }}>
+              <input type="number" inputMode="decimal" value={f.v} onChange={e => f.set(e.target.value)} placeholder={f.ph}
+                style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #E5E8EB', borderRadius: 12, padding: '11px 8px', fontSize: 15, color: TOSS.ink, outline: 'none', textAlign: 'center' }} />
+              <div style={{ fontSize: 11, color: TOSS.sub, textAlign: 'center', marginTop: 4 }}>{f.label}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ height: 12 }} />
       </div>
       <Cta onClick={submit} loading={busy}>체중 저장하기</Cta>
     </Screen>

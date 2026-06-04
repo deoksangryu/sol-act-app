@@ -7,7 +7,7 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS, catColor, CategoryIcon } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag, Avatar,
-  Cta, Empty, Chevron,
+  Cta, Empty, Chevron, DoneScreen,
 } from './toss/kit';
 
 function todayStr(): string {
@@ -32,7 +32,8 @@ type View =
   | { name: 'attend'; lessonId: string }
   | { name: 'journalWrite'; lessonId: string; type: 'student' | 'teacher'; journalId?: string }
   | { name: 'journalView'; journalId: string }
-  | { name: 'teacherLesson'; lessonId: string };
+  | { name: 'teacherLesson'; lessonId: string }
+  | { name: 'done'; title: string; sub?: string };
 
 export const Classes: React.FC<{ user: User }> = ({ user }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
@@ -136,14 +137,25 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
   if (loading) return <Empty>불러오는 중…</Empty>;
 
   // ── sub-screens ──
+  if (view.name === 'done') {
+    return <DoneScreen title={view.title} sub={view.sub} onConfirm={() => setView({ name: 'home' })} />;
+  }
   if (view.name === 'attend') {
     const l = lessonOf(view.lessonId);
-    if (l) return <AttendScreen lesson={l} userId={user.id} onBack={() => setView({ name: 'home' })} onDone={async () => { setView({ name: 'home' }); await load(); }} />;
+    if (l) return <AttendScreen lesson={l} userId={user.id} onBack={() => setView({ name: 'home' })}
+      onDone={async () => { await load(); setView({ name: 'done', title: '출석을 마쳤어요', sub: '오늘도 와줘서 좋아요' }); }} />;
   }
   if (view.name === 'journalWrite') {
     const l = lessonOf(view.lessonId);
     const editJournal = view.journalId ? journals.find(x => x.id === view.journalId) : undefined;
-    if (l) return <JournalWrite lesson={l} type={view.type} journal={editJournal} onBack={() => setView({ name: 'home' })} onDone={async () => { setView({ name: 'home' }); await load(); }} />;
+    const isTeacher = view.type === 'teacher';
+    const doneInfo = editJournal
+      ? { title: '일지를 수정했어요', sub: undefined as string | undefined }
+      : isTeacher
+        ? { title: '수업일지를 저장했어요', sub: '선생님과 관리자만 볼 수 있어요' }
+        : { title: '일지를 저장했어요', sub: '선생님께 알림이 갔어요' };
+    if (l) return <JournalWrite lesson={l} type={view.type} journal={editJournal} onBack={() => setView({ name: 'home' })}
+      onDone={async () => { await load(); setView({ name: 'done', title: doneInfo.title, sub: doneInfo.sub }); }} />;
   }
   if (view.name === 'journalView') {
     const j = journals.find(x => x.id === view.journalId);
@@ -226,7 +238,6 @@ const AttendScreen: React.FC<{ lesson: Lesson; userId: string; onBack: () => voi
       // 본인 체크인은 항상 '출석'. 선택한 컨디션(좋아요/보통/지쳤어요)은 mood로 note에만 기록
       const note = CONDITIONS.find(c => c.value === cond)?.label;
       await attendanceApi.create({ lessonId: lesson.id, studentId: userId, status: 'present', note } as any);
-      toast.success('출석을 마쳤어요');
       await onDone();
     } catch (e: any) {
       toast.error(e.message || '출석하지 못했어요');
@@ -245,7 +256,7 @@ const AttendScreen: React.FC<{ lesson: Lesson; userId: string; onBack: () => voi
             <CategoryIcon cat={lesson.subject} />
             <div>
               <div style={{ fontSize: 15, fontWeight: 600, color: TOSS.ink }}>{lesson.className}</div>
-              <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 2 }}>{lesson.startTime} 시작 · {lesson.teacherName}</div>
+              <div style={{ fontSize: 13, color: TOSS.success, marginTop: 2 }}>학원 위치 확인됨</div>
             </div>
           </div>
           <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '18px 0 10px' }}>오늘 컨디션은 어때요?</div>
@@ -279,7 +290,6 @@ const JournalWrite: React.FC<{ lesson: Lesson; type: 'student' | 'teacher'; jour
     try {
       if (editing) await journalApi.update(journal!.id, { content: content.trim() } as any);
       else await journalApi.create({ lessonId: lesson.id, journalType: type, content: content.trim() } as any);
-      toast.success(editing ? '일지를 수정했어요' : '일지를 저장했어요');
       await onDone();
     } catch (e: any) {
       toast.error(e.message || '저장하지 못했어요');

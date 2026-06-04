@@ -18,6 +18,8 @@ const VIDEO_CATS = [
   { value: 'basics', label: '발성 연습' },
 ];
 const catLabel = (v: string) => VIDEO_CATS.find(c => c.value === v)?.label || v;
+// 영상 길이(초) → ' · M:SS' (없으면 빈 문자열)
+const fmtDur = (s?: number) => (s && s > 0 ? ` · ${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
 
 // 영상 썸네일 (56x56) — 추출된 썸네일 있으면 표시, 업로드 중이면 로더
 const PlayThumb: React.FC<{ thumb?: string; uploading?: boolean }> = ({ thumb, uploading }) => (
@@ -28,8 +30,8 @@ const PlayThumb: React.FC<{ thumb?: string; uploading?: boolean }> = ({ thumb, u
       style={{ fontSize: thumb ? 18 : 20, color: thumb ? '#fff' : TOSS.sub, filter: thumb ? 'drop-shadow(0 1px 3px rgba(0,0,0,.6))' : undefined }} />
   </div>
 );
-// 포트폴리오의 대표 썸네일(추가 영상에서 추출된 것)
-const coverThumb = (v: PortfolioItem) => v.videos?.find(x => x.thumbnailUrl)?.thumbnailUrl;
+// 포트폴리오의 대표 썸네일(커버 우선, 없으면 추가 영상에서)
+const coverThumb = (v: PortfolioItem) => v.thumbnailUrl || v.videos?.find(x => x.thumbnailUrl)?.thumbnailUrl;
 const isUploadingItem = (v: PortfolioItem) => !v.videoUrl && !(v.videos && v.videos.length);
 
 export const Video: React.FC<{ user: User }> = ({ user }) => {
@@ -91,7 +93,7 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
         <SectionLabel>내 연습 영상 {items.length}개</SectionLabel>
         {items.length === 0 ? <Empty>아직 올린 영상이 없어요</Empty> : items.map(v => (
           <ListRow key={v.id} left={<PlayThumb thumb={coverThumb(v)} uploading={isUploadingItem(v)} />} title={v.title}
-            sub={`${catLabel(v.category)}${(v.videos?.length ?? 0) > 0 ? ` · 영상 ${(v.videos!.length) + (v.videoUrl ? 1 : 0)}개` : ''} · ${(v.date || '').slice(5, 10)}`}
+            sub={`${catLabel(v.category)}${(v.videos?.length ?? 0) > 0 ? ` · 영상 ${(v.videos!.length) + (v.videoUrl ? 1 : 0)}개` : ''} · ${(v.date || '').slice(5, 10)}${fmtDur(v.videoDuration)}`}
             right={isUploadingItem(v)
               ? <Tag bg={TOSS.surf} fg={TOSS.sub}>업로드 중</Tag>
               : (v.comments?.length ?? 0) > 0
@@ -117,7 +119,7 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
 
   // 커버(video_url) + 추가 영상(videos[])을 하나의 클립 목록으로
   const clips = [
-    ...(item.videoUrl ? [{ id: 'cover', videoUrl: item.videoUrl, thumbnailUrl: undefined as string | undefined, cover: true }] : []),
+    ...(item.videoUrl ? [{ id: 'cover', videoUrl: item.videoUrl, thumbnailUrl: item.thumbnailUrl as string | undefined, cover: true }] : []),
     ...(item.videos || []).map(v => ({ id: v.id, videoUrl: v.videoUrl, thumbnailUrl: v.thumbnailUrl, cover: false })),
   ];
   const [active, setActive] = useState(0);

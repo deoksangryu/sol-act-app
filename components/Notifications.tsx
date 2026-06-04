@@ -1,6 +1,7 @@
 import React from 'react';
 import { Notification, ViewState } from '../types';
 import { formatDateTimeShortKo } from '../services/dateUtils';
+import { TOSS } from '../services/category';
 
 interface NotificationsProps {
   notifications: Notification[];
@@ -19,43 +20,56 @@ function inferView(message: string): ViewState | null {
   return null;
 }
 
-export const Notifications: React.FC<NotificationsProps> = ({ notifications, onClose, onMarkAllRead, onNavigate }) => {
-  return (
-    <div className="fixed top-16 left-4 right-4 md:absolute md:top-12 md:right-0 md:left-auto md:w-80 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 overflow-hidden animate-fade-in-up shadow-slate-300 ring-1 ring-black/5">
-      <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-        <h3 className="font-bold text-slate-800 text-sm">알림 센터</h3>
-        <div className="flex gap-2">
-            <button onClick={onMarkAllRead} className="text-xs font-bold text-brand-500 hover:underline">모두 읽음</button>
-            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-        </div>
-      </div>
-      <div className="max-h-[60vh] md:max-h-80 overflow-y-auto">
-        {notifications.length > 0 ? (
-          notifications.map((notif) => {
-            const view = inferView(notif.message);
-            return (
-            <div
-              key={notif.id}
-              onClick={() => { if (view && onNavigate) { onNavigate(view); onClose(); } }}
-              className={`p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50 transition-colors ${view ? 'cursor-pointer' : ''} ${notif.read ? 'opacity-60' : 'bg-brand-50/30'}`}
-            >
-              <div className="flex gap-3">
-                <div className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${notif.read ? 'bg-slate-300' : notif.type === 'warning' ? 'bg-red-500' : notif.type === 'success' ? 'bg-green-500' : 'bg-brand-500'}`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-slate-700 leading-snug break-keep">{notif.message}</p>
-                  <p className="text-xs text-slate-400 mt-1">{formatDateTimeShortKo(notif.date)}</p>
-                </div>
-              </div>
-            </div>
-          );})
-        ) : (
-          <div className="p-8 text-center text-slate-400 text-xs">
-            새로운 알림이 없습니다.
-          </div>
-        )}
-      </div>
-    </div>
-  );
+// 카테고리별 아이콘 칩 색 (프로토타입 sNf와 동일 매핑)
+const CAT: Record<string, { icon: string; bg: string; fg: string }> = {
+  video: { icon: 'ti-video', bg: TOSS.blueBg, fg: TOSS.blue },
+  assignments: { icon: 'ti-checklist', bg: TOSS.warnBg, fg: TOSS.warn },
+  diet: { icon: 'ti-salad', bg: TOSS.successBg, fg: TOSS.success },
+  music: { icon: 'ti-headphones', bg: TOSS.purpleBg, fg: TOSS.purple },
+  classes: { icon: 'ti-school', bg: TOSS.blueBg, fg: TOSS.blue },
 };
+
+/** 프로토타입 sNf — 전체화면 알림 (카테고리 아이콘 칩 + 미읽음 배경 + 파랑 점 + 하단 '모두 읽음') */
+export const Notifications: React.FC<NotificationsProps> = ({ notifications, onClose, onMarkAllRead, onNavigate }) => (
+  <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: '#fff', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', flexShrink: 0, paddingTop: 'calc(8px + env(safe-area-inset-top))' }}>
+      <button onClick={onClose} style={{ background: 'none', border: 'none', padding: 6, cursor: 'pointer', display: 'flex' }}>
+        <i className="ti ti-arrow-left" style={{ fontSize: 22, color: TOSS.ink }} />
+      </button>
+      <span style={{ fontSize: 16, fontWeight: 600, color: TOSS.ink }}>알림</span>
+    </div>
+
+    <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto' }}>
+      {notifications.length === 0 ? (
+        <div style={{ padding: 48, textAlign: 'center', color: TOSS.faint, fontSize: 13 }}>새로운 알림이 없어요</div>
+      ) : notifications.map((n) => {
+        const view = inferView(n.message);
+        const c = (view && CAT[view]) || CAT.classes;
+        return (
+          <div
+            key={n.id}
+            onClick={() => { if (view && onNavigate) onNavigate(view); }}
+            style={{ display: 'flex', gap: 12, padding: '14px 20px', alignItems: 'flex-start', cursor: view ? 'pointer' : 'default', background: n.read ? '#fff' : TOSS.blueBg }}
+          >
+            <div style={{ width: 42, height: 42, borderRadius: 13, background: c.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <i className={`ti ${c.icon}`} style={{ fontSize: 20, color: c.fg }} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+                <div style={{ flex: 1, fontSize: 14, fontWeight: n.read ? 500 : 600, color: TOSS.ink, lineHeight: 1.45 }}>{n.message}</div>
+                {!n.read && <div style={{ width: 7, height: 7, borderRadius: 999, background: TOSS.blue, marginTop: 5, flexShrink: 0 }} />}
+              </div>
+              <div style={{ fontSize: 11, color: TOSS.faint, marginTop: 4 }}>{formatDateTimeShortKo(n.date)}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+
+    {notifications.some((n) => !n.read) && (
+      <div style={{ padding: '12px 20px calc(12px + env(safe-area-inset-bottom))', flexShrink: 0 }}>
+        <button onClick={onMarkAllRead} style={{ width: '100%', background: TOSS.surf, color: TOSS.ink, border: 'none', borderRadius: 14, padding: 14, fontSize: 15, fontWeight: 600, cursor: 'pointer' }}>모두 읽음 표시</button>
+      </div>
+    )}
+  </div>
+);

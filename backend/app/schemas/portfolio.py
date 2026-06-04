@@ -88,6 +88,7 @@ class PortfolioResponse(BaseModel):
     title: str
     description: str
     video_url: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     category: PortfolioCategory
     tags: Optional[str] = None
     ai_feedback: Optional[str] = None

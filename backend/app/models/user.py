@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Enum as SQLEnum
+from sqlalchemy import Column, String, Float, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.database import Base
 import enum
@@ -19,6 +19,7 @@ class User(Base):
     hashed_password = Column(String, nullable=False)
     role = Column(SQLEnum(UserRole), nullable=False)
     avatar = Column(String, nullable=True)
+    height = Column(Float, nullable=True)  # 키 cm (프로필 — 잘 변하지 않는 신체정보)
 
     # Relationships (cascade delete when user is removed)
     assignments = relationship("Assignment", back_populates="student", foreign_keys="Assignment.student_id", cascade="all, delete-orphan")

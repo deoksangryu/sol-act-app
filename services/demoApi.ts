@@ -95,12 +95,39 @@ export const demoAssignmentApi = {
   async delete(id: string) { await delay(); assignments = assignments.filter(a => a.id !== id); },
 };
 
+let dietWeights: any[] = [
+  { id: 'wl1', studentId: 's1', weight: 58.5, date: '2026-05-01' },
+  { id: 'wl2', studentId: 's1', weight: 57.9, date: '2026-05-10' },
+  { id: 'wl3', studentId: 's1', weight: 57.3, date: '2026-05-20' },
+];
+
 export const demoDietApi = {
   async list(_params?: any) { await delay(100); return [...diets]; },
   async create(data: any) { await delay(); const d = { id: genId('diet'), ...data, studentName: currentUser?.name || '' } as any; diets.push(d); return d; },
   async update(id: string, data: any) { await delay(); const d = diets.find(d => d.id === id); if (d) Object.assign(d, data); return d!; },
   async delete(id: string) { await delay(); diets = diets.filter(d => d.id !== id); },
   async analyze(data: any) { await delay(500); return { calories: Math.floor(Math.random() * 500 + 200), advice: '성대 건강에 좋은 식단입니다!' }; },
+  // 체중(데모) — 없으면 실제 네트워크 호출이 남아 식단 화면 전체가 깨짐
+  async listWeight(_p?: any) { await delay(100); return [...dietWeights]; },
+  async createWeight(data: any) {
+    await delay();
+    const key = (data.date || '').slice(0, 10);
+    const i = dietWeights.findIndex(w => (w.date || '').slice(0, 10) === key);
+    const rec = {
+      id: genId('wl'), studentId: currentUser?.id || 's1', weight: data.weight, date: data.date,
+      bodyFat: data.body_fat ?? null, muscleMass: data.muscle_mass ?? null, visceralFat: data.visceral_fat ?? null,
+    };
+    if (i >= 0) dietWeights[i] = rec; else dietWeights.push(rec);
+    return rec;
+  },
+  async deleteWeight(id: string) { await delay(); dietWeights = dietWeights.filter(w => w.id !== id); },
+  async weightStudents() {
+    await delay(100);
+    return [
+      { studentId: 's1', studentName: '김배우', height: 168, latest: 57.3, first: 58.5, count: 3, updatedAt: '2026-05-20', bodyFat: 18.5, muscleMass: 32.0, visceralFat: 5, points: dietWeights.map(w => ({ date: w.date, weight: w.weight })) },
+      { studentId: 's2', studentName: '이연기', height: 172, latest: 61.0, first: 60.2, count: 2, updatedAt: '2026-05-18', bodyFat: 16.2, muscleMass: 36.5, visceralFat: 4, points: [{ date: '2026-05-10', weight: 60.2 }, { date: '2026-05-18', weight: 61.0 }] },
+    ];
+  },
 };
 
 export const demoNoticeApi = {

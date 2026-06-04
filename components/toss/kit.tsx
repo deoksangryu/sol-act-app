@@ -4,7 +4,7 @@ import { TOSS } from '../../services/category';
 /** 프로토타입(prototype-v8.html) 의 렌더 헬퍼(H/lb/rw/tg/bt/bH/sc/ic/av)를 그대로 옮긴 React 키트.
  *  스타일 값은 프로토타입과 1:1로 일치시킵니다. */
 
-const { ink: I, sub: S, faint: F, surf: SF, line: L, blue: B } = TOSS;
+const { ink: I, sub: S, faint: F, surf: SF, line: L, blue: B, blueBg: BB } = TOSS;
 
 // 화면 래퍼 (세로 플렉스, 전체 높이)
 export const Screen: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -93,6 +93,25 @@ export const ListRow: React.FC<{
   </div>
 );
 
+// 저장 완료 풀스크린(sDn) — 82px 파란 원형 체크(바운스) + 타이틀 + 서브 + 확인
+export const DoneScreen: React.FC<{ title: string; sub?: string; onConfirm: () => void }> = ({ title, sub, onConfirm }) => {
+  const [shown, setShown] = React.useState(false);
+  React.useEffect(() => { const t = setTimeout(() => setShown(true), 20); return () => clearTimeout(t); }, []);
+  return (
+    <Screen>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 32px' }}>
+        <div style={{ width: 82, height: 82, borderRadius: '50%', background: B, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transform: shown ? 'scale(1)' : 'scale(.4)', opacity: shown ? 1 : 0, transition: 'transform .35s cubic-bezier(.34,1.56,.64,1), opacity .25s' }}>
+          <i className="ti ti-check" style={{ fontSize: 44, color: '#fff' }} />
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.4, color: I, marginTop: 22, textAlign: 'center' }}>{title}</div>
+        {sub && <div style={{ fontSize: 14, color: S, marginTop: 8, lineHeight: 1.7, whiteSpace: 'pre-line', textAlign: 'center' }}>{sub}</div>}
+      </div>
+      <Cta onClick={onConfirm}>확인</Cta>
+    </Screen>
+  );
+};
+
 // 하단 고정 CTA (bt) — padding 12px 20px 16px
 export const Cta: React.FC<{ children: React.ReactNode; onClick?: () => void; disabled?: boolean; loading?: boolean }> = ({ children, onClick, disabled, loading }) => {
   const off = disabled || loading;
@@ -146,7 +165,7 @@ export const ChipSelect: React.FC<{
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          style={{ flexShrink: 0, background: on ? I : '#fff', border: `1px solid ${on ? I : '#E5E8EB'}`, borderRadius: 999, padding: '7px 13px', fontSize: 13, fontWeight: 500, color: on ? '#fff' : S, cursor: 'pointer' }}
+          style={{ flexShrink: 0, background: on ? BB : '#fff', border: `1.5px solid ${on ? B : '#E5E8EB'}`, borderRadius: 10, padding: '9px 13px', fontSize: 13, fontWeight: 500, color: on ? B : S, cursor: 'pointer' }}
         >
           {o.label}
         </button>

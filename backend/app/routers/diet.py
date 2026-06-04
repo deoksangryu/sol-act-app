@@ -216,6 +216,59 @@ def list_weight_logs(
     return logs
 
 
+@router.get("/weight/students")
+def staff_weight_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """선생님·원장: 학생별 체중 요약(최신값 + 처음 대비 변화 + 최근 포인트).
+
+    학생은 접근 불가. 교사=담당 학생, 원장=전체 학생.
+    """
+    if current_user.role == UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="권한이 없어요")
+
+    if current_user.role == UserRole.TEACHER:
+        sids = get_teacher_student_ids(db, current_user.id)
+    else:  # director
+        sids = [r[0] for r in db.query(User.id).filter(User.role == UserRole.STUDENT).all()]
+    if not sids:
+        return []
+
+    logs = (
+        db.query(WeightLog)
+        .filter(WeightLog.student_id.in_(sids))
+        .order_by(WeightLog.date.asc())
+        .all()
+    )
+    users = {u.id: u for u in db.query(User).filter(User.id.in_(sids)).all()}
+
+    by_student: dict = {}
+    for l in logs:
+        by_student.setdefault(l.student_id, []).append(l)
+
+    out = []
+    for sid, items in by_student.items():
+        last = items[-1]
+        u = users.get(sid)
+        out.append({
+            "student_id": sid,
+            "student_name": u.name if u else "",
+            "height": getattr(u, "height", None) if u else None,
+            "latest": last.weight,
+            "first": items[0].weight,
+            "count": len(items),
+            "updated_at": str(last.date),
+            "body_fat": last.body_fat,
+            "muscle_mass": last.muscle_mass,
+            "visceral_fat": last.visceral_fat,
+            "points": [{"date": str(i.date), "weight": i.weight} for i in items[-12:]],
+        })
+    # 최근 기록 순(최신 날짜 먼저)
+    out.sort(key=lambda x: x["updated_at"], reverse=True)
+    return out
+
+
 @router.post("/weight", response_model=WeightLogResponse, status_code=status.HTTP_201_CREATED)
 def create_weight_log(
     data: WeightLogCreate,

@@ -296,6 +296,12 @@ def _patch_target_file(
             ).first()
             if p:
                 p.video_url = url
+                # 커버 영상 썸네일 추출(목록 표시용)
+                if url.startswith("/uploads/"):
+                    try:
+                        p.thumbnail_url = extract_thumbnail(str(UPLOAD_DIR / url.removeprefix("/uploads/")))
+                    except Exception:
+                        pass
                 db.commit()
                 return p.student_id
         elif target_type == "portfolio_video":

@@ -25,6 +25,7 @@ class Portfolio(Base):
     title = Column(String, nullable=False)
     description = Column(Text, nullable=False)
     video_url = Column(String, nullable=False)
+    thumbnail_url = Column(String, nullable=True)  # 커버 영상 썸네일
     category = Column(SQLEnum(PortfolioCategory), nullable=False)
     tags = Column(String, nullable=True)  # Comma-separated
     ai_feedback = Column(Text, nullable=True)

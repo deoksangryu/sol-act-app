@@ -28,6 +28,7 @@ def portfolio_to_response(p: Portfolio) -> dict:
         "title": p.title,
         "description": p.description,
         "video_url": p.video_url,
+        "thumbnail_url": p.thumbnail_url,
         "category": p.category,
         "tags": p.tags,
         "ai_feedback": p.ai_feedback,

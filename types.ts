@@ -28,6 +28,7 @@ export interface User {
   role: UserRole;
   avatar: string;
   email: string;
+  height?: number;   // 키 cm (프로필)
 }
 
 export interface Notice {
@@ -247,6 +248,7 @@ export interface PortfolioItem {
   title: string;
   description: string;
   videoUrl: string;
+  thumbnailUrl?: string;   // 커버 영상 썸네일
   category: string;
   tags: string[];
   practiceGroup?: string;

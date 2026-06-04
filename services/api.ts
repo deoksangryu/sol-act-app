@@ -484,7 +484,25 @@ export const dietApi = {
   deleteWeight(id: string): Promise<void> {
     return apiRequest(`/api/diet/weight/${id}`, { method: 'DELETE' });
   },
+  // 선생님/원장: 학생별 체중 요약
+  weightStudents(): Promise<StudentWeightSummary[]> {
+    return apiRequest('/api/diet/weight/students');
+  },
 };
+
+export interface StudentWeightSummary {
+  studentId: string;
+  studentName: string;
+  height?: number | null;
+  latest: number;
+  first: number;
+  count: number;
+  updatedAt: string;
+  bodyFat?: number | null;
+  muscleMass?: number | null;
+  visceralFat?: number | null;
+  points: { date: string; weight: number }[];
+}
 
 // --- Music API (무용 음악 라이브러리 + 다운로드 요청/승인) ---
 export const musicApi = {
@@ -1442,6 +1460,13 @@ export async function unregisterPushSubscription(): Promise<void> {
     console.warn('Push unsubscription failed:', err);
   }
 }
+
+// ── 하단 네비 탭 뱃지(미처리 항목 수) ──
+export const badgeApi = {
+  get(): Promise<{ classes: number; assignments: number; video: number; diet: number; music: number }> {
+    return apiRequest('/api/badges');
+  },
+};
 
 // ── Demo mode override ──
 if (DEMO_MODE) {
