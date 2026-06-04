@@ -85,6 +85,13 @@ const AppInner: React.FC = () => {
     }
   }, []);
 
+  // 탭 뱃지(미처리 항목 수) — 로그인 + 탭 이동 시 갱신(실패해도 무시).
+  // 반드시 early-return 위에 위치해야 함(Rules of Hooks).
+  useEffect(() => {
+    if (!user) return;
+    badgeApi.get().then(setBadges).catch(() => {});
+  }, [user, currentView]);
+
   const loadClasses = useCallback(() => {
     classApi.list().then(setClasses).catch(console.error);
   }, []);
@@ -202,12 +209,6 @@ const AppInner: React.FC = () => {
   }
 
   // 하단 5탭을 보여주는 메인 화면 (프로필 등 하위화면은 자체 back 헤더 사용)
-  // 탭 뱃지(미처리 항목 수) — 로그인 + 탭 이동 시 갱신(실패해도 무시)
-  useEffect(() => {
-    if (!user) return;
-    badgeApi.get().then(setBadges).catch(() => {});
-  }, [user, currentView]);
-
   const showNav = ['classes', 'assignments', 'video', 'diet', 'music'].includes(currentView);
 
   return (

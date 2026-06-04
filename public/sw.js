@@ -1,4 +1,4 @@
-const CACHE_NAME = 'sol-act-v11';
+const CACHE_NAME = 'sol-act-v12';
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -35,9 +35,10 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          if (response.ok) {
+          // status 200(전체 응답)만 캐시 — 206/리다이렉트/opaque는 Cache.put 에러를 냄
+          if (response.status === 200 && response.type !== 'opaque') {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put('/', clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put('/', clone)).catch(() => {});
           }
           return response;
         })
@@ -52,9 +53,9 @@ self.addEventListener('fetch', (event) => {
     caches.match(event.request).then((cached) => {
       const fetchPromise = fetch(event.request)
         .then((response) => {
-          if (response.ok) {
+          if (response.status === 200 && response.type !== 'opaque') {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
           }
           return response;
         })
