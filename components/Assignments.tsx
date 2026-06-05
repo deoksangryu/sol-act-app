@@ -269,7 +269,7 @@ const StudentDetail: React.FC<{ a: Assignment; onBack: () => void; onReload: () 
               <button onClick={() => fileRef.current?.click()}
                 style={{ marginTop: 8, width: '100%', background: '#fff', border: `1px dashed ${TOSS.dashLine}`, borderRadius: 12, padding: '12px 6px', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, color: file ? TOSS.success : TOSS.sub, cursor: 'pointer' }}>
                 <i className={`ti ${file ? 'ti-check' : 'ti-paperclip'}`} style={{ fontSize: 16 }} />
-                {file ? file.name : '영상·사진·파일 첨부 (선택)'}
+                {file ? file.name : '손글씨 사진·PDF·영상 첨부 (선택)'}
               </button>
               {progress != null && (
                 <div style={{ marginTop: 8, height: 6, borderRadius: 999, overflow: 'hidden', background: TOSS.surf }}>

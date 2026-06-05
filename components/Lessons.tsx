@@ -361,7 +361,8 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
   };
 
   const handleUpdateJournal = async () => {
-    if (!editingJournal || !journalContent.trim()) return;
+    // 본문 없이 첨부만으로도 저장 가능
+    if (!editingJournal || (!journalContent.trim() && journalMediaUrls.length === 0)) return;
     try {
       const updated = await journalApi.update(editingJournal.id, {
         content: journalContent,
@@ -429,7 +430,8 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
   };
 
   const handleAddJournal = async () => {
-    if (!journalContent.trim() || !selectedLessonId) return;
+    // 본문 없이 첨부(손글씨 사진·PDF)만으로도 등록 가능 — 둘 다 비었을 때만 막는다
+    if ((!journalContent.trim() && journalMediaUrls.length === 0) || !selectedLessonId) return;
     try {
       const newJ = await journalApi.create({
         lessonId: selectedLessonId,
@@ -936,7 +938,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
                       value={journalContent}
                       onChange={e => setJournalContent(e.target.value)}
                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-brand-500 resize-none h-24"
-                      placeholder={isStaff ? "오늘 수업 내용과 학생 피드백을 작성하세요..." : "오늘 수업에서 배운 점이나 느낀 점을 기록하세요..."}
+                      placeholder={isStaff ? "오늘 수업 내용·피드백 (손글씨는 아래 파일 첨부만으로도 OK)" : "배운 점·느낀 점 (손글씨는 아래 파일 첨부만으로도 OK)"}
                     />
                     {isStaff && (
                       <input
@@ -985,7 +987,7 @@ export const Lessons: React.FC<LessonsProps> = ({ user }) => {
                             <svg className="w-4 h-4 -ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                             </svg>
-                            <span className="font-bold">파일 첨부 (사진/영상/음성)</span>
+                            <span className="font-bold">파일 첨부 (손글씨 사진·PDF·영상)</span>
                           </>
                         )}
                       </button>
