@@ -38,6 +38,14 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- FCM 푸시 기본 아이콘/색 — 흰 SOL 실루엣 + SOL옐로 틴트(컬러 앱아이콘은 흰 네모로 뭉개지므로) -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_notify" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/sol_yellow" />
     </application>
 
     <!-- Permissions -->

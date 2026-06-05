@@ -76,28 +76,38 @@ def _send_apns(tokens: List[str], title: str, body: str, data: Optional[dict]) -
             {"iss": settings.APNS_TEAM_ID, "iat": int(time.time())},
             key, algorithm="ES256", headers={"kid": settings.APNS_KEY_ID},
         )
-        host = "api.sandbox.push.apple.com" if settings.APNS_USE_SANDBOX else "api.push.apple.com"
         payload = {"aps": {"alert": {"title": title, "body": body}, "sound": "default"}}
         if data:
             payload.update({k: str(v) for k, v in data.items()})
         body_bytes = json.dumps(payload).encode()
+        headers = {
+            "authorization": f"bearer {provider_jwt}",
+            "apns-topic": settings.APNS_BUNDLE_ID,
+            "apns-push-type": "alert",
+        }
+        # 설정 환경을 1순위로 시도하되, 환경 불일치(403 BadEnvironmentKeyInToken / 400 BadDeviceToken)면
+        # 다른 환경으로 자동 재시도. TestFlight(sandbox)·App Store(production) 토큰이 섞여도 모두 전달된다.
+        prod, sandbox = "api.push.apple.com", "api.sandbox.push.apple.com"
+        hosts = (sandbox, prod) if settings.APNS_USE_SANDBOX else (prod, sandbox)
         # APNs는 HTTP/2 필수
         with httpx.Client(http2=True, timeout=10) as client:
             for t in tokens:
-                try:
-                    r = client.post(
-                        f"https://{host}/3/device/{t}",
-                        headers={
-                            "authorization": f"bearer {provider_jwt}",
-                            "apns-topic": settings.APNS_BUNDLE_ID,
-                            "apns-push-type": "alert",
-                        },
-                        content=body_bytes,
-                    )
-                    if r.status_code != 200:
-                        logger.warning(f"APNs 전송 {r.status_code}: {r.text[:120]}")
-                except Exception as e:
-                    logger.warning(f"APNs 전송 실패(token {t[:12]}…): {e}")
+                last = None
+                for host in hosts:
+                    try:
+                        r = client.post(f"https://{host}/3/device/{t}", headers=headers, content=body_bytes)
+                    except Exception as e:
+                        last = ("EXC", str(e))
+                        break
+                    if r.status_code == 200:
+                        last = None
+                        break
+                    last = (r.status_code, r.text)
+                    # 환경 불일치일 때만 다른 환경으로 재시도. 그 외(410 Unregistered·403 InvalidProviderToken 등)는 중단.
+                    if "BadEnvironmentKeyInToken" not in r.text and "BadDeviceToken" not in r.text:
+                        break
+                if last is not None:
+                    logger.warning(f"APNs 전송 실패 {last[0]} (token {t[:12]}…): {str(last[1])[:120]}")
     except ImportError:
         logger.warning('APNs 의존성 미설치 — iOS 푸시 비활성 (pip install "httpx[http2]")')
     except Exception as e:

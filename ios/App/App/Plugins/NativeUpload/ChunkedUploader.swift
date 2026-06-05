@@ -23,6 +23,7 @@ class ChunkedUploader {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let fileSize = try FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as! Int64
+                let totalChunks = fileSize == 0 ? 0 : Int((fileSize + Int64(chunkSize) - 1) / Int64(chunkSize))
 
                 // 1. Init
                 guard let uploadId = initUpload(apiUrl: apiUrl, token: token, fileName: fileName,
@@ -33,29 +34,65 @@ class ChunkedUploader {
                     return
                 }
 
-                // 2. Upload chunks
                 let fileHandle = try FileHandle(forReadingFrom: fileURL)
                 defer { fileHandle.closeFile() }
 
-                var bytesSent: Int64 = 0
-                var chunkIdx = 0
+                // 2. Upload chunks with attempt-level RESUME.
+                //    청크 전송이 끊기면 /status로 서버가 받은 지점을 물어 그 다음부터 이어 보낸다.
+                //    (연결이 회복될 때까지 최대 maxResume회 재개 시도)
+                let maxResume = 8
+                var attempt = 0
+                var done = false
 
-                while bytesSent < fileSize {
-                    let data = fileHandle.readData(ofLength: chunkSize)
-                    if data.isEmpty { break }
-
-                    let success = sendChunk(apiUrl: apiUrl, token: token, uploadId: uploadId,
-                                             chunkIdx: chunkIdx, data: data)
-                    if !success {
-                        completion(.failure(NSError(domain: "Upload", code: -2,
-                            userInfo: [NSLocalizedDescriptionKey: "Chunk \(chunkIdx) upload failed"])))
-                        return
+                while !done {
+                    var startChunk = 0
+                    if attempt > 0 {
+                        let next = getNextChunk(apiUrl: apiUrl, token: token, uploadId: uploadId)
+                        if next < 0 {
+                            // 세션 없음/연결 불가 → 회복 대기 후 재시도
+                            attempt += 1
+                            if attempt > maxResume {
+                                completion(.failure(NSError(domain: "Upload", code: -2,
+                                    userInfo: [NSLocalizedDescriptionKey: "Upload failed after resume attempts"])))
+                                return
+                            }
+                            Thread.sleep(forTimeInterval: Double(min(attempt, 5)))
+                            continue
+                        }
+                        startChunk = next
                     }
 
-                    bytesSent += Int64(data.count)
-                    chunkIdx += 1
-                    let pct = Int(bytesSent * 100 / fileSize)
-                    onProgress(pct)
+                    if totalChunks == 0 || startChunk >= totalChunks {
+                        done = true
+                        break
+                    }
+
+                    fileHandle.seek(toFileOffset: UInt64(startChunk) * UInt64(chunkSize))
+                    var idx = startChunk
+                    var failed = false
+                    while idx < totalChunks {
+                        let data = fileHandle.readData(ofLength: chunkSize)
+                        if data.isEmpty { break }
+                        if sendChunk(apiUrl: apiUrl, token: token, uploadId: uploadId, chunkIdx: idx, data: data) {
+                            idx += 1
+                            onProgress(min(99, Int(Int64(idx) * 100 / Int64(max(totalChunks, 1)))))
+                        } else {
+                            failed = true
+                            break
+                        }
+                    }
+
+                    if !failed && idx >= totalChunks {
+                        done = true
+                    } else {
+                        attempt += 1
+                        if attempt > maxResume {
+                            completion(.failure(NSError(domain: "Upload", code: -2,
+                                userInfo: [NSLocalizedDescriptionKey: "Upload failed after resume attempts"])))
+                            return
+                        }
+                        Thread.sleep(forTimeInterval: Double(min(attempt, 5)))  // 재개 전 백오프
+                    }
                 }
 
                 // 3. Complete
@@ -65,12 +102,30 @@ class ChunkedUploader {
                     return
                 }
 
+                onProgress(100)
                 completion(.success(result))
 
             } catch {
                 completion(.failure(error))
             }
         }
+    }
+
+    /// 이어받기용 — 서버가 다음에 기대하는 청크 인덱스. 실패(세션없음/연결불가) 시 -1.
+    private static func getNextChunk(apiUrl: String, token: String, uploadId: String) -> Int {
+        guard let url = URL(string: "\(apiUrl)/api/upload/chunked/\(uploadId)/status") else { return -1 }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 30
+        let (data, response) = syncRequest(request)
+        guard let httpResp = response as? HTTPURLResponse, httpResp.statusCode == 200,
+              let data = data,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let next = json["next_chunk"] as? Int else {
+            return -1
+        }
+        return next
     }
 
     // MARK: - HTTP

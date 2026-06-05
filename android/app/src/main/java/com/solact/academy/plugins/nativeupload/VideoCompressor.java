@@ -78,8 +78,8 @@ public class VideoCompressor {
             boolean success = transcodeVideo(inputFile, outputFile, duration, callback);
 
             if (success && outputFile.exists() && outputFile.length() > 0) {
-                // Only use compressed if smaller
-                if (outputFile.length() < inputFile.length() * 0.9) {
+                // 조금이라도 작아졌으면 압축본 사용(예전엔 90% 미만일 때만 써서 대용량 원본을 그대로 올림)
+                if (outputFile.length() < inputFile.length()) {
                     long saved = 100 - (outputFile.length() * 100 / inputFile.length());
                     Log.i(TAG, "Compressed: " + (inputFile.length() / 1024) + "KB -> "
                         + (outputFile.length() / 1024) + "KB (" + saved + "% reduction)");

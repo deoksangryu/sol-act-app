@@ -45,33 +45,47 @@ export function isNativeUploadAvailable(): boolean {
   return Capacitor.isNativePlatform();
 }
 
+/** Blob 한 조각을 base64 문자열로 (data: 프리픽스 제거). */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(',')[1] || '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 /**
  * Save a File to the app's temporary directory and return the file:// path.
- * This gives native code a real file path instead of a blob URL.
+ * 큰 영상도 안전하게: 파일 전체를 한 번에 base64로 올리면(예: 300MB→400MB 문자열) 웹뷰가
+ * 메모리 부족으로 실패한다(긴 영상이 업로드 시작도 못 하던 원인). 그래서 3MB(=3바이트 배수,
+ * base64 경계 안전)씩 잘라 append 로 이어 써서 메모리 사용을 일정하게 유지한다.
  */
 async function saveFileForNative(file: File): Promise<string> {
   const { Filesystem, Directory } = await import('@capacitor/filesystem');
-
-  // Read file as base64
-  const base64 = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      resolve(result.split(',')[1]); // strip data:...;base64, prefix
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-
-  // Write to temp file
   const fileName = `upload_${Date.now()}_${file.name}`;
-  const result = await Filesystem.writeFile({
-    path: fileName,
-    data: base64,
-    directory: Directory.Cache,
-  });
+  const CHUNK = 3 * 1024 * 1024; // 3MB — 3의 배수라 조각별 base64에 중간 패딩이 없어 이어붙여도 정확
 
-  return result.uri;
+  let offset = 0;
+  let first = true;
+  while (offset < file.size) {
+    const slice = file.slice(offset, Math.min(offset + CHUNK, file.size));
+    const b64 = await blobToBase64(slice);
+    if (first) {
+      await Filesystem.writeFile({ path: fileName, data: b64, directory: Directory.Cache });
+      first = false;
+    } else {
+      await Filesystem.appendFile({ path: fileName, data: b64, directory: Directory.Cache });
+    }
+    offset += CHUNK;
+  }
+  if (first) {
+    // 빈 파일 방어
+    await Filesystem.writeFile({ path: fileName, data: '', directory: Directory.Cache });
+  }
+
+  const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
+  return uri;
 }
 
 /**

@@ -174,27 +174,47 @@ async def chunked_upload(
     chunk_data = await file.read()
     chunk_size = len(chunk_data)
 
-    if meta["received"] + chunk_size > meta["total_size"] + 1024:
-        raise HTTPException(status_code=400, detail="Received more data than declared total_size")
-
     # Extract chunk index from filename (chunk_0, chunk_1, ...)
     chunk_name = file.filename or "chunk_0"
-    chunk_idx = chunk_name.replace("chunk_", "").split(".")[0]
+    idx_str = chunk_name.replace("chunk_", "").split(".")[0]
     try:
-        chunk_idx = int(chunk_idx)
+        chunk_idx = int(idx_str)
     except ValueError:
         chunk_idx = meta.get("_next_idx", 0)
         meta["_next_idx"] = chunk_idx + 1
 
-    # Save as individual numbered file
+    # Save as individual numbered file — overwrite-safe so resume re-sends are OK
     chunks_dir = Path(meta["chunks_dir"])
     chunk_path = chunks_dir / f"{chunk_idx:06d}"
     async with aiofiles.open(chunk_path, "wb") as f:
         await f.write(chunk_data)
 
-    meta["received"] += chunk_size
+    # received 바이트는 '새' 청크 인덱스일 때만 누적 — 재전송/이어받기 중복 카운트 방지
+    received_idx = meta.setdefault("received_idx", set())
+    if chunk_idx not in received_idx:
+        received_idx.add(chunk_idx)
+        meta["received"] += chunk_size
     pct = min(100, meta["received"] * 100 // max(meta["total_size"], 1))
-    return {"received": meta["received"], "progress": pct}
+    return {"received": meta["received"], "progress": pct, "chunk_idx": chunk_idx}
+
+
+@router.get("/upload/chunked/{upload_id}/status")
+async def chunked_status(upload_id: str, current_user: User = Depends(get_current_user)):
+    """이어받기(resume)용 — 이미 받은 청크를 기준으로 다음에 보낼 인덱스를 알려준다.
+    클라이언트는 같은 upload_id로 재시도 시 next_chunk부터 이어 보낸다.
+    세션이 없으면(만료/재시작) 404 → 클라이언트는 처음부터 새 init."""
+    meta = _chunked_uploads.get(upload_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Upload session not found or expired")
+    if meta["user_id"] != current_user.id:
+        raise HTTPException(status_code=403, detail="Not your upload session")
+    chunks_dir = Path(meta["chunks_dir"])
+    received = sorted(int(p.name) for p in chunks_dir.iterdir() if p.name.isdigit()) if chunks_dir.exists() else []
+    rec = set(received)
+    next_idx = 0
+    while next_idx in rec:
+        next_idx += 1
+    return {"received_count": len(received), "next_chunk": next_idx, "total_size": meta.get("total_size", 0)}
 
 
 @router.post("/upload/chunked/{upload_id}/complete")

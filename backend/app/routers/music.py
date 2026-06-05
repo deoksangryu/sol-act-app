@@ -117,6 +117,7 @@ def list_tracks(
 ):
     """무용 음악 목록(페이지네이션). 인앱 청취는 전원 가능하므로 역할 무관 조회."""
     query = db.query(Track).options(joinedload(Track.requests))
+    query = query.filter(Track.active.is_(True))  # 숨김(active=False) 곡 제외 — 예: 너무 짧은 클립
     if category and category != "all":
         query = query.filter(Track.category == category)
     if search:

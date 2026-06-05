@@ -185,7 +185,9 @@ public class UploadForegroundService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         return new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_upload)
+            .setSmallIcon(com.solact.academy.R.drawable.ic_stat_notify)
+            .setColor(androidx.core.content.ContextCompat.getColor(this, com.solact.academy.R.color.sol_yellow))
+            .setLargeIcon(android.graphics.BitmapFactory.decodeResource(getResources(), com.solact.academy.R.mipmap.ic_launcher))
             .setContentTitle("SOL-ACT")
             .setContentText(text)
             .setProgress(100, progress, progress == 0)
@@ -205,7 +207,9 @@ public class UploadForegroundService extends Service {
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
+            .setSmallIcon(com.solact.academy.R.drawable.ic_stat_notify)
+            .setColor(androidx.core.content.ContextCompat.getColor(this, com.solact.academy.R.color.sol_yellow))
+            .setLargeIcon(android.graphics.BitmapFactory.decodeResource(getResources(), com.solact.academy.R.mipmap.ic_launcher))
             .setContentTitle(title)
             .setContentText(body)
             .setAutoCancel(true)
@@ -283,31 +287,72 @@ public class UploadForegroundService extends Service {
         return null;
     }
 
+    /** attempt 단위 RESUME — 전송이 끊기면 /status로 받은 지점을 물어 그 다음부터 이어 보낸다. */
     private boolean uploadChunks(String apiUrl, String token, String uploadId, File file) throws IOException {
         long totalSize = file.length();
-        long bytesSent = 0;
-        int chunkIdx = 0;
-        FileInputStream fis = new FileInputStream(file);
-        byte[] buffer = new byte[CHUNK_SIZE];
-        int bytesRead;
+        int totalChunks = totalSize == 0 ? 0 : (int) ((totalSize + CHUNK_SIZE - 1) / CHUNK_SIZE);
+        final int maxResume = 8;
+        int attempt = 0;
 
-        while ((bytesRead = fis.read(buffer)) > 0) {
-            byte[] chunk = (bytesRead < CHUNK_SIZE) ? java.util.Arrays.copyOf(buffer, bytesRead) : buffer;
-
-            boolean ok = sendChunk(apiUrl, token, uploadId, chunkIdx, chunk, bytesRead);
-            if (!ok) {
-                fis.close();
-                return false;
+        while (true) {
+            int startChunk = 0;
+            if (attempt > 0) {
+                int next = getNextChunk(apiUrl, token, uploadId);
+                if (next < 0) {
+                    // 세션 없음/연결 불가 → 회복 대기 후 재시도
+                    attempt++;
+                    if (attempt > maxResume) return false;
+                    try { Thread.sleep(Math.min(attempt, 5) * 1000L); } catch (InterruptedException ignored) {}
+                    continue;
+                }
+                startChunk = next;
             }
 
-            bytesSent += bytesRead;
-            chunkIdx++;
-            int pct = (int) (bytesSent * 100 / totalSize);
-            updateNotification("업로드 중... " + pct + "%", pct);
-            broadcastProgress("uploading", pct);
+            if (totalChunks == 0 || startChunk >= totalChunks) return true; // 다 보냄
+
+            java.io.RandomAccessFile raf = new java.io.RandomAccessFile(file, "r");
+            raf.seek((long) startChunk * CHUNK_SIZE);
+            byte[] buffer = new byte[CHUNK_SIZE];
+            int idx = startChunk;
+            boolean failed = false;
+            int bytesRead;
+            while (idx < totalChunks && (bytesRead = raf.read(buffer)) > 0) {
+                byte[] chunk = (bytesRead < CHUNK_SIZE) ? java.util.Arrays.copyOf(buffer, bytesRead) : buffer;
+                if (sendChunk(apiUrl, token, uploadId, idx, chunk, bytesRead)) {
+                    idx++;
+                    int pct = (int) ((long) idx * 100 / Math.max(totalChunks, 1));
+                    updateNotification("업로드 중... " + Math.min(pct, 99) + "%", Math.min(pct, 99));
+                    broadcastProgress("uploading", Math.min(pct, 99));
+                } else {
+                    failed = true;
+                    break;
+                }
+            }
+            raf.close();
+
+            if (!failed && idx >= totalChunks) return true;
+            attempt++;
+            if (attempt > maxResume) return false;
+            try { Thread.sleep(Math.min(attempt, 5) * 1000L); } catch (InterruptedException ignored) {}
         }
-        fis.close();
-        return true;
+    }
+
+    /** 이어받기용 — 서버가 다음에 기대하는 청크 인덱스. 실패(세션없음/연결불가) 시 -1. */
+    private int getNextChunk(String apiUrl, String token, String uploadId) {
+        try {
+            URL url = new URL(apiUrl + "/api/upload/chunked/" + uploadId + "/status");
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Authorization", "Bearer " + token);
+            conn.setConnectTimeout(15000);
+            conn.setReadTimeout(30000);
+            if (conn.getResponseCode() == 200) {
+                return new JSONObject(readStream(conn.getInputStream())).optInt("next_chunk", -1);
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "status error", e);
+        }
+        return -1;
     }
 
     private boolean sendChunk(String apiUrl, String token, String uploadId, int idx,

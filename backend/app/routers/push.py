@@ -80,20 +80,35 @@ def register_device_token(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """네이티브 앱이 발급받은 디바이스 토큰 등록(upsert)."""
+    """네이티브 앱이 발급받은 디바이스 토큰 등록(upsert). 동시 등록 경합에 안전."""
+    from sqlalchemy.exc import IntegrityError
     platform = data.platform if data.platform in ("ios", "android") else "android"
+
+    def _update(tok: DeviceToken):
+        tok.user_id = current_user.id
+        tok.platform = platform
+
     existing = db.query(DeviceToken).filter(DeviceToken.token == data.token).first()
     if existing:
-        existing.user_id = current_user.id
-        existing.platform = platform
-    else:
+        _update(existing)
+        db.commit()
+        return {"ok": True}
+
+    # 신규 토큰 — 동시 요청이 먼저 넣었으면 UniqueViolation → 롤백 후 갱신(500 방지)
+    try:
         db.add(DeviceToken(
             id=f"dt{uuid.uuid4().hex[:8]}",
             user_id=current_user.id,
             token=data.token,
             platform=platform,
         ))
-    db.commit()
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        existing = db.query(DeviceToken).filter(DeviceToken.token == data.token).first()
+        if existing:
+            _update(existing)
+            db.commit()
     return {"ok": True}
 
 

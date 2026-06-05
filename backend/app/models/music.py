@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, DateTime, ForeignKey, Boolean, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
@@ -24,6 +24,7 @@ class Track(Base):
     thumbnail_url = Column(String, nullable=True)
     created_by = Column(String, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    active = Column(Boolean, default=True, nullable=False)  # False면 라이브러리 목록에서 숨김(데이터·파일은 보존)
 
     # Relationships
     requests = relationship(

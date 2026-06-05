@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- SOL 브랜드 옐로 — 알림 틴트(작은 아이콘 + 액센트) -->
+    <color name="sol_yellow">#FBBF24</color>
+</resources>

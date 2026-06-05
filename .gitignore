@@ -28,3 +28,12 @@ AuthKey_*.p8
 # Android 빌드 산출물
 *.apk
 *.aab
+
+# Android 릴리즈 서명 키(절대 커밋 금지)
+*.keystore
+*.jks
+android/keystore.properties
+
+# 학생 자동 편성(이름 포함 — 커밋 금지)
+backend/auto_assign_students.py
+backend/auto_assign.log

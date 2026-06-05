@@ -86,7 +86,8 @@ fi
 
 # 고정 도메인 사용 (ngrok 대시보드에서 설정한 도메인)
 NGROK_DOMAIN="sol-act-server.ngrok.app"
-ngrok http $BACKEND_PORT --domain=$NGROK_DOMAIN --log=stdout &
+# --inspect=false: 대용량 업로드(청크 150개+) 시 요청/응답 버퍼링 오버헤드 제거 → 전송 안정성↑
+ngrok http $BACKEND_PORT --domain=$NGROK_DOMAIN --inspect=false --log=stdout &
 NGROK_PID=$!
 sleep 3
 
