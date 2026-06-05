@@ -27,3 +27,4 @@ class CurrentResponse(BaseModel):
     drawn_at: Optional[datetime] = None             # 현재 대사를 받은 시각
     total_scripts: int                              # 전체 제시대사 수
     seen_count: int                                 # 이 학생이 본 수
+    exhausted: bool = False                         # 모든 제시대사를 다 본 상태(→ 더 요청하기)

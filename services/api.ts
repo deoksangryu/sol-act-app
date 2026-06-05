@@ -572,6 +572,10 @@ export const practiceApi = {
   draw(): Promise<PracticeCurrent> {
     return apiRequest('/api/practice/draw', { method: 'POST' });
   },
+  // 전부 소진 시 원장에게 새 대사 요청(12h 내 중복은 already=true).
+  requestMore(): Promise<{ ok: boolean; already: boolean }> {
+    return apiRequest('/api/practice/request-more', { method: 'POST' });
+  },
 };
 
 // --- Evaluation API ---

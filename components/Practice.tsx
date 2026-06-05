@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { User, PracticeCurrent, PracticeScriptView } from '../types';
 import { practiceApi } from '../services/api';
 import { TOSS } from '../services/category';
-import { BackHeader, Cta, InfoBox, Tag } from './toss/kit';
+import { BackHeader, Cta, InfoBox, Tag, GhostButton } from './toss/kit';
 import toast from 'react-hot-toast';
 
 // 전체화면 오버레이 — 헤더 마스크 아이콘 진입(공지와 동일 패턴)
@@ -45,14 +45,19 @@ export const Practice: React.FC<{ user: User; onClose?: () => void }> = ({ user,
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [remaining, setRemaining] = useState(0);
+  const [requested, setRequested] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
-  // 최초 로드 — 현재 받은 대사 + 쿨다운
-  useEffect(() => {
+  // 최초 로드 — 현재 받은 대사 + 쿨다운 (실패 시 재시도 가능)
+  const load = () => {
+    setLoadError(false);
+    setLoading(true);
     practiceApi.current()
       .then((d) => { setData(d); setRemaining(d.canDrawNew ? 0 : d.cooldownSecondsRemaining); })
-      .catch((e: any) => toast.error(e.message || '불러오지 못했어요'))
+      .catch((e: any) => { setLoadError(true); toast.error(e.message || '불러오지 못했어요'); })
       .finally(() => setLoading(false));
-  }, []);
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
 
   // 1초 카운트다운(컴포넌트 생애 1개 인터벌)
   useEffect(() => {
@@ -82,6 +87,17 @@ export const Practice: React.FC<{ user: User; onClose?: () => void }> = ({ user,
     }
   };
 
+  const onRequestMore = async () => {
+    if (requested) return;
+    try {
+      const res = await practiceApi.requestMore();
+      setRequested(true);
+      toast.success(res.already ? '이미 요청했어요. 원장님께 전달돼 있어요.' : '원장님께 새 제시대사를 요청했어요!');
+    } catch (e: any) {
+      toast.error(e.message || '요청하지 못했어요');
+    }
+  };
+
   // 로딩
   if (loading) return (
     <Overlay>
@@ -102,6 +118,18 @@ export const Practice: React.FC<{ user: User; onClose?: () => void }> = ({ user,
     </Overlay>
   );
 
+  // 로드 실패 — 빈 화면 대신 재시도 제공(데드버튼 방지)
+  if (loadError && !data) return (
+    <Overlay>
+      <BackHeader title="제시대사" onBack={onClose} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: '0 32px' }}>
+        <i className="ti ti-cloud-off" style={{ fontSize: 30, color: TOSS.faint }} />
+        <div style={{ fontSize: 15, color: TOSS.sub }}>제시대사를 불러오지 못했어요.</div>
+        <div style={{ width: '100%', maxWidth: 240 }}><GhostButton onClick={load}>다시 시도</GhostButton></div>
+      </div>
+    </Overlay>
+  );
+
   const cur = data?.current || null;
   const btnLabel = remaining > 0
     ? `다음 제시대사까지 ${fmtCountdown(remaining)}`
@@ -111,6 +139,18 @@ export const Practice: React.FC<{ user: User; onClose?: () => void }> = ({ user,
     <Overlay>
       <BackHeader title="제시대사" onBack={onClose} />
       <div className="no-scrollbar" style={{ flex: 1, overflowY: 'auto', padding: '6px 20px 20px' }}>
+        {data?.exhausted && (
+          <div style={{ marginBottom: 16 }}>
+            <InfoBox tone="success">
+              제시대사 {data.totalScripts}개를 모두 연습했어요! 👏 원장님께 새 대사를 요청할 수 있어요.
+            </InfoBox>
+            <div style={{ marginTop: 10 }}>
+              <GhostButton onClick={requested ? undefined : onRequestMore}>
+                {requested ? '요청했어요 ✓' : '원장님께 새 제시대사 요청하기'}
+              </GhostButton>
+            </div>
+          </div>
+        )}
         {cur ? (
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -126,6 +166,7 @@ export const Practice: React.FC<{ user: User; onClose?: () => void }> = ({ user,
             <div style={{ marginTop: 16 }}>
               <InfoBox tone="info">
                 상황·인물·감정은 적혀 있지 않아요. <b>직접 분석</b>해서 어떤 상황의 누구인지 정하고, 소리 내어 연기해 보는 게 연습이에요.
+                {cur.type === '2인대사' && <><br />2인 대사예요 — 상대역은 상상하며, 두 인물을 모두 연기하거나 한쪽에 집중해 보세요.</>}
               </InfoBox>
             </div>
           </>

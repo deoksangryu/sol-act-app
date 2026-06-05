@@ -40,6 +40,7 @@ export interface PracticeCurrent {
   drawnAt: string | null;
   totalScripts: number;
   seenCount: number;
+  exhausted: boolean;       // 전부 소진 → '더 요청하기' 노출
 }
 
 export interface User {

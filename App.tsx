@@ -227,9 +227,11 @@ const AppInner: React.FC = () => {
 
       {/* 상단 바 — 벨 + 프로필 (프로토타입 상태바 위치) */}
       <header className="flex items-center justify-end gap-1 px-3 pb-1.5 shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}>
-        <button onClick={() => setIsPracticeOpen(true)} className="w-10 h-10 flex items-center justify-center" aria-label="제시대사 연습">
-          <i className="ti ti-masks-theater" style={{ fontSize: 20, color: '#191F28' }} />
-        </button>
+        {user.role === UserRole.STUDENT && (
+          <button onClick={() => setIsPracticeOpen(true)} className="w-10 h-10 flex items-center justify-center" aria-label="제시대사 연습">
+            <i className="ti ti-masks-theater" style={{ fontSize: 20, color: '#191F28' }} />
+          </button>
+        )}
         <button onClick={() => setIsNoticeOpen(true)} className="w-10 h-10 flex items-center justify-center" aria-label="공지사항">
           <i className="ti ti-speakerphone" style={{ fontSize: 20, color: '#191F28' }} />
         </button>

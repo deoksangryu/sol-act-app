@@ -36,3 +36,12 @@ class PracticeDraw(Base):
     student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     script_id = Column(String, ForeignKey("practice_scripts.id"), nullable=False)
     drawn_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class PracticeRequest(Base):
+    """학생이 '더 요청하기'를 누른 기록 — 학생ID 기준 중복방지(이름 변경 우회 차단)용."""
+    __tablename__ = "practice_requests"
+
+    id = Column(String, primary_key=True, index=True)
+    student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
