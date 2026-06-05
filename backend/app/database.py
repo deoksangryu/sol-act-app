@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from app.config import settings
@@ -22,6 +22,20 @@ if not settings.DATABASE_URL.startswith("sqlite"):
     })
 
 engine = create_engine(settings.DATABASE_URL, **_engine_kwargs)
+
+
+# SQLite 동시성 보강 — 연결마다 PRAGMA 적용.
+#  WAL: 쓰기 중에도 읽기가 막히지 않음(다중 사용자 동시 조회 안정).
+#  busy_timeout: 쓰기 잠금 충돌 시 즉시 실패('database is locked') 대신 최대 5초 대기.
+#  synchronous=NORMAL: WAL에서 안전하면서 디스크 fsync 부담↓(쓰기 처리량↑).
+if settings.DATABASE_URL.startswith("sqlite"):
+    @event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _record):
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=5000")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
 
 # 세션 팩토리
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

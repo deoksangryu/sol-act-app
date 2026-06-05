@@ -3,6 +3,7 @@ import json
 import logging
 import threading
 from typing import List, Optional
+from sqlalchemy import cast, Text
 from sqlalchemy.orm import Session
 from app.models.notification import Notification, NotificationType
 from app.models.user import User, UserRole
@@ -152,6 +153,9 @@ async def notify_users(
     """Create notifications for multiple users with batch DB insert."""
     if not user_ids:
         return
+    # 같은 uid가 중복으로 들어와도(예: private_student_ids/클라이언트 student_ids에 중복)
+    # 1회만 발송 — 중복 알림/푸시 방지. dict.fromkeys로 순서 보존.
+    user_ids = list(dict.fromkeys(user_ids))
 
     # 1) Batch insert all notifications in a single commit
     notifs = []
@@ -272,7 +276,7 @@ def get_teacher_class_ids(db: Session, teacher_id: str) -> List[str]:
     """Get class IDs where the teacher is assigned."""
     # Use SQL LIKE to filter at DB level instead of loading all classes
     classes = db.query(ClassInfo).filter(
-        ClassInfo.subject_teachers.like(f'%"{teacher_id}"%')
+        cast(ClassInfo.subject_teachers, Text).like(f'%"{teacher_id}"%')
     ).all()
     return [
         cls.id for cls in classes
@@ -284,7 +288,7 @@ def get_teacher_student_ids(db: Session, teacher_id: str) -> List[str]:
     """Get all student IDs from classes where the teacher is assigned."""
     student_ids = set()
     classes = db.query(ClassInfo).filter(
-        ClassInfo.subject_teachers.like(f'%"{teacher_id}"%')
+        cast(ClassInfo.subject_teachers, Text).like(f'%"{teacher_id}"%')
     ).all()
     for cls in classes:
         if cls.subject_teachers and teacher_id in cls.subject_teachers.values():

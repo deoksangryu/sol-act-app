@@ -114,6 +114,8 @@ async def create_assignment(
         target_ids = data.student_ids
     elif data.student_id:
         target_ids = [data.student_id]
+    # 클라이언트가 같은 학생을 중복으로 보내도 1개 과제·1회 알림만(순서 보존)
+    target_ids = list(dict.fromkeys(target_ids))
     if not target_ids:
         raise HTTPException(status_code=400, detail="No target students specified")
 

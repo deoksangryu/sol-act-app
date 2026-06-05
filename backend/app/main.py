@@ -298,6 +298,17 @@ async def startup_scheduler():
     asyncio.create_task(start_scheduler())
 
 
+@app.on_event("startup")
+async def _raise_threadpool_capacity():
+    # 동기 라우트(def, ~109개)는 anyio 스레드풀에서 실행 — 기본 40에서 64로 상향해
+    # 40명 동시 사용 시 스레드 고갈로 요청이 줄서는 현상을 완화.
+    import anyio.to_thread
+    try:
+        anyio.to_thread.current_default_thread_limiter().total_tokens = 64
+    except Exception:
+        pass
+
+
 # Root endpoint
 @app.get("/")
 def root():

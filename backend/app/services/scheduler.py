@@ -5,7 +5,7 @@ Checks auditions with upcoming registration periods and notifies users.
 """
 import asyncio
 import logging
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 from typing import List
 
 from sqlalchemy.orm import Session
@@ -38,6 +38,17 @@ async def check_registration_deadlines() -> None:
         )
 
         from app.services.notification_service import notify_users
+        from app.models.notification import Notification
+
+        # 멱등성 가드: 백엔드 재시작(시작 즉시 tick0 실행)으로 같은 알림이 다시 나가는 것 방지.
+        # 최근 20시간 내 동일 메시지가 이미 발송됐으면 건너뜀(하루 1회 보장). created_at은 UTC.
+        recent_cutoff = datetime.utcnow() - timedelta(hours=20)
+
+        def _already_sent(m: str) -> bool:
+            return db.query(Notification.id).filter(
+                Notification.message == m,
+                Notification.created_at >= recent_cutoff,
+            ).first() is not None
 
         for a in auditions:
             # Check registration_start approaching
@@ -49,8 +60,11 @@ async def check_registration_deadlines() -> None:
                         msg = f"📋 [{a.title}] 접수가 오늘 시작됩니다!"
                     else:
                         msg = f"📋 [{a.title}] 접수 시작까지 {days_until_start}일 남았습니다."
-                    await notify_users(db, user_ids, msg, entity="auditions")
-                    logger.info(f"Registration start reminder sent: {a.title} (D-{days_until_start})")
+                    if _already_sent(msg):
+                        logger.info(f"Skip duplicate start reminder (already sent ≤20h): {a.title} (D-{days_until_start})")
+                    else:
+                        await notify_users(db, user_ids, msg, entity="auditions")
+                        logger.info(f"Registration start reminder sent: {a.title} (D-{days_until_start})")
 
             # Check registration_end approaching
             if a.registration_end:
@@ -63,8 +77,11 @@ async def check_registration_deadlines() -> None:
                         msg = f"⚠️ [{a.title}] 접수 마감까지 1일 남았습니다!"
                     else:
                         msg = f"📋 [{a.title}] 접수 마감까지 {days_until_end}일 남았습니다."
-                    await notify_users(db, user_ids, msg, entity="auditions")
-                    logger.info(f"Registration end reminder sent: {a.title} (D-{days_until_end})")
+                    if _already_sent(msg):
+                        logger.info(f"Skip duplicate end reminder (already sent ≤20h): {a.title} (D-{days_until_end})")
+                    else:
+                        await notify_users(db, user_ids, msg, entity="auditions")
+                        logger.info(f"Registration end reminder sent: {a.title} (D-{days_until_end})")
 
             # Auto-mark registration period status
             # If registration_end has passed and event date has passed → completed
