@@ -17,6 +17,7 @@ from .push_subscription import PushSubscription
 from .device_token import DeviceToken
 from .praise_sticker import PraiseSticker
 from .music import Track, MusicDownloadRequest
+from .practice import PracticeScript, PracticeDraw
 
 __all__ = [
     "User",
@@ -43,4 +44,6 @@ __all__ = [
     "PraiseSticker",
     "Track",
     "MusicDownloadRequest",
+    "PracticeScript",
+    "PracticeDraw",
 ]

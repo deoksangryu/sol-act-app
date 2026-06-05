@@ -4,6 +4,7 @@ import type {
   ChatMessage, Notice, Notification, PortfolioItem, PortfolioComment,
   CompetitionEvent, ChecklistItem, PrivateLessonRequest,
   JournalComment, Track, MusicDownloadRequest, FeedCard,
+  PracticeCurrent,
 } from '../types';
 
 // --- Config ---
@@ -559,6 +560,17 @@ export const musicApi = {
       method: 'PUT',
       body: JSON.stringify(toSnake(data)),
     });
+  },
+};
+
+// --- 제시대사 연습 API (1시간에 한 번, 안 본 대사 랜덤. 학생엔 대사만 반환) ---
+export const practiceApi = {
+  current(): Promise<PracticeCurrent> {
+    return apiRequest('/api/practice/current');
+  },
+  // 새 제시대사 받기 — 쿨다운 중이면 apiRequest가 429 detail 메시지로 throw.
+  draw(): Promise<PracticeCurrent> {
+    return apiRequest('/api/practice/draw', { method: 'POST' });
   },
 };
 

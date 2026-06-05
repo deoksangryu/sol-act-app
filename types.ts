@@ -22,6 +22,26 @@ export const SUBJECT_LABELS: Record<Subject, string> = {
   [Subject.DANCE]: '무용',
 };
 
+// 제시대사 연습 — 학생 노출은 대사(script)와 형식만. 상황·감정·연기포인트는 숨김(직접 분석).
+export interface PracticeLine {
+  speaker: string;
+  text: string;
+}
+export interface PracticeScriptView {
+  id: string;
+  type: string;            // 독백 / 2인대사
+  script: PracticeLine[];
+}
+export interface PracticeCurrent {
+  current: PracticeScriptView | null;
+  canDrawNew: boolean;
+  cooldownSecondsRemaining: number;
+  nextDrawAt: string | null;
+  drawnAt: string | null;
+  totalScripts: number;
+  seenCount: number;
+}
+
 export interface User {
   id: string;
   name: string;

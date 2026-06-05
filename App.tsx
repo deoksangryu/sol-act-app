@@ -12,6 +12,7 @@ const Music = React.lazy(() => import('./components/Music').then(m => ({ default
 const ProfileSettings = React.lazy(() => import('./components/ProfileSettings').then(m => ({ default: m.ProfileSettings })));
 import { Notifications } from './components/Notifications';
 import { Notices } from './components/Notices';
+import { Practice } from './components/Practice';
 import { InstallPrompt } from './components/InstallPrompt';
 import toast, { Toaster } from 'react-hot-toast';
 import { UploadProvider, useUpload } from './services/UploadContext';
@@ -43,6 +44,7 @@ const AppInner: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
+  const [isPracticeOpen, setIsPracticeOpen] = useState(false);
   const [badges, setBadges] = useState<Partial<Record<ViewState, number>>>({});
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -225,6 +227,9 @@ const AppInner: React.FC = () => {
 
       {/* 상단 바 — 벨 + 프로필 (프로토타입 상태바 위치) */}
       <header className="flex items-center justify-end gap-1 px-3 pb-1.5 shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}>
+        <button onClick={() => setIsPracticeOpen(true)} className="w-10 h-10 flex items-center justify-center" aria-label="제시대사 연습">
+          <i className="ti ti-masks-theater" style={{ fontSize: 20, color: '#191F28' }} />
+        </button>
         <button onClick={() => setIsNoticeOpen(true)} className="w-10 h-10 flex items-center justify-center" aria-label="공지사항">
           <i className="ti ti-speakerphone" style={{ fontSize: 20, color: '#191F28' }} />
         </button>
@@ -261,6 +266,7 @@ const AppInner: React.FC = () => {
       )}
 
       {isNoticeOpen && <Notices user={user} onClose={() => setIsNoticeOpen(false)} />}
+      {isPracticeOpen && <Practice user={user} onClose={() => setIsPracticeOpen(false)} />}
       <InstallPrompt />
       <UploadIndicator />
       <Toaster
