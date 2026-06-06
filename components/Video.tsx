@@ -1,18 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { User, UserRole, PortfolioItem, FeedCard } from '../types';
-import { portfolioApi, uploadApi, resolveFileUrl, API_URL, getToken } from '../services/api';
+import { User, UserRole, PortfolioItem, FeedCard, PracticeScriptView } from '../types';
+import { portfolioApi, uploadApi, practiceApi, resolveFileUrl, API_URL, getToken } from '../services/api';
 import { nativeBackgroundUpload } from '../services/nativeUpload';
 import { useDataRefresh } from '../services/useWebSocket';
 import { useDebouncedValue } from '../services/useDebounce';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag,
-  Cta, Empty, InfoBox, ChipSelect, ListSkeleton, FlowTitle, toneColors, SearchBar, FilterChips,
+  Cta, Empty, InfoBox, ChipSelect, ListSkeleton, FlowTitle, toneColors, SearchBar,
 } from './toss/kit';
-
-// 영상 필터 칩(전체 + 카테고리)
-const VIDEO_FILTERS = [{ value: 'all', label: '전체' }, { value: 'acting', label: '자유연기' }, { value: 'monologue', label: '독백' }, { value: 'musical', label: '뮤지컬 넘버' }, { value: 'dance', label: '자유무용' }, { value: 'basics', label: '발성 연습' }];
 
 const VIDEO_CATS = [
   { value: 'acting', label: '자유연기' },
@@ -21,7 +18,7 @@ const VIDEO_CATS = [
   { value: 'dance', label: '자유무용' },
   { value: 'basics', label: '발성 연습' },
 ];
-const catLabel = (v: string) => VIDEO_CATS.find(c => c.value === v)?.label || v;
+const catLabel = (v: string) => (v === 'scripted' ? '제시대사 연기' : (VIDEO_CATS.find(c => c.value === v)?.label || v));
 // 영상 길이(초) → ' · M:SS' (없으면 빈 문자열)
 const fmtDur = (s?: number) => (s && s > 0 ? ` · ${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
 
@@ -88,14 +85,15 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
   const [openItem, setOpenItem] = useState<PortfolioItem | null>(null);  // single 카드 → 상세
   const [openGroup, setOpenGroup] = useState<FeedCard | null>(null);     // group 카드 → 그룹 상세
   const [uploading, setUploading] = useState(false);
-  const [cat, setCat] = useState('all');
+  // 영상 탭은 제시대사 연기영상만 노출 — 기존(제시대사 이전) 자유 업로드 영상은 전원에게 숨김.
+  const cat = 'scripted';
   const [query, setQuery] = useState('');
   const search = useDebouncedValue(query.trim(), 300);
 
-  // 카드 단위 피드(서버에서 individual=그룹, single/단일=개별로 묶음) + 검색/카테고리
+  // 카드 단위 피드(제시대사 연기영상 = single 카드) + 검색
   const feedParams = (skip: number) => ({
     ...(isStaff ? {} : { studentId: user.id }),
-    ...(cat !== 'all' ? { category: cat } : {}),
+    category: 'scripted',
     ...(search ? { search } : {}),
     skip, limit: PAGE,
   });
@@ -143,9 +141,8 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
 
   return (
     <Screen>
-      <BigTitle title={isStaff ? <>학생 영상에<br />피드백을 남겨요</> : <>연습 영상을<br />모아봐요</>} />
-      <SearchBar value={query} onChange={setQuery} placeholder={isStaff ? '제목·학생 영상 검색' : '영상 제목 검색'} />
-      <FilterChips options={VIDEO_FILTERS} value={cat} onChange={setCat} />
+      <BigTitle title={isStaff ? <>제시대사 연기영상에<br />피드백을 남겨요</> : <>연습 영상을<br />모아봐요</>} />
+      <SearchBar value={query} onChange={setQuery} placeholder={isStaff ? '제목·학생 검색' : '영상 제목 검색'} />
       <Scroll>
         <SectionLabel>{isStaff ? '학생 영상' : '내 연습 영상'} {cards.length}{hasMore ? '+' : ''}</SectionLabel>
         {cards.length === 0 ? <Empty>{isStaff ? '아직 올라온 영상이 없어요' : '아직 올린 영상이 없어요'}</Empty> : cards.map(cardRow)}
@@ -197,6 +194,13 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
   const [desc, setDesc] = useState(item.description || '');
   const comments = item.comments || [];
   const isOwner = !isStaff && item.studentId === user.id;
+
+  // 제시대사 연기영상이면 연기한 원문 대사를 가져와 맥락 표시(평가용)
+  const [script, setScript] = useState<PracticeScriptView | null>(null);
+  useEffect(() => {
+    if (item.practiceScriptId) practiceApi.getScript(item.practiceScriptId).then(setScript).catch(() => {});
+    else setScript(null);
+  }, [item.practiceScriptId]);
 
   // 커버(video_url) + 추가 영상(videos[])을 하나의 클립 목록으로
   const clips = [
@@ -299,6 +303,22 @@ const VideoDetail: React.FC<{ item: PortfolioItem; user: User; isStaff: boolean;
                 <div style={{ fontSize: 14, color: TOSS.ink, lineHeight: 1.7, marginTop: 12 }}>{item.description}</div>
               )}
             </>
+          )}
+
+          {/* 연기한 제시대사 원문(맥락) */}
+          {script && (
+            <div style={{ marginTop: 14, background: TOSS.surf, borderRadius: 13, padding: '13px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 6 }}>
+                <Tag bg={TOSS.blueBg} fg={TOSS.blue}>{script.type}</Tag>
+                <span style={{ fontSize: 12, color: TOSS.sub }}>연기한 제시대사</span>
+              </div>
+              {script.script.map((ln, i) => (
+                <div key={i} style={{ marginTop: i ? 8 : 0 }}>
+                  {script.type === '2인대사' && ln.speaker && <span style={{ fontSize: 12, fontWeight: 700, color: TOSS.blue, marginRight: 6 }}>{ln.speaker}</span>}
+                  <span style={{ fontSize: 14, lineHeight: 1.7, color: TOSS.ink }}>{ln.text}</span>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* 피드백 영역은 영상이 실제로 있는 ready 상태에서만 (실패/업로드중엔 의미 없음) */}

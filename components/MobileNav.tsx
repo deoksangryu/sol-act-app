@@ -1,20 +1,29 @@
 import React from 'react';
-import { ViewState } from '../types';
+import { ViewState, UserRole } from '../types';
 
 interface MobileNavProps {
   currentView: ViewState;
   onChangeView: (view: ViewState) => void;
   counts?: Partial<Record<ViewState, number>>;
+  role: UserRole;
 }
 
-// 프로토타입 하단 5탭 (Tabler 아이콘 그대로) — 역할 무관 동일
-const TABS: { id: ViewState; label: string; icon: string }[] = [
-  { id: 'classes', label: '수업', icon: 'ti-school' },
-  { id: 'assignments', label: '과제', icon: 'ti-checklist' },
-  { id: 'video', label: '영상', icon: 'ti-video' },
-  { id: 'diet', label: '식단', icon: 'ti-salad' },
-  { id: 'music', label: '음악', icon: 'ti-headphones' },
-];
+type TabDef = { id: ViewState; label: string; icon: string };
+
+// 하단 5탭. 학생은 '영상' 대신 '제시대사'(연기 입시 연습대사) 탭을 본다.
+// 선생·원장은 '영상' 탭 유지(학생들의 제시대사 연기영상 피드백).
+const tabsForRole = (role: UserRole): TabDef[] => {
+  const third: TabDef = role === UserRole.STUDENT
+    ? { id: 'practice', label: '제시대사', icon: 'ti-masks-theater' }
+    : { id: 'video', label: '영상', icon: 'ti-video' };
+  return [
+    { id: 'classes', label: '수업', icon: 'ti-school' },
+    { id: 'assignments', label: '과제', icon: 'ti-checklist' },
+    third,
+    { id: 'diet', label: '식단', icon: 'ti-salad' },
+    { id: 'music', label: '음악', icon: 'ti-headphones' },
+  ];
+};
 
 const INK = '#191F28';
 // 비활성 탭 — 가독성(WCAG AA) 위해 faint(#C4CCD4·1.6:1) 대신 sub(#6B7684·4.6:1).
@@ -23,9 +32,9 @@ const SUB = '#6B7684';
 
 const WARN = '#C2410C';
 
-export const MobileNav: React.FC<MobileNavProps> = ({ currentView, onChangeView, counts }) => (
+export const MobileNav: React.FC<MobileNavProps> = ({ currentView, onChangeView, counts, role }) => (
   <div style={{ display: 'flex' }}>
-    {TABS.map((t) => {
+    {tabsForRole(role).map((t) => {
       const on = currentView === t.id;
       const n = counts?.[t.id] || 0;
       return (

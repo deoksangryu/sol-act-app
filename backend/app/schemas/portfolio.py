@@ -11,6 +11,7 @@ class PortfolioCreate(BaseModel):
     category: PortfolioCategory
     tags: Optional[str] = None
     practice_group: Optional[str] = None
+    practice_script_id: Optional[str] = None  # 제시대사 연결(category=scripted)
     video_duration: Optional[int] = None
     # Upload metadata (for logging only, not stored)
     upload_mode: Optional[str] = None  # "single" or "individual"
@@ -94,6 +95,7 @@ class PortfolioResponse(BaseModel):
     tags: Optional[str] = None
     ai_feedback: Optional[str] = None
     practice_group: Optional[str] = None
+    practice_script_id: Optional[str] = None
     video_duration: Optional[int] = None
     comments: List[PortfolioCommentResponse] = []
     videos: List[PortfolioVideoResponse] = []

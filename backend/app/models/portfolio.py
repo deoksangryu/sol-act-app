@@ -14,6 +14,7 @@ class PortfolioCategory(str, enum.Enum):
     SCENE = "scene"
     IMPROV = "improv"
     AUDITION_PREP = "audition_prep"
+    SCRIPTED = "scripted"  # 제시대사 연기영상 (제시대사 탭에서 업로드)
     OTHER = "other"
 
 
@@ -31,6 +32,7 @@ class Portfolio(Base):
     ai_feedback = Column(Text, nullable=True)
     practice_group = Column(String, nullable=True)  # Groups repeated practice recordings
     video_duration = Column(Integer, nullable=True)  # Duration in seconds
+    practice_script_id = Column(String, nullable=True, index=True)  # 제시대사 연결(category=scripted일 때 어떤 대사를 연기했는지)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     # Relationships

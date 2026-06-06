@@ -6,8 +6,9 @@ export enum UserRole {
 }
 
 // v8 프로토타입 5탭 IA + 보조 화면. (레거시 값은 숨김 기능 복원용으로 유지)
+// 학생은 'video' 대신 'practice'(제시대사) 탭을 본다(역할별 분기 — MobileNav).
 export type ViewState =
-  | 'classes' | 'assignments' | 'video' | 'diet' | 'music' | 'profile'
+  | 'classes' | 'assignments' | 'video' | 'practice' | 'diet' | 'music' | 'profile'
   | 'dashboard' | 'lessons' | 'growth' | 'community' | 'academy';
 
 export enum Subject {
@@ -29,11 +30,21 @@ export interface PracticeLine {
 }
 export interface PracticeScriptView {
   id: string;
-  type: string;            // 독백 / 2인대사
+  type: string;            // 독백 / 2인대사 / 보고읽기 / 지정연기
   script: PracticeLine[];
+}
+// 현재 제시대사에 학생이 올린 연기영상(선택) — 업로드/피드백 상태
+export interface PracticePerformance {
+  portfolioId: string;
+  videoUrl?: string | null;
+  thumbnailUrl?: string | null;
+  uploadStatus: 'ready' | 'uploading' | 'failed';
+  commentCount: number;
+  hasFeedback: boolean;
 }
 export interface PracticeCurrent {
   current: PracticeScriptView | null;
+  performance: PracticePerformance | null;   // 현재 대사에 올린 연기영상(없으면 null)
   canDrawNew: boolean;
   cooldownSecondsRemaining: number;
   nextDrawAt: string | null;
@@ -275,6 +286,7 @@ export interface PortfolioItem {
   category: string;
   tags: string[];
   practiceGroup?: string;
+  practiceScriptId?: string;   // 제시대사 연결(category=scripted)
   videoDuration?: number;
   comments: PortfolioComment[];
   videos?: PortfolioVideoItem[];

@@ -57,6 +57,7 @@ def portfolio_to_response(p: Portfolio) -> dict:
         "tags": p.tags,
         "ai_feedback": p.ai_feedback,
         "practice_group": p.practice_group,
+        "practice_script_id": p.practice_script_id,
         "video_duration": p.video_duration,
         "comments": [
             {
@@ -392,6 +393,7 @@ async def create_portfolio(
         category=data.category,
         tags=data.tags,
         practice_group=data.practice_group,
+        practice_script_id=data.practice_script_id,
         video_duration=data.video_duration,
     )
     db.add(portfolio)

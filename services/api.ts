@@ -4,7 +4,7 @@ import type {
   ChatMessage, Notice, Notification, PortfolioItem, PortfolioComment,
   CompetitionEvent, ChecklistItem, PrivateLessonRequest,
   JournalComment, Track, MusicDownloadRequest, FeedCard,
-  PracticeCurrent,
+  PracticeCurrent, PracticeScriptView,
 } from '../types';
 
 // --- Config ---
@@ -575,6 +575,10 @@ export const practiceApi = {
   // 전부 소진 시 원장에게 새 대사 요청(12h 내 중복은 already=true).
   requestMore(): Promise<{ ok: boolean; already: boolean }> {
     return apiRequest('/api/practice/request-more', { method: 'POST' });
+  },
+  // 제시대사 원문(괄호 제거된 학생 노출용) 조회 — 선생·원장이 연기영상 검토 시 맥락 표시용.
+  getScript(scriptId: string): Promise<PracticeScriptView> {
+    return apiRequest(`/api/practice/script/${scriptId}`);
   },
 };
 

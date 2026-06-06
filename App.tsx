@@ -44,7 +44,6 @@ const AppInner: React.FC = () => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
-  const [isPracticeOpen, setIsPracticeOpen] = useState(false);
   const [badges, setBadges] = useState<Partial<Record<ViewState, number>>>({});
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -180,6 +179,8 @@ const AppInner: React.FC = () => {
         return <Assignments user={user!} />;
       case 'video':
         return <Video user={user!} />;
+      case 'practice':
+        return <Practice user={user!} asTab />;
       case 'diet':
         return <Diet user={user!} />;
       case 'music':
@@ -213,7 +214,7 @@ const AppInner: React.FC = () => {
   }
 
   // 하단 5탭을 보여주는 메인 화면 (프로필 등 하위화면은 자체 back 헤더 사용)
-  const showNav = ['classes', 'assignments', 'video', 'diet', 'music'].includes(currentView);
+  const showNav = ['classes', 'assignments', 'video', 'practice', 'diet', 'music'].includes(currentView);
 
   return (
     <AppDataProvider value={{ allUsers, classes, setClasses }}>
@@ -227,11 +228,6 @@ const AppInner: React.FC = () => {
 
       {/* 상단 바 — 벨 + 프로필 (프로토타입 상태바 위치) */}
       <header className="flex items-center justify-end gap-1 px-3 pb-1.5 shrink-0" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 10px)' }}>
-        {user.role === UserRole.STUDENT && (
-          <button onClick={() => setIsPracticeOpen(true)} className="w-10 h-10 flex items-center justify-center" aria-label="제시대사 연습">
-            <i className="ti ti-masks-theater" style={{ fontSize: 20, color: '#191F28' }} />
-          </button>
-        )}
         <button onClick={() => setIsNoticeOpen(true)} className="w-10 h-10 flex items-center justify-center" aria-label="공지사항">
           <i className="ti ti-speakerphone" style={{ fontSize: 20, color: '#191F28' }} />
         </button>
@@ -262,13 +258,12 @@ const AppInner: React.FC = () => {
       {showNav && (
         <nav className="shrink-0 bg-white" style={{ borderTop: '0.5px solid #EEF0F2', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           <div className="w-full max-w-[480px] mx-auto">
-            <MobileNav currentView={currentView} onChangeView={setCurrentView} counts={badges} />
+            <MobileNav currentView={currentView} onChangeView={setCurrentView} counts={badges} role={user.role} />
           </div>
         </nav>
       )}
 
       {isNoticeOpen && <Notices user={user} onClose={() => setIsNoticeOpen(false)} />}
-      {isPracticeOpen && <Practice user={user} onClose={() => setIsPracticeOpen(false)} />}
       <InstallPrompt />
       <UploadIndicator />
       <Toaster

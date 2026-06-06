@@ -1,5 +1,6 @@
-"""제시대사 라이브러리 시드 — data/jesi_daesa_library.json → practice_scripts (upsert, 재실행 안전).
+"""제시대사 라이브러리 시드 — data/catalog_scripts.json → practice_scripts (upsert, 재실행 안전).
 
+기출 카탈로그(한예종+상명대) 1012편을 시드하고, 기존 창작본(id가 `jd*`)은 active=False로 은퇴시킨다.
 실행: cd backend && ./venv/bin/python seed_practice.py
 """
 import json
@@ -9,7 +10,7 @@ from app.database import SessionLocal, engine, Base
 import app.models.practice  # noqa: F401  (모델 등록)
 from app.models.practice import PracticeScript
 
-LIB = os.path.join(os.path.dirname(__file__), "data", "jesi_daesa_library.json")
+LIB = os.path.join(os.path.dirname(__file__), "data", "catalog_scripts.json")
 
 
 def seed():
@@ -22,6 +23,11 @@ def seed():
     db = SessionLocal()
     n_new = n_upd = 0
     try:
+        # 기존 창작본(jd*) 은퇴 — FK 보존 위해 삭제하지 않고 비활성화(뽑기 풀에서 제외)
+        n_retired = db.query(PracticeScript).filter(
+            PracticeScript.id.like("jd%"), PracticeScript.active == True  # noqa: E712
+        ).update({PracticeScript.active: False}, synchronize_session=False)
+
         for p in pieces:
             fields = dict(
                 title=p["title"],
@@ -48,7 +54,9 @@ def seed():
                 n_new += 1
         db.commit()
         total = db.query(PracticeScript).count()
-        print(f"✅ practice_scripts 시드 완료 — 신규 {n_new} / 갱신 {n_upd} / 총 {total}편")
+        active = db.query(PracticeScript).filter(PracticeScript.active == True).count()  # noqa: E712
+        print(f"✅ practice_scripts 시드 완료 — 신규 {n_new} / 갱신 {n_upd} / jd*은퇴 {n_retired}")
+        print(f"   총 {total}편 · active {active}편(뽑기 대상)")
     except Exception as e:
         db.rollback()
         print(f"❌ 시드 실패: {e}")
