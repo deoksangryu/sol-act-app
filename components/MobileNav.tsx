@@ -10,12 +10,13 @@ interface MobileNavProps {
 
 type TabDef = { id: ViewState; label: string; icon: string };
 
-// 하단 5탭. 학생은 '영상' 대신 '제시대사'(연기 입시 연습대사) 탭을 본다.
-// 선생·원장은 '영상' 탭 유지(학생들의 제시대사 연기영상 피드백).
+// 하단 5탭. 셋째 탭은 모두 '제시대사' 라벨.
+//  - 학생: 'practice' 뷰(대사 뽑기 + 연기영상 올리기)
+//  - 선생·원장: 'video' 뷰(학생들의 제시대사 연기영상 피드백) — 라벨/아이콘만 동일하게 맞춤
 const tabsForRole = (role: UserRole): TabDef[] => {
   const third: TabDef = role === UserRole.STUDENT
     ? { id: 'practice', label: '제시대사', icon: 'ti-masks-theater' }
-    : { id: 'video', label: '영상', icon: 'ti-video' };
+    : { id: 'video', label: '제시대사', icon: 'ti-masks-theater' };
   return [
     { id: 'classes', label: '수업', icon: 'ti-school' },
     { id: 'assignments', label: '과제', icon: 'ti-checklist' },

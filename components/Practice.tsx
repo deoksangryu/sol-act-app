@@ -178,8 +178,9 @@ export const Practice: React.FC<{ user: User; asTab?: boolean; onClose?: () => v
     setUploadBusy(true);
     setProgress(null);
     try {
+      const snippet = (cur.script[0]?.text || '').replace(/\s+/g, ' ').trim().slice(0, 14);
       const p = await portfolioApi.create({
-        title: '제시대사 연기',
+        title: snippet ? `제시대사 · ${snippet}…` : '제시대사 연기',
         description: (cur.script[0]?.text || '제시대사 연기').slice(0, 40),
         category: 'scripted' as any,
         videoUrl: '',
