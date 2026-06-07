@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { User, UserRole, ViewState, ClassInfo, Notification } from './types';
 import { Login } from './components/Login';
 import { MobileNav } from './components/MobileNav';
@@ -21,6 +21,7 @@ import { UploadIndicator } from './components/UploadIndicator';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { getSavedUser, clearAuth, userApi, classApi, notificationApi, badgeApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
 import { registerNativePush, unregisterNativePush } from './services/nativePush';
+import { initAutoUpdate } from './services/autoUpdate';
 import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
 
 /** Retry a function up to `n` times with exponential backoff */
@@ -48,6 +49,10 @@ const AppInner: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
   const { isUploading } = useUpload();
+  // 새 배포 자동 감지 → 안전할 때(업로드 중 아님 + resume) 조용히 새로고침
+  const uploadingRef = useRef(false);
+  uploadingRef.current = isUploading;
+  useEffect(() => { initAutoUpdate(() => uploadingRef.current); }, []);
 
   // Online/Offline detection
   useEffect(() => {
