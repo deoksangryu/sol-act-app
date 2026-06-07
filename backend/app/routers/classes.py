@@ -17,54 +17,87 @@ DAY_KO_MAP = {'월': 0, '화': 1, '수': 2, '목': 3, '금': 4, '토': 5, '일':
 WEEKS_AHEAD = 4
 
 
+def _plus_hours(hhmm: str, hours: int = 2) -> str:
+    """'19:00' → '21:00' (종료시간 미지정 시 내부용 기본값; 화면엔 표시 안 함)."""
+    try:
+        h, m = (int(x) for x in hhmm.split(':'))
+        return f"{(h + hours) % 24:02d}:{m:02d}"
+    except Exception:
+        return hhmm
+
+
 def generate_lessons_for_class(cls: ClassInfo, db: Session) -> int:
-    """클래스 schedule을 기반으로 향후 WEEKS_AHEAD주 수업을 자동 생성."""
+    """클래스 schedule을 기반으로 향후 WEEKS_AHEAD주 수업을 자동 생성(내일부터).
+
+    - 슬롯별 subject/teacher_id/location을 우선 사용(없으면 subject_teachers/ACTING으로 폴백).
+    - 재생성 시 '미래(내일 이후) 정규 SCHEDULED 수업'을 먼저 정리해 중복을 막는다.
+      (오늘 수업·과거·취소·완료·보강·특강은 보존 → 변경은 내일부터 반영)
+    """
     schedule = cls.schedule
     if not isinstance(schedule, list) or not schedule:
         return 0
 
     today = date.today()
-    created = 0
 
+    # 미래 정규 수업 정리(중복 방지). 오늘 이전/오늘은 건드리지 않음.
+    db.query(Lesson).filter(
+        Lesson.class_id == cls.id,
+        Lesson.date > today,
+        Lesson.lesson_type == LessonType.REGULAR,
+        Lesson.status == LessonStatus.SCHEDULED,
+    ).delete(synchronize_session=False)
+
+    # 폴백용 대표 과목/강사(슬롯에 없을 때)
+    fb_teacher, fb_subject = None, Subject.ACTING
+    if cls.subject_teachers:
+        for subj, tid in cls.subject_teachers.items():
+            if tid:
+                fb_teacher = tid
+                try:
+                    fb_subject = Subject(subj)
+                except ValueError:
+                    pass
+                break
+
+    created = 0
     for slot in schedule:
         day_name = slot.get('day')
         start_time = slot.get('start_time') or slot.get('startTime')
-        end_time = slot.get('end_time') or slot.get('endTime')
-
-        if day_name not in DAY_KO_MAP or not start_time or not end_time:
+        if day_name not in DAY_KO_MAP or not start_time:
             continue
+        end_time = slot.get('end_time') or slot.get('endTime') or _plus_hours(start_time)
 
-        target_weekday = DAY_KO_MAP[day_name]
-        days_ahead = (target_weekday - today.weekday()) % 7
+        # 슬롯별 과목/강사/지점(없으면 폴백)
+        teacher_id = slot.get('teacher_id') or fb_teacher
+        subject = fb_subject
+        if slot.get('subject'):
+            try:
+                subject = Subject(slot['subject'])
+            except ValueError:
+                subject = Subject.ACTING
+        location = slot.get('location')
+        memo = slot.get('subject_label')  # '기본기&제시' 등 정확한 과목명 보존
+
+        # 내일부터: 같은 요일이 오늘이면 다음 주로
+        days_ahead = (DAY_KO_MAP[day_name] - today.weekday()) % 7
+        if days_ahead == 0:
+            days_ahead = 7
         first_date = today + timedelta(days=days_ahead)
 
-        # subject_teachers에서 첫 번째 과목/선생님 사용
-        teacher_id = None
-        subject = Subject.ACTING
-        if cls.subject_teachers:
-            for subj, tid in cls.subject_teachers.items():
-                if tid:
-                    teacher_id = tid
-                    try:
-                        subject = Subject(subj)
-                    except ValueError:
-                        pass
-                    break
-
         for week in range(WEEKS_AHEAD):
-            lesson_date = first_date + timedelta(weeks=week)
-            lesson = Lesson(
+            db.add(Lesson(
                 id=f"lsn{uuid.uuid4().hex[:7]}",
                 class_id=cls.id,
-                date=lesson_date,
+                date=first_date + timedelta(weeks=week),
                 start_time=start_time,
                 end_time=end_time,
                 teacher_id=teacher_id,
                 subject=subject,
+                location=location,
+                memo=memo,
                 status=LessonStatus.SCHEDULED,
                 lesson_type=LessonType.REGULAR,
-            )
-            db.add(lesson)
+            ))
             created += 1
 
     return created

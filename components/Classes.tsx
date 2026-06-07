@@ -98,15 +98,17 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
   const lessonRow = (l: Lesson) => {
     const cc = catColor(l.subject);
     const cancelled = l.status === 'cancelled';
+    // 수업 타이틀에 지점(부평/산곡) 표시 — 세션마다 지점이 달라서 수업 단위로 붙임
+    const lt = l.location ? `${l.className} · ${l.location}` : l.className;
     if (!isStaff) {
       if (cancelled) {
-        return <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className}
+        return <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt}
           sub={`${md(l.date)} · ${l.startTime}`} right={<Tag bg={TOSS.surf} fg={TOSS.sub}>취소됨</Tag>} />;
       }
       if (isPast(l)) {
         const j = myStudentJournal(l.id);
         return (
-          <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={md(l.date)}
+          <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={md(l.date)}
             right={j ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag {...toneColors('todo')}>일지 쓰기</Tag>}
             onClick={j ? () => setView({ name: 'journalView', journalId: j.id }) : () => setView({ name: 'journalWrite', lessonId: l.id, type: 'student' })} />
         );
@@ -114,26 +116,26 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
       if (l.date === todayStr()) {
         const att = myAttendance(l.id);
         return (
-          <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className}
+          <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt}
             sub={`${l.startTime}${att ? ' · 출석 완료' : ' · ' + l.teacherName}`}
             right={att ? <Tag bg={TOSS.successBg} fg={TOSS.success}>출석함</Tag> : <Tag bg={cc.bg} fg={cc.fg}>출석하기</Tag>}
             onClick={att ? undefined : () => setView({ name: 'attend', lessonId: l.id })} />
         );
       }
       return (
-        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className}
+        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt}
           sub={`${md(l.date)} · ${l.startTime}`} right={<Tag>예정</Tag>} />
       );
     }
     // teacher / director
     if (cancelled) {
-      return <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={`${md(l.date)} · ${l.startTime}`}
+      return <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${md(l.date)} · ${l.startTime}`}
         right={<Tag bg={TOSS.surf} fg={TOSS.sub}>취소됨</Tag>} onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />;
     }
     if (isPast(l)) {
       const tj = teacherJournal(l.id);
       return (
-        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={md(l.date)}
+        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={md(l.date)}
           right={tj ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag {...toneColors('todo')}>일지 쓰기</Tag>}
           onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
       );
@@ -141,13 +143,13 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
     if (l.date === todayStr()) {
       const present = attendance.filter(a => a.lessonId === l.id && (a.status === 'present' || a.status === 'late')).length;
       return (
-        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={`${l.startTime} · 진행 중`}
+        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${l.startTime} · 진행 중`}
           right={<Tag>출석 {present}/{classStudents(l.classId).length}</Tag>}
           onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
       );
     }
     return (
-      <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={l.className} sub={`${md(l.date)} · ${l.startTime}`} right={<Tag>예정</Tag>}
+      <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${md(l.date)} · ${l.startTime}`} right={<Tag>예정</Tag>}
         onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
     );
   };

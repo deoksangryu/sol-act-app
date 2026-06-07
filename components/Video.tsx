@@ -8,8 +8,11 @@ import { useDebouncedValue } from '../services/useDebounce';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag,
-  Cta, Empty, InfoBox, ChipSelect, ListSkeleton, FlowTitle, toneColors, SearchBar,
+  Cta, Empty, InfoBox, ChipSelect, ListSkeleton, FlowTitle, toneColors, SearchBar, FilterChips,
 } from './toss/kit';
+
+// 영상 탭 필터 칩(전체 + 카테고리) — 일반 영상 모드에서만 사용
+const VIDEO_FILTERS = [{ value: 'all', label: '전체' }, { value: 'acting', label: '자유연기' }, { value: 'monologue', label: '독백' }, { value: 'musical', label: '뮤지컬 넘버' }, { value: 'dance', label: '자유무용' }, { value: 'basics', label: '발성 연습' }];
 
 const VIDEO_CATS = [
   { value: 'acting', label: '자유연기' },
@@ -75,7 +78,8 @@ const PlayThumb: React.FC<{ thumb?: string; status?: UpState }> = ({ thumb, stat
   );
 };
 
-export const Video: React.FC<{ user: User }> = ({ user }) => {
+// scriptedOnly: 제시대사 연기영상만(선생·원장 '제시대사' 탭). 미지정=일반 영상 탭(전체 카테고리·자유 업로드).
+export const Video: React.FC<{ user: User; scriptedOnly?: boolean }> = ({ user, scriptedOnly = false }) => {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
   const PAGE = 24;
   const [cards, setCards] = useState<FeedCard[]>([]);
@@ -85,15 +89,16 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
   const [openItem, setOpenItem] = useState<PortfolioItem | null>(null);  // single 카드 → 상세
   const [openGroup, setOpenGroup] = useState<FeedCard | null>(null);     // group 카드 → 그룹 상세
   const [uploading, setUploading] = useState(false);
-  // 영상 탭은 제시대사 연기영상만 노출 — 기존(제시대사 이전) 자유 업로드 영상은 전원에게 숨김.
-  const cat = 'scripted';
+  const [catFilter, setCatFilter] = useState('all');
+  // scriptedOnly면 제시대사 연기영상만, 아니면 필터 칩 선택값
+  const cat = scriptedOnly ? 'scripted' : catFilter;
   const [query, setQuery] = useState('');
   const search = useDebouncedValue(query.trim(), 300);
 
-  // 카드 단위 피드(제시대사 연기영상 = single 카드) + 검색
+  // 카드 단위 피드 + 카테고리/검색
   const feedParams = (skip: number) => ({
     ...(isStaff ? {} : { studentId: user.id }),
-    category: 'scripted',
+    ...(cat !== 'all' ? { category: cat } : {}),
     ...(search ? { search } : {}),
     skip, limit: PAGE,
   });
@@ -139,10 +144,14 @@ export const Video: React.FC<{ user: User }> = ({ user }) => {
       title={c.title} sub={cardSub(c)} right={cardTag(c, isStaff)} onClick={() => openCard(c)} />
   );
 
+  const title = scriptedOnly
+    ? (isStaff ? <>제시대사 연기영상에<br />피드백을 남겨요</> : <>제시대사<br />연기영상</>)
+    : (isStaff ? <>학생 영상에<br />피드백을 남겨요</> : <>연습 영상을<br />모아봐요</>);
   return (
     <Screen>
-      <BigTitle title={isStaff ? <>제시대사 연기영상에<br />피드백을 남겨요</> : <>연습 영상을<br />모아봐요</>} />
+      <BigTitle title={title} />
       <SearchBar value={query} onChange={setQuery} placeholder={isStaff ? '제목·학생 검색' : '영상 제목 검색'} />
+      {!scriptedOnly && <FilterChips options={VIDEO_FILTERS} value={catFilter} onChange={setCatFilter} />}
       <Scroll>
         <SectionLabel>{isStaff ? '학생 영상' : '내 연습 영상'} {cards.length}{hasMore ? '+' : ''}</SectionLabel>
         {cards.length === 0 ? <Empty>{isStaff ? '아직 올라온 영상이 없어요' : '아직 올린 영상이 없어요'}</Empty> : cards.map(cardRow)}

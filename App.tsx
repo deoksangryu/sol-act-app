@@ -180,7 +180,10 @@ const AppInner: React.FC = () => {
       case 'video':
         return <Video user={user!} />;
       case 'practice':
-        return <Practice user={user!} asTab />;
+        // 학생=제시대사 연습(대사 뽑기+연기영상), 선생·원장=제시대사 연기영상 피드백
+        return user!.role === UserRole.STUDENT
+          ? <Practice user={user!} asTab />
+          : <Video user={user!} scriptedOnly />;
       case 'diet':
         return <Diet user={user!} />;
       case 'music':
@@ -258,7 +261,7 @@ const AppInner: React.FC = () => {
       {showNav && (
         <nav className="shrink-0 bg-white" style={{ borderTop: '0.5px solid #EEF0F2', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
           <div className="w-full max-w-[480px] mx-auto">
-            <MobileNav currentView={currentView} onChangeView={setCurrentView} counts={badges} role={user.role} />
+            <MobileNav currentView={currentView} onChangeView={setCurrentView} counts={badges} />
           </div>
         </nav>
       )}
