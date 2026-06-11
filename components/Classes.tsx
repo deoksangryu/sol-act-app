@@ -98,8 +98,9 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
   const lessonRow = (l: Lesson) => {
     const cc = catColor(l.subject);
     const cancelled = l.status === 'cancelled';
-    // 수업 타이틀에 지점(부평/산곡) 표시 — 세션마다 지점이 달라서 수업 단위로 붙임
-    const lt = l.location ? `${l.className} · ${l.location}` : l.className;
+    // 수업 타이틀: 반이름(+지점). 개인레슨(반 없음)은 메모(이름)/'개인레슨'으로 대체.
+    const ltBase = l.className || l.memo || (l.isPrivate ? '개인레슨' : '수업');
+    const lt = l.location ? `${ltBase} · ${l.location}` : ltBase;
     if (!isStaff) {
       if (cancelled) {
         return <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt}
@@ -127,15 +128,16 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
           sub={`${md(l.date)} · ${l.startTime}`} right={<Tag>예정</Tag>} />
       );
     }
-    // teacher / director
+    // teacher / director — 각 수업의 담당 선생님 이름을 함께 표시
+    const teach = l.teacherName ? ` · ${l.teacherName}` : '';
     if (cancelled) {
-      return <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${md(l.date)} · ${l.startTime}`}
+      return <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${md(l.date)} · ${l.startTime}${teach}`}
         right={<Tag bg={TOSS.surf} fg={TOSS.sub}>취소됨</Tag>} onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />;
     }
     if (isPast(l)) {
       const tj = teacherJournal(l.id);
       return (
-        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={md(l.date)}
+        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${md(l.date)}${teach}`}
           right={tj ? <Tag bg={TOSS.successBg} fg={TOSS.success}>일지 작성됨</Tag> : <Tag {...toneColors('todo')}>일지 쓰기</Tag>}
           onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
       );
@@ -143,13 +145,13 @@ export const Classes: React.FC<{ user: User }> = ({ user }) => {
     if (l.date === todayStr()) {
       const present = attendance.filter(a => a.lessonId === l.id && (a.status === 'present' || a.status === 'late')).length;
       return (
-        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${l.startTime} · 진행 중`}
+        <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${l.startTime}${teach} · 진행 중`}
           right={<Tag>출석 {present}/{classStudents(l.classId).length}</Tag>}
           onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
       );
     }
     return (
-      <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${md(l.date)} · ${l.startTime}`} right={<Tag>예정</Tag>}
+      <ListRow key={l.id} left={<CategoryIcon cat={l.subject} />} title={lt} sub={`${md(l.date)} · ${l.startTime}${teach}`} right={<Tag>예정</Tag>}
         onClick={() => setView({ name: 'teacherLesson', lessonId: l.id })} />
     );
   };

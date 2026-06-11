@@ -84,6 +84,20 @@ async function saveFileForNative(file: File): Promise<string> {
     await Filesystem.writeFile({ path: fileName, data: '', directory: Directory.Cache });
   }
 
+  // 무결성 검증: 복사본 크기가 원본과 다르면(일부 Android에서 base64 append가 빈/깨진 파일을 만드는 사례)
+  // 이 복사본을 버리고 throw → 호출측이 웹(포그라운드) 업로드로 폴백한다(원본 File을 직접 전송).
+  try {
+    const st = await Filesystem.stat({ path: fileName, directory: Directory.Cache });
+    const written = Number((st as any).size) || 0;
+    if (file.size > 0 && written !== file.size) {
+      try { await Filesystem.deleteFile({ path: fileName, directory: Directory.Cache }); } catch { /* ignore */ }
+      throw new Error(`native copy size mismatch: ${written} != ${file.size}`);
+    }
+  } catch (e) {
+    // stat 실패도 신뢰 불가로 간주 → 폴백
+    throw e instanceof Error ? e : new Error('native copy verify failed');
+  }
+
   const { uri } = await Filesystem.getUri({ path: fileName, directory: Directory.Cache });
   return uri;
 }
