@@ -58,9 +58,9 @@ async def register(user_data: UserCreate, db: Session = Depends(get_db)):
         if invite.role != user_data.role:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="인증코드의 역할이 일치하지 않습니다.")
 
-    # Code-free self-registration must never grant the director (owner) role
-    if invite is None and user_data.role.value == "director":
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="원장 계정은 직접 가입할 수 없어요. 관리자에게 문의하세요.")
+    # 코드 없는 자가가입은 '수강생' 전용. 선생님·원장 계정은 원장이 직접 등록(DB/초대코드).
+    if invite is None and user_data.role.value != "student":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="선생님·원장 계정은 직접 가입할 수 없어요. 원장에게 문의하세요.")
 
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()

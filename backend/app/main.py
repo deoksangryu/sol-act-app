@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -101,31 +101,39 @@ async def add_extra_headers(request, call_next):
     return response
 
 
+# 반배정 안 된 학생 전면 차단 게이트(교사·원장은 통과). 서비스 '기능' 라우터에만 부착.
+from app.utils.auth import require_enrolled_student
+GATE = [Depends(require_enrolled_student)]
+
 # 라우터 등록
+# 비차단(앱 껍데기·신원·대기화면에 필요): auth(로그인/로그아웃), users(프로필), classes,
+#   notices, notifications, push, ws, admin — 미배정 학생도 접근 가능해야 함.
 app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
-app.include_router(assignments.router, prefix="/api/assignments", tags=["Assignments"])
-app.include_router(diet.router, prefix="/api/diet", tags=["Diet"])
 app.include_router(classes.router, prefix="/api/classes", tags=["Classes"])
-app.include_router(chat.router, prefix="/api/chat", tags=["Chat"])
-app.include_router(qna.router, prefix="/api/qna", tags=["Q&A"])
 app.include_router(notices.router, prefix="/api/notices", tags=["Notices"])
 app.include_router(notifications.router, prefix="/api/notifications", tags=["Notifications"])
-app.include_router(lessons.router, prefix="/api/lessons", tags=["Lessons"])
-app.include_router(journals.router, prefix="/api/journals", tags=["Journals"])
-app.include_router(attendance.router, prefix="/api/attendance", tags=["Attendance"])
-app.include_router(evaluations.router, prefix="/api/evaluations", tags=["Evaluations"])
-app.include_router(portfolios.router, prefix="/api/portfolios", tags=["Portfolios"])
-app.include_router(auditions.router, prefix="/api/auditions", tags=["Auditions"])
-app.include_router(private_lessons.router, prefix="/api/private-lessons", tags=["Private Lessons"])
 app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])
-app.include_router(upload.router, prefix="/api", tags=["Upload"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin (localhost only)"])
 app.include_router(push.router, prefix="/api/push", tags=["Push Notifications"])
-app.include_router(praise_stickers.router, prefix="/api/praise-stickers", tags=["Praise Stickers"])
-app.include_router(music.router, prefix="/api/music", tags=["Music"])
-app.include_router(badges.router, prefix="/api", tags=["Badges"])
-app.include_router(practice.router, prefix="/api/practice", tags=["제시대사 Practice"])
+
+# 차단 대상(실제 서비스 기능): 미배정 학생은 403 "반배정 대기 중입니다".
+app.include_router(assignments.router, prefix="/api/assignments", tags=["Assignments"], dependencies=GATE)
+app.include_router(diet.router, prefix="/api/diet", tags=["Diet"], dependencies=GATE)
+app.include_router(chat.router, prefix="/api/chat", tags=["Chat"], dependencies=GATE)
+app.include_router(qna.router, prefix="/api/qna", tags=["Q&A"], dependencies=GATE)
+app.include_router(lessons.router, prefix="/api/lessons", tags=["Lessons"], dependencies=GATE)
+app.include_router(journals.router, prefix="/api/journals", tags=["Journals"], dependencies=GATE)
+app.include_router(attendance.router, prefix="/api/attendance", tags=["Attendance"], dependencies=GATE)
+app.include_router(evaluations.router, prefix="/api/evaluations", tags=["Evaluations"], dependencies=GATE)
+app.include_router(portfolios.router, prefix="/api/portfolios", tags=["Portfolios"], dependencies=GATE)
+app.include_router(auditions.router, prefix="/api/auditions", tags=["Auditions"], dependencies=GATE)
+app.include_router(private_lessons.router, prefix="/api/private-lessons", tags=["Private Lessons"], dependencies=GATE)
+app.include_router(upload.router, prefix="/api", tags=["Upload"], dependencies=GATE)
+app.include_router(praise_stickers.router, prefix="/api/praise-stickers", tags=["Praise Stickers"], dependencies=GATE)
+app.include_router(music.router, prefix="/api/music", tags=["Music"], dependencies=GATE)
+app.include_router(badges.router, prefix="/api", tags=["Badges"], dependencies=GATE)
+app.include_router(practice.router, prefix="/api/practice", tags=["제시대사 Practice"], dependencies=GATE)
 
 # Static file serving for uploads — with security headers + Range support
 # Serves from external SSD if available, falls back to local directory

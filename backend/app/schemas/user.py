@@ -63,6 +63,7 @@ class UserResponse(BaseModel):
     role: UserRole
     avatar: Optional[str] = None
     height: Optional[float] = None  # 키 cm
+    enrolled_class_ids: list[str] = []  # 배정된 반 — 빈 배열이면 학생은 '반배정 대기' 상태
 
     class Config:
         from_attributes = True

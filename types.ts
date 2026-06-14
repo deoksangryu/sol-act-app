@@ -61,6 +61,7 @@ export interface User {
   avatar: string;
   email: string;
   height?: number;   // 키 cm (프로필)
+  enrolled_class_ids?: string[];   // 배정된 반 — 학생이고 빈 배열이면 '반배정 대기'(서비스 차단)
 }
 
 export interface Notice {

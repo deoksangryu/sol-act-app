@@ -30,7 +30,6 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirm, setRegConfirm] = useState('');
-  const [regRole, setRegRole] = useState<'student' | 'teacher'>('student');
 
   const pwRules = {
     length: regPassword.length >= 8,
@@ -63,7 +62,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
     setLoading(true);
     try {
-      await authApi.register({ name: regName.trim(), email: regEmail, password: regPassword, role: regRole as UserRole });
+      await authApi.register({ name: regName.trim(), email: regEmail, password: regPassword, role: UserRole.STUDENT });
       const res = await authApi.login(regEmail, regPassword);
       onLogin(res.user);
     } catch (err: any) {
@@ -202,14 +201,7 @@ export const Login: React.FC<LoginProps> = ({ onLogin }) => {
         ) : (
           /* ── 회원가입 (초대코드 없음) ── */
           <form onSubmit={handleRegister} className="space-y-3 animate-fade-in">
-            <div className="flex bg-toss-surf rounded-2xl p-1">
-              {(['student', 'teacher'] as const).map((r) => (
-                <button type="button" key={r} onClick={() => setRegRole(r)}
-                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${regRole === r ? 'bg-white text-toss-ink shadow-sm' : 'text-toss-sub'}`}>
-                  {r === 'student' ? '수강생' : '선생님'}
-                </button>
-              ))}
-            </div>
+            {/* 수강생 가입 전용 — 선생님 계정은 원장이 직접 등록 */}
             <input value={regName} onChange={(e) => setRegName(e.target.value)} className={inputCls} placeholder="이름" required />
             <input type="email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} className={inputCls} placeholder="이메일" required autoComplete="email" />
             <div>

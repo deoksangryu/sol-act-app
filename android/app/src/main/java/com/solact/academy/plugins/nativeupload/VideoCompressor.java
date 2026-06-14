@@ -185,6 +185,7 @@ public class VideoCompressor {
             boolean decoderDone = false;
             boolean encoderDone = false;
             boolean inputDone = false;
+            int framesWritten = 0; // 실제 muxer에 기록된 인코딩 프레임 수
 
             long lastProgressTime = 0;
 
@@ -240,10 +241,13 @@ public class VideoCompressor {
                     }
                 } else if (encIdx >= 0) {
                     ByteBuffer encBuf = encoder.getOutputBuffer(encIdx);
-                    if (encInfo.size > 0 && muxerStarted) {
+                    // 코덱 설정(CSD) 버퍼는 실제 프레임이 아니므로 카운트에서 제외
+                    boolean isConfig = (encInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
+                    if (encInfo.size > 0 && muxerStarted && !isConfig) {
                         encBuf.position(encInfo.offset);
                         encBuf.limit(encInfo.offset + encInfo.size);
                         muxer.writeSampleData(muxerVideoTrack, encBuf, encInfo);
+                        framesWritten++;
                     }
                     encoder.releaseOutputBuffer(encIdx, false);
                     if ((encInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
@@ -262,6 +266,13 @@ public class VideoCompressor {
             if (muxerStarted) {
                 muxer.stop();
                 muxer.release();
+            }
+
+            // 헤더만 있고 실제 프레임이 0개인 깨진 출력(예: 갤럭시 S25 등 일부 기기에서
+            // decoder→Surface→encoder 파이프라인이 무음 실패) → 압축 실패로 처리해 원본 폴백.
+            if (framesWritten == 0) {
+                Log.w(TAG, "Transcode produced 0 frames — treating as failure (will use original)");
+                return false;
             }
 
             return true;

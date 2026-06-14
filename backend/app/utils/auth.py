@@ -7,7 +7,8 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
-from app.models.user import User
+from app.models.user import User, UserRole
+from app.models.class_info import class_students
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
@@ -52,3 +53,25 @@ def get_current_user(
     if user is None:
         raise credentials_exception
     return user
+
+
+def require_enrolled_student(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """전면 차단 게이트: 반배정이 안 된 학생은 서비스 기능에 접근 불가(403).
+
+    - 학생인데 class_students에 배정 레코드가 0건이면 차단.
+    - 교사·원장은 반배정과 무관하게 항상 통과.
+    반에 배정되는 즉시 자동으로 해제되므로 별도 승인 단계가 필요 없다.
+    """
+    if current_user.role == UserRole.STUDENT:
+        enrolled = db.query(class_students.c.class_id).filter(
+            class_students.c.student_id == current_user.id
+        ).first()
+        if enrolled is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="반배정 대기 중입니다. 관리자에게 문의해주세요.",
+            )
+    return current_user

@@ -33,3 +33,9 @@ class User(Base):
     portfolios = relationship("Portfolio", back_populates="student", cascade="all, delete-orphan")
     portfolio_comments = relationship("PortfolioComment", back_populates="author", cascade="all, delete-orphan")
     auditions = relationship("Audition", back_populates="creator", cascade="all, delete-orphan")
+
+    @property
+    def enrolled_class_ids(self) -> list:
+        """배정된 반 id 목록. 프론트가 '반배정 대기' 상태를 판단하는 데 사용.
+        (enrolled_classes 백레프는 class_info.ClassInfo.students 에서 옴)"""
+        return [c.id for c in self.enrolled_classes]

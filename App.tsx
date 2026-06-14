@@ -19,7 +19,7 @@ import { UploadProvider, useUpload } from './services/UploadContext';
 import { AppDataProvider } from './services/AppContext';
 import { UploadIndicator } from './components/UploadIndicator';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { getSavedUser, clearAuth, userApi, classApi, notificationApi, badgeApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
+import { getSavedUser, saveUser, clearAuth, userApi, classApi, notificationApi, badgeApi, resolveFileUrl, registerPushSubscription, unregisterPushSubscription } from './services/api';
 import { registerNativePush, unregisterNativePush } from './services/nativePush';
 import { initAutoUpdate } from './services/autoUpdate';
 import { useWebSocketConnection, useNotificationWebSocket, useDataRefresh } from './services/useWebSocket';
@@ -122,6 +122,12 @@ const AppInner: React.FC = () => {
       setAllUsers(usersData);
       setClasses(classesData);
       setNotifications(notifsData);
+      // 현재 사용자 최신화(특히 enrolled_class_ids) — 반배정 직후 새로고침/재로그인 시
+      // '반배정 대기' 게이트가 자동 해제되도록. 실패해도 무시(기존 user 유지).
+      userApi.get(currentUser.id).then((fresh) => {
+        setUser(fresh);
+        saveUser(fresh);
+      }).catch(() => {});
       // 푸시 등록(비차단): 웹푸시(PWA/브라우저) + 네이티브 푸시(FCM/APNs)
       registerPushSubscription();
       registerNativePush();
@@ -218,6 +224,41 @@ const AppInner: React.FC = () => {
         <Login onLogin={handleLogin} />
         <InstallPrompt />
       </>
+    );
+  }
+
+  // 반배정 대기 차단: 학생인데 배정된 반이 0개면 서비스 전면 차단(대기 화면만 노출).
+  // enrolled_class_ids가 아예 없는(구버전 토큰) 경우엔 게이트하지 않고 백엔드 403에 위임 →
+  // 이미 로그인된 기존 수강생이 재로그인 전까지 잘못 잠기는 것을 방지.
+  if (
+    user.role === UserRole.STUDENT &&
+    Array.isArray(user.enrolled_class_ids) &&
+    user.enrolled_class_ids.length === 0
+  ) {
+    return (
+      <div className="min-h-[100dvh] bg-white flex flex-col items-center justify-center px-8 text-center" style={{ color: '#191F28' }}>
+        <i className="ti ti-clock-hour-4" style={{ fontSize: 48, color: '#3182F6' }} />
+        <h1 className="text-xl font-extrabold mt-5 mb-2">반배정 대기 중이에요</h1>
+        <p className="text-sm leading-relaxed" style={{ color: '#6B7684' }}>
+          {user.name}님, 가입이 완료되었어요.<br />
+          담당 선생님이 반을 배정하면 모든 기능을 이용할 수 있어요.<br />
+          배정 관련 문의는 학원으로 연락해주세요.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-7 w-full max-w-[280px] py-3 rounded-xl font-bold text-white"
+          style={{ background: '#3182F6' }}
+        >
+          새로고침
+        </button>
+        <button
+          onClick={handleLogout}
+          className="mt-2 w-full max-w-[280px] py-3 rounded-xl font-bold"
+          style={{ background: '#F2F4F6', color: '#4E5968' }}
+        >
+          로그아웃
+        </button>
+      </div>
     );
   }
 
