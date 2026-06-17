@@ -5,6 +5,7 @@
 
 import { Capacitor, registerPlugin } from '@capacitor/core';
 import toast from 'react-hot-toast';
+import { getVideoDimensions } from './videoMeta';
 
 interface NativeUploadPlugin {
   compressAndUpload(options: {
@@ -43,6 +44,29 @@ const NativeUpload = registerPlugin<NativeUploadPlugin>('NativeUpload');
  */
 export function isNativeUploadAvailable(): boolean {
   return Capacitor.isNativePlatform();
+}
+
+/**
+ * 720p 초과(maxDim > 1280) 영상은 현재 네이티브 앱의 압축 과정에서 소리가 빠질 수 있음.
+ * 업로드 전 사용자에게 알리고 진행 여부를 확인한다. true=계속, false=취소.
+ * (비네이티브 환경/저해상도/비영상 파일은 경고 없이 통과. APK 오디오 패스스루 적용 후엔 제거 가능.)
+ */
+export async function confirmVideoAudioRisk(files: File | File[]): Promise<boolean> {
+  if (!Capacitor.isNativePlatform()) return true;
+  const list = Array.isArray(files) ? files : [files];
+  let risky = false;
+  for (const f of list) {
+    if (!f.type.startsWith('video/')) continue;
+    const dim = await getVideoDimensions(f);
+    if (dim && Math.max(dim.width, dim.height) > 1280) { risky = true; break; }
+  }
+  if (!risky) return true;
+  return window.confirm(
+    '선택한 영상이 고화질(720p 초과)이에요.\n\n' +
+    '지금 앱에서는 고화질 영상을 올릴 때 소리가 빠질 수 있어요. ' +
+    '폰 카메라 설정에서 동영상 화질을 HD(720p)로 낮춰 다시 촬영하면 소리가 유지돼요.\n\n' +
+    '그래도 이대로 올릴까요?'
+  );
 }
 
 /** Blob 한 조각을 base64 문자열로 (data: 프리픽스 제거). */

@@ -397,9 +397,9 @@ export const Growth: React.FC<GrowthProps> = ({ user }) => {
       const maxDim = Math.max(res.width, res.height);
       if (maxDim > 1080) {
         const label = maxDim >= 2160 ? '4K' : maxDim >= 1440 ? '2K' : `${maxDim}p`;
-        setResolutionWarning(`선택한 영상이 ${label} (${res.width}x${res.height}) 고해상도입니다. 업로드 중 앱이 종료될 수 있습니다.`);
+        setResolutionWarning(`선택한 영상이 ${label} (${res.width}x${res.height}) 고해상도입니다. 업로드 중 소리가 빠지거나 앱이 종료될 수 있습니다.`);
         setShowResolutionTip(true);
-        toast(`${label} 고해상도 영상입니다. 카메라 설정을 720p로 낮추면 빠르고 안정적으로 업로드할 수 있습니다.`, { duration: 10000, icon: '⚠️' });
+        toast(`${label} 고해상도 영상입니다. 카메라 설정을 720p로 낮추면 소리가 유지되고 안정적으로 업로드됩니다.`, { duration: 10000, icon: '⚠️' });
       }
     }
 

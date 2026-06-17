@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { User, UserRole, Assignment } from '../types';
 import { assignmentApi, uploadApi, resolveFileUrl, API_URL, getToken } from '../services/api';
-import { nativeBackgroundUpload } from '../services/nativeUpload';
+import { nativeBackgroundUpload, confirmVideoAudioRisk } from '../services/nativeUpload';
 import { useAppData } from '../services/AppContext';
 import { useDataRefresh } from '../services/useWebSocket';
 import { useDebouncedValue } from '../services/useDebounce';
@@ -194,6 +194,7 @@ const StudentDetail: React.FC<{ a: Assignment; onBack: () => void; onReload: () 
   const submitted = a.status !== 'pending';
   const submit = async () => {
     if (!text.trim() && !file) return;
+    if (file && !(await confirmVideoAudioRisk(file))) return;
     setBusy(true);
     // 1) 텍스트 제출 — 실패하면 화면 유지하고 중단(이미 제출됐다고 오인 방지)
     try {

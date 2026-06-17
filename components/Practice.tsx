@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { User, PracticeCurrent, PracticeScriptView, PortfolioItem } from '../types';
 import { practiceApi, portfolioApi, uploadApi, API_URL, getToken, resolveFileUrl } from '../services/api';
-import { nativeBackgroundUpload } from '../services/nativeUpload';
+import { nativeBackgroundUpload, confirmVideoAudioRisk } from '../services/nativeUpload';
 import { getVideoDuration } from '../services/videoMeta';
 import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
@@ -175,6 +175,7 @@ export const Practice: React.FC<{ user: User; asTab?: boolean; onClose?: () => v
       toast.error(`2분 이내 영상만 올릴 수 있어요 (현재 약 ${Math.round(dur)}초)`);
       return;
     }
+    if (!(await confirmVideoAudioRisk(f))) return;
     setUploadBusy(true);
     setProgress(null);
     try {

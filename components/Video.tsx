@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { User, UserRole, PortfolioItem, FeedCard, PracticeScriptView } from '../types';
 import { portfolioApi, uploadApi, practiceApi, resolveFileUrl, API_URL, getToken } from '../services/api';
-import { nativeBackgroundUpload } from '../services/nativeUpload';
+import { nativeBackgroundUpload, confirmVideoAudioRisk } from '../services/nativeUpload';
 import { useDataRefresh } from '../services/useWebSocket';
 import { useDebouncedValue } from '../services/useDebounce';
 import { TOSS } from '../services/category';
@@ -402,6 +402,7 @@ const UploadScreen: React.FC<{ onBack: () => void; onDone: () => Promise<void> }
 
   const submit = async () => {
     if (files.length === 0 || !cat || !title.trim()) return;
+    if (!(await confirmVideoAudioRisk(files))) return;
     setBusy(true);
     try {
       let bgCount = 0;

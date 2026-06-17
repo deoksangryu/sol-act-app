@@ -2,7 +2,9 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { User, UserRole, PraiseSticker } from '../types';
 import { userApi, uploadApi, resolveFileUrl, registerPushSubscription, praiseStickerApi } from '../services/api';
+import { registerNativePush, getNativePushStatus } from '../services/nativePush';
 import { useDataRefresh } from '../services/useWebSocket';
+import { Capacitor } from '@capacitor/core';
 import toast from 'react-hot-toast';
 
 interface ProfileSettingsProps {
@@ -35,6 +37,8 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
 
   // Push notification
   const [pushStatus, setPushStatus] = useState<'loading' | 'unsupported' | 'denied' | 'granted' | 'prompt'>('loading');
+  // 푸시 환경: 네이티브 앱(ios/android) vs 웹/PWA — 차단 시 안내 문구가 달라짐
+  const [pushPlatform, setPushPlatform] = useState<'ios' | 'android' | 'web'>('web');
 
   // PWA install
   const [isStandalone, setIsStandalone] = useState(false);
@@ -57,13 +61,22 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
   useEffect(() => { loadStickers(); }, [loadStickers]);
   useDataRefresh('praise_stickers', loadStickers);
 
-  useEffect(() => {
+  // 현재 푸시 권한 상태를 다시 읽어온다(팝업 없이). 설정에서 켠 뒤 '다시 확인'에도 사용.
+  const refreshPushStatus = useCallback(async () => {
+    if (Capacitor.isNativePlatform()) {
+      setPushPlatform(Capacitor.getPlatform() === 'ios' ? 'ios' : 'android');
+      setPushStatus(await getNativePushStatus());
+      return;
+    }
+    setPushPlatform('web');
     if (!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)) {
       setPushStatus('unsupported');
       return;
     }
     setPushStatus(Notification.permission as 'denied' | 'granted' | 'prompt');
   }, []);
+
+  useEffect(() => { refreshPushStatus(); }, [refreshPushStatus]);
 
   useEffect(() => {
     setIsStandalone(window.matchMedia('(display-mode: standalone)').matches);
@@ -90,18 +103,35 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
 
   const handleEnablePush = async () => {
     try {
+      if (Capacitor.isNativePlatform()) {
+        // 네이티브: 권한 요청 + 토큰 등록(이미 차단 상태면 OS가 팝업을 막아 즉시 denied로 반환)
+        await registerNativePush();
+        const s = await getNativePushStatus();
+        setPushStatus(s);
+        if (s === 'granted') toast.success('푸시 알림이 활성화되었습니다.');
+        else if (s === 'denied') toast.error('알림이 차단되어 있어요. 아래 안내대로 기기 설정에서 켜주세요.');
+        return;
+      }
       await registerPushSubscription(true);
       const newStatus = Notification.permission as 'denied' | 'granted' | 'prompt';
       setPushStatus(newStatus);
       if (newStatus === 'granted') {
         toast.success('푸시 알림이 활성화되었습니다.');
       } else if (newStatus === 'denied') {
-        toast.error('알림 권한이 차단되었습니다. 브라우저 설정에서 허용해주세요.');
+        toast.error('알림이 차단되어 있어요. 아래 안내대로 설정에서 허용해주세요.');
       }
     } catch {
       toast.error('알림 설정에 실패했습니다.');
     }
   };
+
+  // 차단(denied) 상태에서 보여줄 기기별 재허용 안내
+  const deniedGuide =
+    pushPlatform === 'ios'
+      ? '아이폰 [설정] 앱 → [알림] → 목록에서 SOL-ACT → "알림 허용"을 켜주세요.'
+      : pushPlatform === 'android'
+      ? '[설정] → [앱] → SOL-ACT → [알림] → "허용"으로 변경해주세요.'
+      : '브라우저 주소창의 자물쇠(또는 사이트 설정) → [알림] → "허용"으로 변경해주세요.';
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -367,8 +397,15 @@ export const ProfileSettings: React.FC<ProfileSettingsProps> = ({ user, onUserUp
           </div>
         ) : pushStatus === 'denied' ? (
           <div className="bg-red-50 rounded-xl p-4">
-            <p className="text-sm text-red-700 font-medium">알림이 차단되어 있습니다.</p>
-            <p className="text-xs text-slate-500 mt-1">브라우저 설정 &gt; 사이트 설정 &gt; 알림에서 허용으로 변경해주세요.</p>
+            <p className="text-sm text-red-700 font-medium">알림이 차단되어 있어요.</p>
+            <p className="text-xs text-slate-600 mt-2 leading-relaxed">{deniedGuide}</p>
+            <p className="text-xs text-slate-400 mt-1">설정에서 켠 뒤 아래 버튼을 눌러주세요.</p>
+            <button
+              onClick={refreshPushStatus}
+              className="mt-3 w-full bg-white border border-slate-200 text-slate-700 py-2.5 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-colors"
+            >
+              다시 확인
+            </button>
           </div>
         ) : (
           <div className="space-y-3">

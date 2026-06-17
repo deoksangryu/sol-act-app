@@ -41,6 +41,24 @@ export async function registerNativePush(): Promise<void> {
   }
 }
 
+/**
+ * 네이티브 푸시 권한 상태 조회(팝업 없이 현재 상태만).
+ * 웹(비네이티브)에서는 'unsupported' 반환 → 호출측이 Web Push 경로로 분기.
+ */
+export async function getNativePushStatus(): Promise<'granted' | 'denied' | 'prompt' | 'unsupported'> {
+  if (!Capacitor.isNativePlatform()) return 'unsupported';
+  try {
+    const { PushNotifications } = await import('@capacitor/push-notifications');
+    const perm = await PushNotifications.checkPermissions();
+    // receive: 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale'
+    if (perm.receive === 'granted') return 'granted';
+    if (perm.receive === 'denied') return 'denied';
+    return 'prompt';
+  } catch {
+    return 'unsupported';
+  }
+}
+
 export async function unregisterNativePush(): Promise<void> {
   if (!Capacitor.isNativePlatform()) return;
   try {
