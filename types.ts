@@ -8,7 +8,7 @@ export enum UserRole {
 // v8 프로토타입 5탭 IA + 보조 화면. (레거시 값은 숨김 기능 복원용으로 유지)
 // 학생은 'video' 대신 'practice'(제시대사) 탭을 본다(역할별 분기 — MobileNav).
 export type ViewState =
-  | 'classes' | 'assignments' | 'video' | 'practice' | 'diet' | 'music' | 'profile'
+  | 'classes' | 'assignments' | 'video' | 'practice' | 'diet' | 'music' | 'profile' | 'plan'
   | 'dashboard' | 'lessons' | 'growth' | 'community' | 'academy';
 
 export enum Subject {
@@ -103,6 +103,29 @@ export interface DietLog {
   aiAdvice?: string;
   teacherComment?: string;
   imageUrl?: string;
+}
+
+// 학습 계획(주간/하루) — 할 일 체크리스트 + 진행률
+export interface PlanItem {
+  id: string;
+  content: string;
+  done: boolean;
+  sortOrder: number;
+}
+
+export interface Plan {
+  id: string;
+  studentId: string;
+  studentName: string;
+  planType: 'daily' | 'weekly';
+  planDate: string;      // YYYY-MM-DD (weekly = 그 주 월요일)
+  teacherComment?: string;
+  items: PlanItem[];
+  totalCount: number;
+  doneCount: number;
+  progress: number;      // 0 ~ 100
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Answer {

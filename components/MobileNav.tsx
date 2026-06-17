@@ -7,12 +7,13 @@ interface MobileNavProps {
   counts?: Partial<Record<ViewState, number>>;
 }
 
-// 하단 6탭 (전 역할 공통). '영상'=자유 업로드 영상, '제시대사'=대사 연습/연기영상.
+// 하단 7탭 (전 역할 공통). '영상'=자유 업로드 영상, '제시대사'=대사 연습/연기영상.
 //  - 학생: 제시대사='practice'(대사 뽑기+연기영상 올리기)
 //  - 선생·원장: 제시대사='video' scriptedOnly(제시대사 연기영상 피드백) — App.tsx renderView에서 분기
 const TABS: { id: ViewState; label: string; icon: string }[] = [
   { id: 'classes', label: '수업', icon: 'ti-school' },
-  { id: 'assignments', label: '과제', icon: 'ti-checklist' },
+  { id: 'assignments', label: '과제', icon: 'ti-clipboard-text' },
+  { id: 'plan', label: '계획', icon: 'ti-calendar-check' },
   { id: 'video', label: '영상', icon: 'ti-video' },
   { id: 'practice', label: '제시대사', icon: 'ti-masks-theater' },
   { id: 'diet', label: '식단', icon: 'ti-salad' },

@@ -9,6 +9,7 @@ const Assignments = React.lazy(() => import('./components/Assignments').then(m =
 const Video = React.lazy(() => import('./components/Video').then(m => ({ default: m.Video })));
 const Diet = React.lazy(() => import('./components/Diet').then(m => ({ default: m.Diet })));
 const Music = React.lazy(() => import('./components/Music').then(m => ({ default: m.Music })));
+const Plan = React.lazy(() => import('./components/Plan').then(m => ({ default: m.Plan })));
 const ProfileSettings = React.lazy(() => import('./components/ProfileSettings').then(m => ({ default: m.ProfileSettings })));
 import { Notifications } from './components/Notifications';
 import { Notices } from './components/Notices';
@@ -98,7 +99,7 @@ const AppInner: React.FC = () => {
   // 반드시 early-return 위에 위치해야 함(Rules of Hooks).
   const refreshBadges = useCallback(() => { badgeApi.get().then(setBadges).catch(() => {}); }, []);
   useEffect(() => { if (user) refreshBadges(); }, [user, refreshBadges]);
-  useDataRefresh(['assignments', 'portfolios', 'diet', 'music'], refreshBadges);
+  useDataRefresh(['assignments', 'portfolios', 'diet', 'music', 'plans'], refreshBadges);
 
   const loadClasses = useCallback(() => {
     classApi.list().then(setClasses).catch(console.error);
@@ -199,6 +200,8 @@ const AppInner: React.FC = () => {
         return <Diet user={user!} />;
       case 'music':
         return <Music user={user!} />;
+      case 'plan':
+        return <Plan user={user!} />;
       case 'profile':
         return <ProfileSettings user={user!} onUserUpdate={(u) => setUser(u)} onBack={() => setCurrentView('classes')} onLogout={handleLogout} />;
       default:
@@ -263,7 +266,7 @@ const AppInner: React.FC = () => {
   }
 
   // 하단 5탭을 보여주는 메인 화면 (프로필 등 하위화면은 자체 back 헤더 사용)
-  const showNav = ['classes', 'assignments', 'video', 'practice', 'diet', 'music'].includes(currentView);
+  const showNav = ['classes', 'assignments', 'video', 'practice', 'diet', 'music', 'plan'].includes(currentView);
 
   return (
     <AppDataProvider value={{ allUsers, classes, setClasses }}>

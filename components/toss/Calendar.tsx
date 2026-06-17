@@ -23,7 +23,8 @@ export const MiniCalendar: React.FC<{
   month: Date;
   onMonth: (d: Date) => void;
   toggleLabel?: string;           // 접힌 상태 버튼 라벨(기본 '캘린더')
-}> = ({ marked, selected, onSelect, open, onToggle, month, onMonth, toggleLabel = '캘린더' }) => {
+  hideClear?: boolean;            // true=선택 해제/'전체 보기' 숨김(항상 한 날짜 유지) — 계획 화면용
+}> = ({ marked, selected, onSelect, open, onToggle, month, onMonth, toggleLabel = '캘린더', hideClear = false }) => {
   const y = month.getFullYear(), m = month.getMonth();
   const firstDow = new Date(y, m, 1).getDay();
   const days = new Date(y, m + 1, 0).getDate();
@@ -68,7 +69,7 @@ export const MiniCalendar: React.FC<{
               const isToday = ds === today;
               const isSel = ds === selected;
               return (
-                <button key={ds} onClick={() => onSelect(isSel ? null : ds)}
+                <button key={ds} onClick={() => onSelect(isSel && !hideClear ? null : ds)}
                   style={{ background: 'none', border: 'none', padding: '3px 0', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1 }}>
                   <span style={{
                     width: 30, height: 30, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -81,7 +82,7 @@ export const MiniCalendar: React.FC<{
               );
             })}
           </div>
-          {selected && (
+          {selected && !hideClear && (
             <button onClick={() => onSelect(null)} style={{ width: '100%', marginTop: 4, background: 'none', border: 'none', padding: 6, fontSize: 13, color: TOSS.blue, fontWeight: 600, cursor: 'pointer' }}>전체 보기</button>
           )}
         </div>

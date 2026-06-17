@@ -18,6 +18,7 @@ from .device_token import DeviceToken
 from .praise_sticker import PraiseSticker
 from .music import Track, MusicDownloadRequest
 from .practice import PracticeScript, PracticeDraw, PracticeRequest
+from .plan import Plan, PlanItem
 
 __all__ = [
     "User",
@@ -47,4 +48,6 @@ __all__ = [
     "PracticeScript",
     "PracticeDraw",
     "PracticeRequest",
+    "Plan",
+    "PlanItem",
 ]

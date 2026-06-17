@@ -178,6 +178,7 @@ public class VideoCompressor {
             MediaMuxer muxer = new MediaMuxer(output.getAbsolutePath(),
                 MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4);
             int muxerVideoTrack = -1;
+            int muxerAudioTrack = -1;
             boolean muxerStarted = false;
 
             MediaCodec.BufferInfo decInfo = new MediaCodec.BufferInfo();
@@ -236,6 +237,15 @@ public class VideoCompressor {
                 if (encIdx == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
                     if (!muxerStarted) {
                         muxerVideoTrack = muxer.addTrack(encoder.getOutputFormat());
+                        // 오디오 트랙은 재인코딩 없이 원본 포맷 그대로 추가(muxer.start 전에 추가해야 함).
+                        if (audioTrack >= 0 && srcAudioFormat != null) {
+                            try {
+                                muxerAudioTrack = muxer.addTrack(srcAudioFormat);
+                            } catch (Exception ae) {
+                                Log.w(TAG, "오디오 트랙 추가 실패 — 오디오 없이 진행", ae);
+                                muxerAudioTrack = -1;
+                            }
+                        }
                         muxer.start();
                         muxerStarted = true;
                     }
@@ -263,6 +273,41 @@ public class VideoCompressor {
             encoder.release();
             inputSurface.release();
             extractor.release();
+
+            // 오디오 패스스루: 비디오만 재인코딩하고 오디오는 원본 샘플 그대로 복사(음질 손실·부하 없음).
+            // muxer.stop() 전에 수행해야 한다. 실패해도 영상(무음)은 살리고 계속 진행.
+            if (muxerStarted && muxerAudioTrack >= 0) {
+                MediaExtractor audioExtractor = null;
+                try {
+                    audioExtractor = new MediaExtractor();
+                    audioExtractor.setDataSource(input.getAbsolutePath());
+                    audioExtractor.selectTrack(audioTrack);
+                    audioExtractor.seekTo(0, MediaExtractor.SEEK_TO_CLOSEST_SYNC);
+
+                    int maxInput = srcAudioFormat.containsKey(MediaFormat.KEY_MAX_INPUT_SIZE)
+                        ? srcAudioFormat.getInteger(MediaFormat.KEY_MAX_INPUT_SIZE) : 256 * 1024;
+                    ByteBuffer audioBuf = ByteBuffer.allocate(Math.max(maxInput, 64 * 1024));
+                    MediaCodec.BufferInfo audioInfo = new MediaCodec.BufferInfo();
+
+                    while (true) {
+                        int sz = audioExtractor.readSampleData(audioBuf, 0);
+                        if (sz < 0) break;
+                        audioInfo.offset = 0;
+                        audioInfo.size = sz;
+                        audioInfo.presentationTimeUs = audioExtractor.getSampleTime();
+                        audioInfo.flags = (audioExtractor.getSampleFlags()
+                            & MediaExtractor.SAMPLE_FLAG_SYNC) != 0
+                            ? MediaCodec.BUFFER_FLAG_KEY_FRAME : 0;
+                        muxer.writeSampleData(muxerAudioTrack, audioBuf, audioInfo);
+                        audioExtractor.advance();
+                    }
+                } catch (Exception ae) {
+                    Log.w(TAG, "오디오 복사 실패 — 무음으로 진행", ae);
+                } finally {
+                    if (audioExtractor != null) audioExtractor.release();
+                }
+            }
+
             if (muxerStarted) {
                 muxer.stop();
                 muxer.release();

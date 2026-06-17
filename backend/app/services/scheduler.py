@@ -5,6 +5,7 @@ Checks auditions with upcoming registration periods and notifies users.
 """
 import asyncio
 import logging
+import time
 from datetime import date, timedelta, datetime
 from typing import List
 
@@ -96,6 +97,55 @@ async def check_registration_deadlines() -> None:
         db.close()
 
 
+async def check_plan_reminders() -> None:
+    """저녁(19시 KST)에 '오늘의 하루계획'을 아직 안 세운 학생에게 한 번 푸시.
+
+    학습 계획 습관 형성용. 멱등성: 동일 메시지가 최근 20시간 내 발송됐으면 건너뜀(하루 1회).
+    푸시 수신은 기존 네이티브/웹푸시 인프라를 그대로 사용(앱 재배포 불필요).
+    """
+    db = SessionLocal()
+    try:
+        from app.models.plan import Plan, PlanType
+        from app.models.notification import Notification
+        from app.services.notification_service import notify_users
+
+        kst_today = (datetime.utcnow() + timedelta(hours=9)).date()
+        recent_cutoff = datetime.utcnow() - timedelta(hours=20)
+        msg = "📝 오늘의 학습 계획을 세워볼까요? 하루 할 일을 적고 체크해봐요."
+
+        already = db.query(Notification.id).filter(
+            Notification.message == msg, Notification.created_at >= recent_cutoff
+        ).first() is not None
+        if already:
+            logger.info("Skip duplicate plan reminder (already sent ≤20h)")
+            return
+
+        students = db.query(User.id).filter(User.role == UserRole.STUDENT).all()
+        student_ids = [s[0] for s in students]
+        if not student_ids:
+            return
+
+        # 오늘 '하루계획'이 이미 있는 학생 제외
+        planned = db.query(Plan.student_id).filter(
+            Plan.plan_type == PlanType.DAILY,
+            Plan.plan_date == kst_today,
+            Plan.student_id.in_(student_ids),
+        ).all()
+        planned_ids = {p[0] for p in planned}
+        targets = [sid for sid in student_ids if sid not in planned_ids]
+        if not targets:
+            logger.info("Plan reminder: all students already planned today")
+            return
+
+        await notify_users(db, targets, msg, entity="plans")
+        logger.info(f"Plan reminder sent to {len(targets)} student(s)")
+    except Exception as e:
+        logger.error(f"Plan reminder check failed: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 def complete_past_lessons() -> int:
     """Flip SCHEDULED lessons whose end time has passed to COMPLETED.
 
@@ -143,8 +193,13 @@ async def start_scheduler() -> None:
             # 가입마감 알림은 하루 1회로 충분 (스케줄러는 1시간 주기라 24틱마다)
             if ticks % 24 == 0:
                 await check_registration_deadlines()
+            # 학습 계획 리마인더: 저녁(19시 이후 KST) 첫 틱에 1회(20h 멱등 가드가 중복 차단).
+            # '== 19'가 아니라 '>= 19'라 틱이 19시대를 살짝 비껴가도 그날 리마인더를 놓치지 않음.
+            if (datetime.utcnow() + timedelta(hours=9)).hour >= 19:
+                await check_plan_reminders()
         except Exception as e:
             logger.error(f"Scheduler error: {e}")
         ticks += 1
-        # 1시간 주기 — 종료된 수업을 1시간 내 완료 처리
-        await asyncio.sleep(3600)
+        # 매 정시(top-of-hour)에 맞춰 깨움 — 작업 시간만큼 누적 드리프트되어 특정 시각을
+        # 영영 건너뛰는 문제 방지(이전엔 sleep(3600)이라 매 사이클이 1시간보다 길어 드리프트).
+        await asyncio.sleep(max(60, 3600 - int(time.time()) % 3600))

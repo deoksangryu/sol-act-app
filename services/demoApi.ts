@@ -244,6 +244,106 @@ export const demoPrivateLessonApi = {
   async delete(id: string) { await delay(); privateRequests = privateRequests.filter(r => r.id !== id); },
 };
 
+// ── 학습 계획(데모) ──
+const mondayOf = (d = new Date()) => { const x = new Date(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return x.toISOString().split('T')[0]; };
+const weekMon = mondayOf();
+const dayBefore = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+const nowIso = () => new Date().toISOString();
+// 로그인 주입(localStorage) / demoAuthApi 로그인 둘 다에서 현재 사용자 파악
+const persona = (): User | null => currentUser || (() => { try { return JSON.parse(localStorage.getItem('sol_act_user') || 'null'); } catch { return null; } })();
+
+let demoPlans: any[] = [
+  { id: 'plan_s1_d', studentId: 's1', studentName: '김배우', planType: 'daily', planDate: today,
+    teacherComment: '발성 연습 꾸준히 하는 모습 좋아요! 독백은 감정선에 더 집중해봐요.',
+    items: [
+      { id: 'pi1', content: '발성·호흡 30분', done: true, sortOrder: 0 },
+      { id: 'pi2', content: '햄릿 독백 대사 암기', done: true, sortOrder: 1 },
+      { id: 'pi3', content: '자유연기 1편 촬영해서 올리기', done: false, sortOrder: 2 },
+      { id: 'pi4', content: '스트레칭·유연성 운동', done: false, sortOrder: 3 },
+    ], createdAt: nowIso(), updatedAt: nowIso() },
+  { id: 'plan_s1_w', studentId: 's1', studentName: '김배우', planType: 'weekly', planDate: weekMon,
+    teacherComment: null,
+    items: [
+      { id: 'pw1', content: '자유연기 2편 완성', done: true, sortOrder: 0 },
+      { id: 'pw2', content: '뮤지컬 넘버 1곡 연습', done: false, sortOrder: 1 },
+      { id: 'pw3', content: '무용 기본기 매일 30분', done: false, sortOrder: 2 },
+      { id: 'pw4', content: '제시대사 5편 연습', done: false, sortOrder: 3 },
+    ], createdAt: nowIso(), updatedAt: nowIso() },
+  { id: 'plan_s2_d', studentId: 's2', studentName: '이연기', planType: 'daily', planDate: today,
+    teacherComment: null,
+    items: [
+      { id: 'pa1', content: '발성 연습', done: true, sortOrder: 0 },
+      { id: 'pa2', content: '대본 분석', done: true, sortOrder: 1 },
+      { id: 'pa3', content: '독백 촬영', done: true, sortOrder: 2 },
+    ], createdAt: nowIso(), updatedAt: nowIso() },
+  { id: 'plan_s3_d', studentId: 's3', studentName: '박무대', planType: 'daily', planDate: today,
+    teacherComment: null,
+    items: [
+      { id: 'pb1', content: '스트레칭', done: false, sortOrder: 0 },
+      { id: 'pb2', content: '노래 연습 1시간', done: false, sortOrder: 1 },
+    ], createdAt: nowIso(), updatedAt: nowIso() },
+  // s1 지난 이틀 100% 완료 → 연속(streak) 데모
+  { id: 'plan_s1_y', studentId: 's1', studentName: '김배우', planType: 'daily', planDate: yesterday,
+    teacherComment: '어제도 끝까지 완료했네요. 좋은 흐름이에요 👍',
+    items: [
+      { id: 'py1', content: '발성·호흡 30분', done: true, sortOrder: 0 },
+      { id: 'py2', content: '독백 대사 암기', done: true, sortOrder: 1 },
+      { id: 'py3', content: '스트레칭', done: true, sortOrder: 2 },
+    ], createdAt: nowIso(), updatedAt: nowIso() },
+  { id: 'plan_s1_yy', studentId: 's1', studentName: '김배우', planType: 'daily', planDate: dayBefore,
+    teacherComment: null,
+    items: [
+      { id: 'pz1', content: '뮤지컬 넘버 연습', done: true, sortOrder: 0 },
+      { id: 'pz2', content: '자유연기 촬영', done: true, sortOrder: 1 },
+    ], createdAt: nowIso(), updatedAt: nowIso() },
+];
+const calcPlan = (p: any) => {
+  const total = p.items.length;
+  const done = p.items.filter((i: any) => i.done).length;
+  return { ...p, totalCount: total, doneCount: done, progress: total ? Math.round((done / total) * 1000) / 10 : 0 };
+};
+
+export const demoPlanApi = {
+  async list(params: any = {}) {
+    await delay(120);
+    const me = persona();
+    let r = demoPlans;
+    if (me?.role === 'student') r = r.filter(p => p.studentId === me.id);
+    if (params.type) r = r.filter(p => p.planType === params.type);
+    return r.map(calcPlan);
+  },
+  async get(id: string) { await delay(80); const p = demoPlans.find(x => x.id === id); return p ? calcPlan(p) : null; },
+  async create(data: any) {
+    await delay();
+    const me = persona();
+    const p = {
+      id: genId('plan'), studentId: data.studentId, studentName: me?.name || '김배우',
+      planType: data.planType, planDate: data.planDate, teacherComment: null,
+      items: (data.items || []).map((it: any, i: number) => ({ id: genId('pi'), content: it.content, done: false, sortOrder: it.sortOrder ?? i })),
+      createdAt: nowIso(), updatedAt: nowIso(),
+    };
+    demoPlans.push(p);
+    return calcPlan(p);
+  },
+  async update(id: string, data: any) {
+    await delay();
+    const p = demoPlans.find(x => x.id === id);
+    if (p) {
+      if (data.items) p.items = data.items.map((it: any, i: number) => ({ id: it.id || genId('pi'), content: it.content, done: !!it.done, sortOrder: it.sortOrder ?? i }));
+      if (data.teacherComment !== undefined) p.teacherComment = data.teacherComment;
+      p.updatedAt = nowIso();
+    }
+    return p ? calcPlan(p) : null;
+  },
+  async toggleItem(itemId: string, done: boolean) {
+    await delay(80);
+    const p = demoPlans.find(x => x.items.some((i: any) => i.id === itemId));
+    if (p) { const it = p.items.find((i: any) => i.id === itemId); if (it) it.done = done; }
+    return p ? calcPlan(p) : null;
+  },
+  async delete(id: string) { await delay(); demoPlans = demoPlans.filter(x => x.id !== id); },
+};
+
 export const demoUploadApi = {
   upload(_file: File, onProgress?: (pct: number) => void): Promise<{ url: string; filename: string }> {
     return new Promise(resolve => {

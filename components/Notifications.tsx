@@ -13,6 +13,7 @@ interface NotificationsProps {
 /** 알림 메시지에서 이동할 탭을 추론 (Notification에 별도 타깃 필드가 없으므로 키워드 기반) */
 function inferView(message: string): ViewState | null {
   if (/영상|포트폴리오/.test(message)) return 'video';
+  if (/계획/.test(message)) return 'plan';
   if (/과제/.test(message)) return 'assignments';
   if (/식단/.test(message)) return 'diet';
   if (/음원|음악/.test(message)) return 'music';
@@ -27,6 +28,7 @@ const CAT: Record<string, { icon: string; bg: string; fg: string }> = {
   diet: { icon: 'ti-salad', bg: TOSS.successBg, fg: TOSS.success },
   music: { icon: 'ti-headphones', bg: TOSS.purpleBg, fg: TOSS.purple },
   classes: { icon: 'ti-school', bg: TOSS.blueBg, fg: TOSS.blue },
+  plan: { icon: 'ti-calendar-check', bg: TOSS.blueBg, fg: TOSS.blue },
 };
 
 /** 프로토타입 sNf — 전체화면 알림 (카테고리 아이콘 칩 + 미읽음 배경 + 파랑 점 + 하단 '모두 읽음') */

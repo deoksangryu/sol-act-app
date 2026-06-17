@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 from app.routers import (
     auth, users, assignments, diet, classes, chat, qna, notices, notifications,
     lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
-    ws, upload, admin, push, praise_stickers, music, badges, practice
+    ws, upload, admin, push, praise_stickers, music, badges, practice, plans
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -134,6 +134,7 @@ app.include_router(praise_stickers.router, prefix="/api/praise-stickers", tags=[
 app.include_router(music.router, prefix="/api/music", tags=["Music"], dependencies=GATE)
 app.include_router(badges.router, prefix="/api", tags=["Badges"], dependencies=GATE)
 app.include_router(practice.router, prefix="/api/practice", tags=["제시대사 Practice"], dependencies=GATE)
+app.include_router(plans.router, prefix="/api/plans", tags=["Plans"], dependencies=GATE)
 
 # Static file serving for uploads — with security headers + Range support
 # Serves from external SSD if available, falls back to local directory

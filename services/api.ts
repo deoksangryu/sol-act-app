@@ -4,7 +4,7 @@ import type {
   ChatMessage, Notice, Notification, PortfolioItem, PortfolioComment,
   CompetitionEvent, ChecklistItem, PrivateLessonRequest,
   JournalComment, Track, MusicDownloadRequest, FeedCard,
-  PracticeCurrent, PracticeScriptView,
+  PracticeCurrent, PracticeScriptView, Plan,
 } from '../types';
 
 // --- Config ---
@@ -20,7 +20,7 @@ import {
   demoDietApi, demoNoticeApi, demoNotificationApi, demoJournalApi,
   demoAttendanceApi, demoQnaApi, demoEvaluationApi, demoPortfolioApi,
   demoAuditionApi, demoChatApi, demoPrivateLessonApi, demoUploadApi,
-  demoMusicApi,
+  demoMusicApi, demoPlanApi,
 } from './demoApi';
 
 // --- Token Management ---
@@ -501,6 +501,36 @@ export const dietApi = {
   // 선생님/원장: 학생별 체중 요약
   weightStudents(): Promise<StudentWeightSummary[]> {
     return apiRequest('/api/diet/weight/students');
+  },
+};
+
+// 학습 계획(주간/하루) — 체크리스트 + 진행률
+export const planApi = {
+  list(params?: { studentId?: string; type?: 'daily' | 'weekly'; from?: string; to?: string; skip?: number; limit?: number }): Promise<Plan[]> {
+    const q = new URLSearchParams();
+    if (params?.studentId) q.set('student_id', params.studentId);
+    if (params?.type) q.set('type', params.type);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    if (params?.skip != null) q.set('skip', String(params.skip));
+    if (params?.limit != null) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return apiRequest(`/api/plans${qs ? '?' + qs : ''}`);
+  },
+  get(id: string): Promise<Plan> {
+    return apiRequest(`/api/plans/${id}`);
+  },
+  create(data: { studentId: string; planType: 'daily' | 'weekly'; planDate: string; items?: { content: string; sortOrder?: number }[] }): Promise<Plan> {
+    return apiRequest('/api/plans', { method: 'POST', body: JSON.stringify(toSnake(data)) });
+  },
+  update(id: string, data: { items?: { id?: string; content: string; done?: boolean; sortOrder?: number }[]; teacherComment?: string }): Promise<Plan> {
+    return apiRequest(`/api/plans/${id}`, { method: 'PUT', body: JSON.stringify(toSnake(data)) });
+  },
+  toggleItem(itemId: string, done: boolean): Promise<Plan> {
+    return apiRequest(`/api/plans/items/${itemId}/toggle`, { method: 'PATCH', body: JSON.stringify({ done }) });
+  },
+  delete(id: string): Promise<void> {
+    return apiRequest(`/api/plans/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -1553,5 +1583,6 @@ if (DEMO_MODE) {
   Object.assign(privateLessonApi, demoPrivateLessonApi);
   Object.assign(uploadApi, demoUploadApi);
   Object.assign(musicApi, demoMusicApi);
+  Object.assign(planApi, demoPlanApi);
   console.log('%c[SOL-ACT] Demo mode active — using mock data', 'color: #F59E0B; font-weight: bold;');
 }

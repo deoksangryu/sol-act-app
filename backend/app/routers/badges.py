@@ -7,6 +7,7 @@ from app.models.assignment import Assignment, AssignmentStatus
 from app.models.portfolio import Portfolio
 from app.models.diet import DietLog
 from app.models.music import MusicDownloadRequest, RequestStatus
+from app.models.plan import Plan
 from app.services.notification_service import get_teacher_student_ids
 from app.utils.auth import get_current_user
 
@@ -19,7 +20,7 @@ def get_badges(db: Session = Depends(get_db), current_user: User = Depends(get_c
 
     student: 미제출 과제 / teacher·director: 피드백 없는 영상·식단, (원장) 대기 음원요청.
     """
-    counts = {"classes": 0, "assignments": 0, "video": 0, "diet": 0, "music": 0}
+    counts = {"classes": 0, "assignments": 0, "plan": 0, "video": 0, "diet": 0, "music": 0}
     role = current_user.role
 
     if role == UserRole.STUDENT:
@@ -27,6 +28,7 @@ def get_badges(db: Session = Depends(get_db), current_user: User = Depends(get_c
             Assignment.student_id == current_user.id,
             Assignment.status == AssignmentStatus.PENDING,
         ).count()
+        # 학생에겐 계획 탭 배지를 띄우지 않음(빨간 배지 압박 대신 인앱 넛지·저녁 푸시로 유도)
         return counts
 
     # 최근 항목만 집계(과거 누적 백로그로 뱃지가 영구히 99+가 되는 것 방지)
@@ -35,10 +37,12 @@ def get_badges(db: Session = Depends(get_db), current_user: User = Depends(get_c
     # teacher: 담당 학생 한정 / director: 전체
     pf = db.query(Portfolio)
     dl = db.query(DietLog)
+    pl = db.query(Plan)
     if role == UserRole.TEACHER:
         sids = get_teacher_student_ids(db, current_user.id)
         pf = pf.filter(Portfolio.student_id.in_(sids))
         dl = dl.filter(DietLog.student_id.in_(sids))
+        pl = pl.filter(Plan.student_id.in_(sids))
 
     # 영상: 최근 + 코멘트(피드백) 0개 + 실제 영상이 올라온 것
     counts["video"] = pf.filter(
@@ -48,6 +52,11 @@ def get_badges(db: Session = Depends(get_db), current_user: User = Depends(get_c
     counts["diet"] = dl.filter(
         ((DietLog.teacher_comment.is_(None)) | (DietLog.teacher_comment == "")),
         DietLog.created_at >= recent,
+    ).count()
+    # 계획: 최근 + 교사 피드백(코멘트) 없는 것 = '피드백 대기'
+    counts["plan"] = pl.filter(
+        ((Plan.teacher_comment.is_(None)) | (Plan.teacher_comment == "")),
+        Plan.created_at >= recent,
     ).count()
     # 음악: 원장만 대기 요청 수(음원 요청은 원장 전용)
     if role == UserRole.DIRECTOR:
