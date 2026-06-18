@@ -6,6 +6,7 @@ import { useDataRefresh } from '../services/useWebSocket';
 import { TOSS } from '../services/category';
 import { MiniCalendar } from './toss/Calendar';
 import { PushNudge } from './PushNudge';
+import { PracticePrinciples } from './PracticePrinciples';
 import {
   Screen, Scroll, BigTitle, BackHeader, SectionLabel, FilterChips,
   Cta, Empty, ListSkeleton, Tag, Avatar, ListRow, InfoBox,
@@ -69,6 +70,7 @@ const StudentPlan: React.FC<{ user: User }> = ({ user }) => {
   const [busy, setBusy] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState('');
+  const [showPrinciples, setShowPrinciples] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // 모든 계획을 한 번에 받아 타입 전환 시 재호출·스켈레톤 깜빡임 방지
@@ -182,6 +184,13 @@ const StudentPlan: React.FC<{ user: User }> = ({ user }) => {
         sub="할 일을 세우고 체크해요 · 담당 선생님도 함께 봐요"
       />
       <PushNudge reason="알림을 켜면 선생님 피드백과 '오늘 계획' 리마인더를 받을 수 있어요." />
+      {/* 연습의 6원칙 — 계획 화면에서 항상 펼쳐볼 수 있는 진입점 */}
+      <button onClick={() => setShowPrinciples(true)}
+        style={{ margin: '4px 20px 2px', width: 'calc(100% - 40px)', display: 'flex', alignItems: 'center', gap: 10, background: 'linear-gradient(100deg,#15140f,#1b1810)', border: '1px solid #2e2a20', borderRadius: 12, padding: '11px 13px', cursor: 'pointer' }}>
+        <i className="ti ti-flame" style={{ color: '#e7c46a', fontSize: 19, flexShrink: 0 }} />
+        <span style={{ flex: 1, textAlign: 'left', color: '#f2ede0', fontSize: 13, fontWeight: 600 }}>연습의 6원칙 <span style={{ color: '#8c8676', fontWeight: 400 }}>· 계획 전에 읽기</span></span>
+        <i className="ti ti-chevron-right" style={{ color: '#c9a24b', fontSize: 16, flexShrink: 0 }} />
+      </button>
       <FilterChips
         options={[{ value: 'daily', label: '하루계획' }, { value: 'weekly', label: '주간계획' }]}
         value={planType}
@@ -264,6 +273,7 @@ const StudentPlan: React.FC<{ user: User }> = ({ user }) => {
           </>
         )}
       </Scroll>
+      {showPrinciples && <PracticePrinciples onClose={() => setShowPrinciples(false)} />}
     </Screen>
   );
 };

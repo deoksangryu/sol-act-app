@@ -17,8 +17,10 @@ import {
 
 // Simulate network delay
 const delay = (ms = 300) => new Promise(r => setTimeout(r, ms));
-const today = new Date().toISOString().split('T')[0];
-const yesterday = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+// 로컬 날짜 문자열(앱의 todayStr과 동일 기준 — UTC 오프셋으로 하루 어긋나지 않게)
+const _ld = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const today = _ld(new Date());
+const yesterday = _ld(new Date(Date.now() - 86400000));
 
 let currentUser: User | null = null;
 
@@ -245,9 +247,9 @@ export const demoPrivateLessonApi = {
 };
 
 // ── 학습 계획(데모) ──
-const mondayOf = (d = new Date()) => { const x = new Date(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return x.toISOString().split('T')[0]; };
+const mondayOf = (d = new Date()) => { const x = new Date(d); const dow = (x.getDay() + 6) % 7; x.setDate(x.getDate() - dow); return _ld(x); };
 const weekMon = mondayOf();
-const dayBefore = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+const dayBefore = _ld(new Date(Date.now() - 2 * 86400000));
 const nowIso = () => new Date().toISOString();
 // 로그인 주입(localStorage) / demoAuthApi 로그인 둘 다에서 현재 사용자 파악
 const persona = (): User | null => currentUser || (() => { try { return JSON.parse(localStorage.getItem('sol_act_user') || 'null'); } catch { return null; } })();

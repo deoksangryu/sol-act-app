@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>연습의 6원칙</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0a0a0a;
+    --paper:#0d0d0f;
+    --gold:#c9a24b;
+    --gold-bright:#e7c46a;
+    --bone:#f2ede0;
+    --muted:#6f6a5e;
+    --line:#26241f;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html,body{background:#1a1a1a;}
+  body{
+    font-family:'Noto Sans KR',sans-serif;
+    display:flex;justify-content:center;
+    padding:24px;
+  }
+  .sheet{
+    width:210mm;min-height:297mm;
+    background:
+      radial-gradient(120% 80% at 50% -10%, #16140f 0%, var(--paper) 55%, #08080a 100%);
+    color:var(--bone);
+    padding:22mm 18mm 16mm;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.6);
+  }
+  .sheet::before{
+    content:"";position:absolute;inset:8mm;
+    border:1px solid var(--line);
+    pointer-events:none;
+  }
+  /* HEADER */
+  .eyebrow{
+    font-size:11px;letter-spacing:.5em;
+    color:var(--gold);font-weight:700;
+    text-transform:uppercase;text-align:center;
+    margin-bottom:14px;
+  }
+  .title{
+    font-family:'Black Han Sans',sans-serif;
+    text-align:center;line-height:.92;
+    letter-spacing:-.01em;
+  }
+  .title .big{
+    display:block;font-size:96px;
+    color:var(--bone);
+    text-shadow:0 0 1px var(--gold);
+  }
+  .title .gold{
+    display:block;font-size:96px;
+    background:linear-gradient(180deg,var(--gold-bright),var(--gold) 60%,#8a6d2c);
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+  .lede{
+    text-align:center;max-width:60ch;margin:20px auto 6px;
+    font-size:13.5px;font-weight:300;color:#cfc9bb;line-height:1.7;
+  }
+  .lede b{color:var(--gold-bright);font-weight:700;}
+  .rule{
+    width:46px;height:2px;background:var(--gold);
+    margin:22px auto 26px;
+  }
+  /* LIST */
+  .items{
+    display:flex;flex-direction:column;
+    border-top:1px solid var(--line);
+  }
+  .item{
+    display:grid;
+    grid-template-columns:64px 1fr;
+    gap:18px;
+    padding:18px 6px;
+    border-bottom:1px solid var(--line);
+    align-items:start;
+  }
+  .num{
+    font-family:'Black Han Sans',sans-serif;
+    font-size:40px;line-height:1;
+    color:transparent;
+    -webkit-text-stroke:1.3px var(--gold);
+    padding-top:2px;
+  }
+  .body .head{
+    font-family:'Noto Sans KR',sans-serif;
+    font-weight:900;font-size:20px;
+    color:var(--bone);letter-spacing:-.01em;
+    margin-bottom:5px;
+  }
+  .body .head .accent{color:var(--gold-bright);}
+  .body .desc{
+    font-size:12.5px;font-weight:300;
+    color:#a8a294;line-height:1.65;
+  }
+  .body .desc .key{
+    color:var(--bone);font-weight:500;
+    border-bottom:1px solid var(--gold);
+  }
+  /* FOOTER */
+  .creed{
+    margin-top:26px;text-align:center;
+    padding:20px;
+    background:linear-gradient(180deg,rgba(201,162,75,.06),transparent);
+    border:1px solid var(--line);
+  }
+  .creed .q{
+    font-family:'Black Han Sans',sans-serif;
+    font-size:26px;color:var(--gold-bright);
+    line-height:1.25;letter-spacing:-.01em;
+  }
+  .creed .sub{
+    margin-top:10px;font-size:11.5px;
+    color:var(--muted);font-weight:300;letter-spacing:.02em;
+  }
+  .brand{
+    margin-top:16px;text-align:center;
+    font-size:10px;letter-spacing:.4em;
+    color:var(--muted);text-transform:uppercase;font-weight:500;
+  }
+  @media print{
+    html,body{background:#fff;}
+    body{padding:0;}
+    .sheet{box-shadow:none;width:210mm;min-height:297mm;}
+  }
+</style>
+</head>
+<body>
+  <div class="sheet">
+    <div class="eyebrow">연기 입시 · 연습실 원칙</div>
+    <h1 class="title">
+      <span class="big">반복하지 마라</span>
+      <span class="gold">검증하라</span>
+    </h1>
+    <p class="lede">
+      30번을 반복해도, 묻지 않으면 1번 한 것과 같다.
+      연습은 외우는 게 아니라 <b>가설을 던지고 부딪혀 깨지는 일</b>이다.
+      깨달음은 선생이 주는 게 아니라, 네가 직접 부딪혀야 생긴다.
+    </p>
+    <div class="rule"></div>
+
+    <div class="items">
+      <div class="item">
+        <div class="num">01</div>
+        <div class="body">
+          <div class="head">오늘 <span class="accent">확인할 질문 하나</span>를 들고 들어가라</div>
+          <div class="desc">질문 없는 반복은 연습이 아니라 워밍업이다. "이 대사를 낮게 깔면 긴장이 사는가" — <span class="key">검증할 한 가지</span>를 정하고 시작하라.</div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="num">02</div>
+        <div class="body">
+          <div class="head">한 번에 <span class="accent">하나만</span> 바꿔라</div>
+          <div class="desc">다 고치려다 다 무너진다. 오늘은 호흡만, 다음은 시선만. <span class="key">변수를 하나만 통제</span>해야 무엇을 바꿔 무엇이 달라졌는지 배운다.</div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="num">03</div>
+        <div class="body">
+          <div class="head">감정을 짜내지 마라, <span class="accent">의도로 행동하라</span></div>
+          <div class="desc">"슬프게"는 가짜를 부른다. "가지 말라고 붙잡는다" — <span class="key">상대에게 무엇을 하려는가</span>를 정하면 감정은 따라온다.</div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="num">04</div>
+        <div class="body">
+          <div class="head">실패를 <span class="accent">데이터로</span> 삼아라</div>
+          <div class="desc">망한 건 부끄러운 게 아니라 수확이다. "방금 건 왜 안 됐지?"를 입 밖으로 꺼내라. <span class="key">안 되는 방식 하나를 확인한 것</span>도 전진이다.</div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="num">05</div>
+        <div class="body">
+          <div class="head">찍어서 <span class="accent">네 눈으로</span> 봐라</div>
+          <div class="desc">머릿속 의도와 화면 속 결과는 다르다. 녹화하고 <span class="key">어디서 어긋났는지</span> 직접 짚어라. 객관화 없이는 깨달음이 네 것이 되지 않는다.</div>
+        </div>
+      </div>
+
+      <div class="item">
+        <div class="num">06</div>
+        <div class="body">
+          <div class="head">끝낼 때 <span class="accent">다음 시도</span>를 남겨라</div>
+          <div class="desc">"다음엔 이걸 해본다" 한 줄을 적고 나가라. <span class="key">연습과 연습이 이어져야</span> 성장 곡선이 생긴다. 끊기면 매번 0에서 시작이다.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="creed">
+      <div class="q">"오늘, 나는 무엇을 부딪혀 깨뜨릴 것인가?"</div>
+      <div class="sub">이 질문에 답하지 못하면 — 아직 연습을 시작하지 않은 것이다.</div>
+    </div>
+
+    <div class="brand">쏠연기뮤지컬학원</div>
+  </div>
+</body>
+</html>
