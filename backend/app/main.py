@@ -131,7 +131,11 @@ app.include_router(auditions.router, prefix="/api/auditions", tags=["Auditions"]
 app.include_router(private_lessons.router, prefix="/api/private-lessons", tags=["Private Lessons"], dependencies=GATE)
 app.include_router(upload.router, prefix="/api", tags=["Upload"], dependencies=GATE)
 app.include_router(praise_stickers.router, prefix="/api/praise-stickers", tags=["Praise Stickers"], dependencies=GATE)
-app.include_router(music.router, prefix="/api/music", tags=["Music"], dependencies=GATE)
+# music은 GATE(반배정) 미적용 — 인앱 청취 스트림(/tracks/{id}/stream)이 <audio>라 Bearer를
+# 못 보내고 서명 토큰(t)으로만 인증하는데, GATE가 get_current_user(Bearer)를 강제하면 401로
+# 막힌다. 음원 조회 API는 각 엔드포인트가 get_current_user로 인증하고, 미배정 학생은 프론트
+# 대기화면이 이미 차단하므로 안전.
+app.include_router(music.router, prefix="/api/music", tags=["Music"])
 app.include_router(badges.router, prefix="/api", tags=["Badges"], dependencies=GATE)
 app.include_router(practice.router, prefix="/api/practice", tags=["제시대사 Practice"], dependencies=GATE)
 app.include_router(plans.router, prefix="/api/plans", tags=["Plans"], dependencies=GATE)
