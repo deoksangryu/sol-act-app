@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, DateTime, Integer, Date, Float, ForeignKey, Enum as SQLEnum
+from sqlalchemy import Column, String, Text, DateTime, Integer, Date, Float, ForeignKey, Enum as SQLEnum, Index
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime
@@ -14,6 +14,10 @@ class MealType(str, enum.Enum):
 
 class DietLog(Base):
     __tablename__ = "diet_logs"
+    # 식단 목록: WHERE student_id (=|IN) [+ date 범위] ORDER BY date DESC.
+    __table_args__ = (
+        Index("ix_diet_logs_student_date", "student_id", "date"),
+    )
 
     id = Column(String, primary_key=True, index=True)
     student_id = Column(String, ForeignKey("users.id"), nullable=False)

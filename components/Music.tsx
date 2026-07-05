@@ -63,8 +63,15 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
   useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, [cat, search]);
   useDataRefresh(['music'], load);
 
-  // 카테고리 칩(전체 + 고정 4종, 프로토타입 순서) — FilterChips 형식
-  const CAT_OPTS = [{ value: 'all', label: '전체' }, { value: '현대무용', label: '현대무용' }, { value: '발레', label: '발레' }, { value: '재즈댄스', label: '재즈댄스' }, { value: '한국무용', label: '한국무용' }];
+  // 카테고리 칩(전체 + 신_무용음악 5장르) — value는 DB category와 정확히 일치해야 필터됨
+  const CAT_OPTS = [
+    { value: 'all', label: '전체' },
+    { value: '붉은 빛의 정열과 긴장감', label: '붉은 빛의 정열과 긴장감' },
+    { value: '차갑고 묵직한 철과 콘크리트', label: '차갑고 묵직한 철과 콘크리트' },
+    { value: '무대 위의 클래식과 무용수', label: '무대 위의 클래식과 무용수' },
+    { value: '어둠 속의 추격과 박동', label: '어둠 속의 추격과 박동' },
+    { value: '숲과 자연의 신비로움', label: '숲과 자연의 신비로움' },
+  ];
   const renderMore = () => hasMore ? (
     <button onClick={loadMore} disabled={more} style={{ display: 'block', margin: '12px auto 20px', background: TOSS.surf, color: TOSS.sub, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{more ? '불러오는 중…' : '더 보기'}</button>
   ) : null;

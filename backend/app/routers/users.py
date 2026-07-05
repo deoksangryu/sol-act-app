@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from typing import List, Optional
 from app.database import get_db
 from app.models.user import User, UserRole
@@ -16,7 +16,9 @@ def list_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    query = db.query(User)
+    # enrolled_class_ids(@property)가 직렬화 시 enrolled_classes 지연쿼리를 사용자마다 1회씩
+    # 날려 1+N 문제가 됨 → selectinload로 한 번에 적재(1+N → 2쿼리, 출력 동일).
+    query = db.query(User).options(selectinload(User.enrolled_classes))
     # Student: only themselves (no enumerating other users / PII)
     if current_user.role == UserRole.STUDENT:
         query = query.filter(User.id == current_user.id)
