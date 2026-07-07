@@ -7,7 +7,7 @@ import { useDebouncedValue } from '../services/useDebounce';
 import { TOSS } from '../services/category';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag, Chevron,
-  Empty, InfoBox, ChipSelect, Avatar, ListSkeleton, FlowTitle, toneColors, SearchBar, FilterChips,
+  Empty, InfoBox, ChipSelect, Avatar, ListSkeleton, FlowTitle, toneColors, SearchBar,
 } from './toss/kit';
 
 // 트랙 상태 → 칩 (프로토타입 pill 대응)
@@ -29,16 +29,15 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [more, setMore] = useState(false);
-  const [cat, setCat] = useState('all');
   const [query, setQuery] = useState('');
   const [openId, setOpenId] = useState<string | null>(null);     // 트랙 상세
   const [requestId, setRequestId] = useState<string | null>(null); // 다운로드 요청 화면
   const [reviewId, setReviewId] = useState<string | null>(null);   // 요청 승인/거절 화면(원장)
 
   const search = useDebouncedValue(query.trim(), 300);
-  const filtering = cat !== 'all' || !!search;
-  // 서버사이드 카테고리 + 검색(전 곡 대상)
-  const trackParams = (skip: number) => ({ category: cat, ...(search ? { search } : {}), skip, limit: PAGE });
+  const filtering = !!search;
+  // 카테고리 필터는 제거(오분류 많음) — 검색만. 서버사이드 검색(전 곡 대상)
+  const trackParams = (skip: number) => ({ ...(search ? { search } : {}), skip, limit: PAGE });
   const load = async () => {
     try {
       const [t, r] = await Promise.all([
@@ -59,19 +58,10 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
     } catch (e: any) { toast.error(e.message || '더 불러오지 못했어요'); }
     finally { setMore(false); }
   };
-  // 최초 + 카테고리/검색 변경 시 재조회(첫 진입만 스켈레톤, 이후 부드럽게 교체)
-  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, [cat, search]);
+  // 최초 + 검색 변경 시 재조회(첫 진입만 스켈레톤, 이후 부드럽게 교체)
+  useEffect(() => { load().finally(() => setLoading(false)); /* eslint-disable-next-line */ }, [search]);
   useDataRefresh(['music'], load);
 
-  // 카테고리 칩(전체 + 신_무용음악 5장르) — value는 DB category와 정확히 일치해야 필터됨
-  const CAT_OPTS = [
-    { value: 'all', label: '전체' },
-    { value: '붉은 빛의 정열과 긴장감', label: '붉은 빛의 정열과 긴장감' },
-    { value: '차갑고 묵직한 철과 콘크리트', label: '차갑고 묵직한 철과 콘크리트' },
-    { value: '무대 위의 클래식과 무용수', label: '무대 위의 클래식과 무용수' },
-    { value: '어둠 속의 추격과 박동', label: '어둠 속의 추격과 박동' },
-    { value: '숲과 자연의 신비로움', label: '숲과 자연의 신비로움' },
-  ];
   const renderMore = () => hasMore ? (
     <button onClick={loadMore} disabled={more} style={{ display: 'block', margin: '12px auto 20px', background: TOSS.surf, color: TOSS.sub, border: 'none', borderRadius: 12, padding: '11px 22px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>{more ? '불러오는 중…' : '더 보기'}</button>
   ) : null;
@@ -111,7 +101,6 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
       <Screen>
         <BigTitle title={<>무용 음악을<br />관리해요</>} />
         <SearchBar value={query} onChange={setQuery} placeholder="곡 제목 검색" />
-        <FilterChips options={CAT_OPTS} value={cat} onChange={setCat} />
         <Scroll>
           {!filtering && isDirector && (pending.length > 0 ? (
             <>
@@ -143,7 +132,7 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
               key={t.id}
               left={<IconChip bg={TOSS.surf}><i className="ti ti-music" style={{ fontSize: 21, color: TOSS.sub }} /></IconChip>}
               title={t.title}
-              sub={`${t.category}${t.duration ? ' · ' + t.duration : ''}`}
+              sub={t.duration || ''}
               onClick={() => setOpenId(t.id)}
             />
           ))}
@@ -153,12 +142,11 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
     );
   }
 
-  // ── 학생: 카테고리 필터 + 검색 + 곡 목록 ── sMu(student)
+  // ── 학생: 검색 + 곡 목록 ── sMu(student)
   return (
     <Screen>
       <BigTitle title={<>무용 음악을<br />들어봐요</>} sub="연습실 안에서 자유롭게 들어요" />
       <SearchBar value={query} onChange={setQuery} placeholder="곡 제목 검색" />
-      <FilterChips options={CAT_OPTS} value={cat} onChange={setCat} />
       <Scroll>
         <SectionLabel>{filtering ? `검색 결과 ${tracks.length}곡` : `무용 음악 ${tracks.length}곡`}</SectionLabel>
         {tracks.length === 0 ? <Empty>해당하는 음악이 없어요</Empty> : tracks.map(t => (
@@ -166,7 +154,7 @@ export const Music: React.FC<{ user: User }> = ({ user }) => {
             key={t.id}
             left={<IconChip bg={TOSS.blueBg}><i className="ti ti-music" style={{ fontSize: 21, color: TOSS.blue }} /></IconChip>}
             title={t.title}
-            sub={`${t.category}${t.mood ? ' · ' + t.mood : ''}${t.duration ? ' · ' + t.duration : ''}`}
+            sub={`${t.mood ? t.mood + ' · ' : ''}${t.duration || ''}`}
             right={statusTag(t) || <Chevron />}
             onClick={() => setOpenId(t.id)}
           />
@@ -225,7 +213,7 @@ const TrackDetail: React.FC<{
         {/* 제목 */}
         <div style={{ padding: '18px 20px 0', textAlign: 'center' }}>
           <div style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-.02em', color: TOSS.ink }}>{track.title}</div>
-          <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{track.category}{track.mood ? ' · ' + track.mood : ''}</div>
+          {(track.mood || track.duration) && <div style={{ fontSize: 13, color: TOSS.sub, marginTop: 6 }}>{track.mood ? track.mood + ' · ' : ''}{track.duration || ''}</div>}
         </div>
         {/* 진행바 */}
         <div style={{ padding: '24px 24px 0' }}>
@@ -319,7 +307,7 @@ const RequestScreen: React.FC<{ track: Track; onBack: () => void; onDone: () => 
             <IconChip bg={TOSS.blueBg} size={40}><i className="ti ti-music" style={{ fontSize: 19, color: TOSS.blue }} /></IconChip>
             <div>
               <div style={{ fontSize: 14, fontWeight: 600, color: TOSS.ink }}>{track.title}</div>
-              <div style={{ fontSize: 12, color: TOSS.sub, marginTop: 2 }}>{track.category}{track.duration ? ' · ' + track.duration : ''}</div>
+              <div style={{ fontSize: 12, color: TOSS.sub, marginTop: 2 }}>{track.duration || ''}</div>
             </div>
           </div>
           <div style={{ fontSize: 13, fontWeight: 500, color: TOSS.sub, margin: '18px 0 8px' }}>사용 목적</div>
