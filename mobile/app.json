@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "SOL-ACT",
+    "slug": "sol-act",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.solact.academy"
+    },
+    "android": {
+      "package": "com.solact.academy",
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "프로필 사진과 과제·영상·식단 업로드를 위해 사진 접근이 필요합니다."
+        }
+      ],
+      "expo-video"
+    ]
+  }
+}
