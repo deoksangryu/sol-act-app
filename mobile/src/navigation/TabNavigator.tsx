@@ -2,11 +2,12 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Icon } from '../components/Icon';
 import { color } from '../theme/tokens';
-import { DietScreen, MusicScreen } from '../screens/tabs';
 import { ClassesScreen } from '../screens/ClassesScreen';
 import { PlanScreen } from '../screens/PlanScreen';
 import { PracticeScreen } from '../screens/PracticeScreen';
 import { VideoScreen } from '../screens/VideoScreen';
+import { DietScreen } from '../screens/DietScreen';
+import { MusicScreen } from '../screens/MusicScreen';
 import { useAuth } from '../AuthContext';
 import { useWebSocketConnection } from '../services/ws';
 

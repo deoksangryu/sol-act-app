@@ -1,6 +1,6 @@
 import { API_URL } from '../config';
 import { getToken, setToken, clearToken, getUserIdFromToken } from './storage';
-import type { User, Plan, ClassInfo, Lesson, LessonJournal, JournalComment, AttendanceRecord, Notice, Notification, PortfolioItem, PortfolioComment, PracticeCurrent, PracticeScriptView, FeedCard } from '../types';
+import type { User, Plan, ClassInfo, Lesson, LessonJournal, JournalComment, AttendanceRecord, Notice, Notification, PortfolioItem, PortfolioComment, PracticeCurrent, PracticeScriptView, FeedCard, DietLog, WeightLog, StudentWeightSummary, Track, MusicDownloadRequest } from '../types';
 
 export { API_URL };
 
@@ -350,5 +350,70 @@ export const portfolioApi = {
   },
   deleteVideo(portfolioId: string, videoId: string): Promise<void> {
     return apiRequest<void>(`/api/portfolios/${portfolioId}/videos/${videoId}`, { method: 'DELETE' });
+  },
+};
+
+// === Diet (식단 / 체중) ===
+export const dietApi = {
+  list(params?: { studentId?: string; date?: string; mealType?: string; search?: string; skip?: number; limit?: number }): Promise<DietLog[]> {
+    const q = new URLSearchParams();
+    if (params?.studentId) q.set('student_id', params.studentId);
+    if (params?.date) q.set('date', params.date);
+    if (params?.mealType) q.set('meal_type', params.mealType);
+    if (params?.search) q.set('search', params.search);
+    if (params?.skip != null) q.set('skip', String(params.skip));
+    if (params?.limit != null) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return apiRequest<DietLog[]>(`/api/diet${qs ? '?' + qs : ''}`);
+  },
+  create(data: Partial<DietLog>): Promise<DietLog> {
+    return apiRequest<DietLog>('/api/diet', { method: 'POST', body: JSON.stringify(toSnake(data)) });
+  },
+  update(id: string, data: Partial<DietLog>): Promise<DietLog> {
+    return apiRequest<DietLog>(`/api/diet/${id}`, { method: 'PUT', body: JSON.stringify(toSnake(data)) });
+  },
+  delete(id: string): Promise<void> {
+    return apiRequest<void>(`/api/diet/${id}`, { method: 'DELETE' });
+  },
+  listWeight(params?: { studentId?: string; days?: number }): Promise<WeightLog[]> {
+    const q = new URLSearchParams();
+    if (params?.studentId) q.set('student_id', params.studentId);
+    if (params?.days) q.set('days', String(params.days));
+    const qs = q.toString();
+    return apiRequest<WeightLog[]>(`/api/diet/weight${qs ? '?' + qs : ''}`);
+  },
+  createWeight(data: { weight: number; date: string; memo?: string; bodyFat?: number; muscleMass?: number; visceralFat?: number }): Promise<WeightLog> {
+    return apiRequest<WeightLog>('/api/diet/weight', { method: 'POST', body: JSON.stringify(toSnake(data)) });
+  },
+  deleteWeight(id: string): Promise<void> {
+    return apiRequest<void>(`/api/diet/weight/${id}`, { method: 'DELETE' });
+  },
+  weightStudents(): Promise<StudentWeightSummary[]> {
+    return apiRequest<StudentWeightSummary[]>('/api/diet/weight/students');
+  },
+};
+
+// === Music ===
+export const musicApi = {
+  listTracks(params?: { search?: string; skip?: number; limit?: number }): Promise<Track[]> {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    if (params?.skip != null) q.set('skip', String(params.skip));
+    if (params?.limit != null) q.set('limit', String(params.limit));
+    const qs = q.toString();
+    return apiRequest<Track[]>(`/api/music/tracks${qs ? '?' + qs : ''}`);
+  },
+  getTrack(id: string): Promise<Track> {
+    return apiRequest<Track>(`/api/music/tracks/${id}`);
+  },
+  listRequests(params?: { status?: string }): Promise<MusicDownloadRequest[]> {
+    const q = params?.status ? `?status=${params.status}` : '';
+    return apiRequest<MusicDownloadRequest[]>(`/api/music/requests${q}`);
+  },
+  createRequest(data: { trackId: string; purpose: string }): Promise<MusicDownloadRequest> {
+    return apiRequest<MusicDownloadRequest>('/api/music/requests', { method: 'POST', body: JSON.stringify(toSnake(data)) });
+  },
+  respondRequest(id: string, data: { status: 'approved' | 'rejected'; responseNote?: string }): Promise<MusicDownloadRequest> {
+    return apiRequest<MusicDownloadRequest>(`/api/music/requests/${id}`, { method: 'PUT', body: JSON.stringify(toSnake(data)) });
   },
 };

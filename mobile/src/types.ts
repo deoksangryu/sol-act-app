@@ -179,6 +179,75 @@ export interface PortfolioItem {
   date: string;
 }
 
+// === 음악 ===
+export type MusicRequestStatus = 'pending' | 'approved' | 'rejected';
+export interface MyMusicRequest {
+  status: MusicRequestStatus;
+  responseNote?: string | null;
+}
+export interface Track {
+  id: string;
+  title: string;
+  category: string;
+  mood?: string | null;
+  duration?: string | null;
+  fileUrl?: string | null;
+  streamUrl?: string | null;
+  thumbnailUrl?: string | null;
+  createdAt: string;
+  myRequest?: MyMusicRequest | null;
+  pendingCount?: number;
+}
+export interface MusicDownloadRequest {
+  id: string;
+  trackId: string;
+  trackTitle: string;
+  studentId: string;
+  studentName: string;
+  purpose: string;
+  status: MusicRequestStatus;
+  responseNote?: string | null;
+  createdAt: string;
+  respondedAt?: string | null;
+}
+export const MUSIC_PURPOSES = ['자유무용 입시 연습', '워크숍 준비', '콩쿠르 준비', '수업 복습'] as const;
+
+// === 식단 / 체중 ===
+export interface DietLog {
+  id: string;
+  studentId: string;
+  studentName: string;
+  date: string;
+  mealType: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  description: string;
+  calories?: number;
+  aiAdvice?: string;
+  teacherComment?: string;
+  imageUrl?: string;
+}
+export interface WeightLog {
+  id: string;
+  weight: number;
+  date: string;
+  memo?: string;
+  bodyFat?: number;
+  muscleMass?: number;
+  visceralFat?: number;
+}
+export interface StudentWeightSummary {
+  studentId: string;
+  studentName: string;
+  latest: number;
+  first: number;
+  count: number;
+  points?: { weight: number; date: string }[];
+  bodyFat?: number;
+  muscleMass?: number;
+  visceralFat?: number;
+  height?: number;
+  updatedAt?: string;
+}
+
 // === 영상 피드 카드 ===
 export interface FeedCard {
   key: string;
