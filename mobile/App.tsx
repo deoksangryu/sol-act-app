@@ -1,5 +1,6 @@
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -13,6 +14,15 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    'Pretendard-Regular': require('./assets/fonts/Pretendard-Regular.otf'),
+    'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.otf'),
+    'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.otf'),
+    'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.otf'),
+    'Pretendard-ExtraBold': require('./assets/fonts/Pretendard-ExtraBold.otf'),
+  });
+  if (!fontsLoaded) return null; // 네이티브 스플래시 유지 중 폰트 로드(로컬, 즉시)
+
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>

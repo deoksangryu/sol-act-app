@@ -7,11 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { color, text, radius, space, MAX_WIDTH } from '../theme/tokens';
 import { Icon } from './Icon';
 
-// === Screen: 안전영역 + 흰 배경 + 480 중앙정렬 컨테이너 ===
-export function Screen({ children, edges }: { children: React.ReactNode; edges?: Array<'top' | 'bottom' | 'left' | 'right'> }) {
+// === Screen: 안전영역 + 배경(기본 흰색, v2는 bg=surf) + 480 중앙정렬 ===
+export function Screen({ children, edges, bg }: { children: React.ReactNode; edges?: Array<'top' | 'bottom' | 'left' | 'right'>; bg?: string }) {
+  const tint = bg ? { backgroundColor: bg } : null;
   return (
-    <SafeAreaView style={s.screen} edges={edges ?? ['top', 'bottom']}>
-      <View style={s.centered}>{children}</View>
+    <SafeAreaView style={[s.screen, tint]} edges={edges ?? ['top', 'bottom']}>
+      <View style={[s.centered, tint]}>{children}</View>
     </SafeAreaView>
   );
 }

@@ -1,16 +1,18 @@
 import type { TextStyle } from 'react-native';
 
-// === Toss 디자인 토큰 (web services/category.tsx의 TOSS와 1:1) ===
+// === v2 디자인 토큰 (프로토타입 sol-prototype-v1.html 팔레트) ===
+// 의미 규약: 박수=amber · 완료/성장=success · 마감/위험=danger · 주액션=blue · 음악/녹음=purple
 export const color = {
-  blue: '#3182F6', blueBg: '#EAF2FF',
-  purple: '#6D5BD0', purpleBg: '#EEEBFA',
+  blue: '#3182F6', blueBg: '#E8F3FF',
+  purple: '#7048E8', purpleBg: '#F1EBFF',
   pink: '#E84F8B', pinkBg: '#FCE7F0',
-  ink: '#191F28', sub: '#6B7684', faint: '#C4CCD4',
+  amber: '#FF9F0A', amberBg: '#FFF4E0',      // 박수 👏 accent (warn과 별개 키)
+  ink: '#191F28', sub: '#4E5968', sub2: '#8B95A1', faint: '#B0B8C1',
   surf: '#F2F4F6', line: '#EEF0F2',
-  success: '#1B8A4B', successBg: '#E7F4EC',
-  warn: '#C2410C', warnBg: '#FFF1E6',
+  success: '#02B26E', successBg: '#E5F7EF',
+  warn: '#C2410C', warnBg: '#FFF1E6',        // 미처리/pending 태그·카운트 배지(유지)
   inputLine: '#E5E8EB',
-  danger: '#E5484D',
+  danger: '#F04452', dangerBg: '#FDEDEE',
   successInk: '#15662F',
   purpleInk: '#473A9E',
   infoInk: '#1B4F8A',
@@ -18,12 +20,12 @@ export const color = {
   requestLine: '#FCD9B5',
   dashLine: '#CDD3DA',
   white: '#FFFFFF',
-  bg: '#F8FAFC',
-  scrim: 'rgba(0,0,0,0.40)',
+  bg: '#F2F4F6',
+  scrim: 'rgba(25,31,40,0.55)',
 } as const;
 
-// 라운드: tag 7 · icon-chip 13(시그니처) · card/input 12 · button/CTA 14 · pill 999
-export const radius = { tag: 7, chip: 13, card: 12, button: 14, pill: 999 } as const;
+// 라운드: tag 7 · icon-chip 14 · card 22(v2) · button 15 · hero 24 · modal 26 · pill 999
+export const radius = { tag: 7, chip: 14, card: 22, button: 15, hero: 24, modal: 26, pill: 999 } as const;
 
 // 여백: 화면 좌우 20 · 헤더 14 · 행 세로 12 · 아이콘↔텍스트 gap 13
 export const space = { screenX: 20, headerX: 14, rowY: 12, gap: 13 } as const;
@@ -34,20 +36,30 @@ export const MAX_WIDTH = 480;
 // 시그니처 overshoot 스프링 (확인 완료 애니메이션 등)
 export const SPRING = { damping: 12, stiffness: 180, mass: 0.6 };
 
-// 타이포 프리셋 — 기본 서체는 시스템(한글 렌더 OK). Noto Sans KR는 후속 단계에서 expo-font로 주입.
+// === Pretendard 폰트 (App.tsx useFonts로 로드) ===
+// RN Android는 단일 패밀리 weight 합성 불가 → weight별 개별 패밀리로 등록.
+export const font = {
+  r: 'Pretendard-Regular',    // 400
+  m: 'Pretendard-Medium',     // 500
+  sb: 'Pretendard-SemiBold',  // 600
+  b: 'Pretendard-Bold',       // 700
+  xb: 'Pretendard-ExtraBold', // 800
+} as const;
+
+// 타이포 프리셋 — weight-specific fontFamily라 fontWeight는 생략(안드로이드 합성 폴백 방지).
 // (letterSpacing은 web의 em을 px로 환산: 타이틀 -0.02em × 23px ≈ -0.46)
 export const text: Record<string, TextStyle> = {
-  bigTitle: { fontSize: 23, fontWeight: '700', lineHeight: 31, letterSpacing: -0.46, color: color.ink },
-  flowTitle: { fontSize: 23, fontWeight: '700', lineHeight: 31, letterSpacing: -0.46, color: color.ink },
-  sectionLabel: { fontSize: 13, fontWeight: '500', color: color.sub },
-  headerTitle: { fontSize: 16, fontWeight: '600', color: color.ink },
-  rowTitle: { fontSize: 15, fontWeight: '500', color: color.ink },
-  rowSub: { fontSize: 13, fontWeight: '400', color: color.sub },
-  tag: { fontSize: 12, fontWeight: '500' },
-  cta: { fontSize: 16, fontWeight: '600' },
-  ghost: { fontSize: 14, fontWeight: '600', color: color.blue },
-  body: { fontSize: 14, fontWeight: '400', color: color.ink },
-  caption: { fontSize: 11, fontWeight: '400', color: color.sub },
-  tabLabel: { fontSize: 10, fontWeight: '400' },
-  wordmark: { fontSize: 28, fontWeight: '800', color: color.blue, letterSpacing: -0.3 },
+  bigTitle: { fontFamily: font.b, fontSize: 23, lineHeight: 31, letterSpacing: -0.46, color: color.ink },
+  flowTitle: { fontFamily: font.b, fontSize: 23, lineHeight: 31, letterSpacing: -0.46, color: color.ink },
+  sectionLabel: { fontFamily: font.m, fontSize: 13, color: color.sub },
+  headerTitle: { fontFamily: font.sb, fontSize: 16, color: color.ink },
+  rowTitle: { fontFamily: font.m, fontSize: 15, color: color.ink },
+  rowSub: { fontFamily: font.r, fontSize: 13, color: color.sub },
+  tag: { fontFamily: font.m, fontSize: 12 },
+  cta: { fontFamily: font.sb, fontSize: 16 },
+  ghost: { fontFamily: font.sb, fontSize: 14, color: color.blue },
+  body: { fontFamily: font.r, fontSize: 14, color: color.ink },
+  caption: { fontFamily: font.r, fontSize: 11, color: color.sub },
+  tabLabel: { fontFamily: font.r, fontSize: 10 },
+  wordmark: { fontFamily: font.xb, fontSize: 28, color: color.blue, letterSpacing: -0.3 },
 };
