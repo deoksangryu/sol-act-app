@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 from app.routers import (
     auth, users, assignments, diet, classes, chat, qna, notices, notifications,
     lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
-    ws, upload, admin, push, praise_stickers, music, badges, practice, plans
+    ws, upload, admin, push, praise_stickers, music, badges, practice, plans, gamification,
+    submissions, achievements, sessions, exams, content, routines, dashboard, exchange
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -139,6 +140,16 @@ app.include_router(music.router, prefix="/api/music", tags=["Music"])
 app.include_router(badges.router, prefix="/api", tags=["Badges"], dependencies=GATE)
 app.include_router(practice.router, prefix="/api/practice", tags=["제시대사 Practice"], dependencies=GATE)
 app.include_router(plans.router, prefix="/api/plans", tags=["Plans"], dependencies=GATE)
+app.include_router(gamification.router, prefix="/api/gamification", tags=["Gamification"], dependencies=GATE)
+# v2 신규(전부 additive·신규 테이블). 강사/원장 엔드포인트는 라우터 내부에서 role 체크.
+app.include_router(submissions.router, prefix="/api/submissions", tags=["Submissions"], dependencies=GATE)
+app.include_router(achievements.router, prefix="/api/achievements", tags=["Achievements"], dependencies=GATE)
+app.include_router(sessions.router, prefix="/api/sessions", tags=["Practice Sessions"], dependencies=GATE)
+app.include_router(exams.router, prefix="/api/exams", tags=["Exam Schedule"], dependencies=GATE)
+app.include_router(content.router, prefix="/api/content", tags=["Learn Content"], dependencies=GATE)
+app.include_router(routines.router, prefix="/api/routines", tags=["Routines"], dependencies=GATE)
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"], dependencies=GATE)
+app.include_router(exchange.router, prefix="/api/exchange", tags=["Exchange"], dependencies=GATE)
 
 # Static file serving for uploads — with security headers + Range support
 # Serves from external SSD if available, falls back to local directory
@@ -225,16 +236,24 @@ async def serve_uploads(request: Request, call_next):
         "cache-control": "public, max-age=31536000, immutable",
     }
 
+    def _safe(base_dir: str):
+        """경로 우회 가드(music 핸들러와 동일): 해석된 파일이 base_dir 안에 있고 실제 파일일 때만 반환."""
+        base = os.path.realpath(base_dir)
+        f = os.path.realpath(os.path.join(base, rel))
+        if (f == base or f.startswith(base + os.sep)) and os.path.isfile(f):
+            return f
+        return None
+
     # Try external SSD first
     name = settings.EXTERNAL_DRIVE_NAME
     if name:
-        ext_file = os.path.join(f"/Volumes/{name}/sol-act-uploads", rel)
-        if os.path.isfile(ext_file):
+        ext_file = _safe(f"/Volumes/{name}/sol-act-uploads")
+        if ext_file:
             return _serve_file_ranged(ext_file, request, cache_headers)
 
     # Fall back to local
-    local_file = os.path.join("backend/uploads", rel)
-    if os.path.isfile(local_file):
+    local_file = _safe("backend/uploads")
+    if local_file:
         return _serve_file_ranged(local_file, request, cache_headers)
 
     return JSONResponse(status_code=404, content={"detail": "Not found"})

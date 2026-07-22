@@ -12,7 +12,7 @@ from app.schemas.lesson_journal import (
 )
 from app.utils.auth import get_current_user
 from app.services.ai import generate_journal_feedback
-from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_class_student_ids, get_teacher_class_ids, validate_class_access
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_class_student_ids, get_teacher_class_ids, get_teacher_ids_for_student, validate_class_access
 import uuid
 
 router = APIRouter()
@@ -184,20 +184,15 @@ async def create_journal(
         .first()
     )
 
-    # Notify the other party about the new journal
-    if lesson.teacher_id and lesson.teacher_id != current_user.id:
-        await notify_user(
-            db, lesson.teacher_id,
-            f"{current_user.name}님이 수업일지를 작성했습니다.",
-            entity="journals",
-        )
-    elif lesson.class_id:
-        student_ids = get_class_student_ids(db, lesson.class_id)
-        student_ids = [sid for sid in student_ids if sid != current_user.id]
-        if student_ids:
+    # 알림 규칙:
+    #  · 학생 일지(공개 대상=담당교사+원장) → 담당교사 전원 + 원장 전원에게 알림.
+    #  · 교사 일지는 비공개(선생님·관리자만 열람) → 학생에게 알리지 않음(열람 불가한 항목 누설 방지).
+    if journal.journal_type == JournalType.STUDENT:
+        staff_ids = [uid for uid in get_teacher_ids_for_student(db, current_user.id) if uid != current_user.id]
+        if staff_ids:
             await notify_users(
-                db, student_ids,
-                "선생님이 수업일지를 작성했습니다.",
+                db, staff_ids,
+                f"{current_user.name}님이 수업일지를 작성했습니다.",
                 entity="journals",
             )
 
@@ -237,15 +232,11 @@ async def update_journal(
     db.commit()
     db.refresh(j)
 
-    lesson = db.query(Lesson).filter(Lesson.id == j.lesson_id).first()
-    if lesson:
-        if lesson.teacher_id and lesson.teacher_id != current_user.id:
-            await emit_data_changed([lesson.teacher_id], "journals")
-        elif lesson.class_id:
-            student_ids = get_class_student_ids(db, lesson.class_id)
-            student_ids = [sid for sid in student_ids if sid != current_user.id]
-            if student_ids:
-                await emit_data_changed(student_ids, "journals")
+    # 실시간 갱신: 학생 일지는 담당교사+원장 전원이 다시 불러오도록. 교사(비공개) 일지는 학생 대상 아님.
+    if j.journal_type == JournalType.STUDENT:
+        staff_ids = [uid for uid in get_teacher_ids_for_student(db, j.author_id) if uid != current_user.id]
+        if staff_ids:
+            await emit_data_changed(staff_ids, "journals")
 
     return journal_to_response(j)
 

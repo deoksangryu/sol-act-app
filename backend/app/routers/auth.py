@@ -19,8 +19,9 @@ import time
 # Simple in-memory rate limiter (per IP, per named bucket)
 _rate_buckets: dict[str, list[float]] = defaultdict(list)
 
-# Issued login tokens expire after this many days (was: never)
-ACCESS_TOKEN_EXPIRE = timedelta(days=60)
+# 로그인 토큰 만료 — config(기본 7일, env override) 사용. 과거 하드코딩 60일은 학생 개인정보 앱 보안상 축소.
+from app.config import settings
+ACCESS_TOKEN_EXPIRE = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
 
 
 def _rate_limit(key: str, window: int, max_calls: int, detail: str) -> None:

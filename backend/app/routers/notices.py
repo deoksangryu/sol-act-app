@@ -193,7 +193,15 @@ async def delete_notice(
     # 교사는 본인 담당 반 공지만 삭제 가능
     _ensure_can_manage(db, notice, current_user)
 
-    student_ids = get_all_student_ids(db)
+    # 삭제 신호도 대상 반 학생에게만(생성/수정과 동일). 대상 없으면 전체. 삭제 전에 대상 캡처.
+    targets = _notice_targets(notice)
+    if targets:
+        ids = set()
+        for cid in targets:
+            ids.update(get_class_student_ids(db, cid))
+        student_ids = list(ids)
+    else:
+        student_ids = get_all_student_ids(db)
 
     db.delete(notice)
     db.commit()

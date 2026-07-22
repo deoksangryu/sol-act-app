@@ -308,6 +308,8 @@ def analyze_assignment(
     # Only the student themselves or teacher/director can trigger analysis
     if current_user.role == UserRole.STUDENT and a.student_id != current_user.id:
         raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
+    if current_user.role == UserRole.TEACHER and a.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 과제만 분석할 수 있어요")
 
     if not a.submission_text:
         raise HTTPException(status_code=400, detail="No submission to analyze")
@@ -335,9 +337,12 @@ async def delete_assignment(
         raise HTTPException(status_code=403, detail="담당 학생의 과제만 삭제할 수 있어요")
 
     student_id = a.student_id
+    title = getattr(a, "title", "") or "과제"
     db.delete(a)
     db.commit()
 
     await emit_data_changed([student_id], "assignments")
+    # 학생 아이템 삭제 → 해당 학생에게 알림(평가 삭제 알림과 동일한 정책).
+    await notify_user(db, student_id, f"과제 '{title}'가 삭제되었습니다", entity="assignments")
 
     return {"message": "Assignment deleted"}

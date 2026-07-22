@@ -167,6 +167,10 @@ async def create_answer(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 답변은 선생님·원장님만 작성 가능 (학생이 스태프처럼 답변하는 것 차단)
+    if current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+        raise HTTPException(status_code=403, detail="선생님·원장님만 답변할 수 있어요")
+
     q = db.query(Question).options(joinedload(Question.author)).filter(Question.id == question_id).first()
     if not q:
         raise HTTPException(status_code=404, detail="Question not found")

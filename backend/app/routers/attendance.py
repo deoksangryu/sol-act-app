@@ -11,10 +11,24 @@ from app.schemas.attendance import (
     AttendanceResponse, AttendanceStats
 )
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_user, emit_data_changed, get_teacher_class_ids, get_teacher_student_ids, get_class_student_ids, validate_class_access
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_teacher_class_ids, get_teacher_student_ids, get_teacher_ids_for_student, get_class_student_ids, validate_class_access
 import uuid
 
 router = APIRouter()
+
+_ATT_STATUS = {"present": "출석", "late": "지각", "absent": "결석", "excused": "공결"}
+
+
+async def _notify_attendance(db: Session, actor: User, student_id: str, status) -> None:
+    """출결 단건 기록/수정 알림. 학생 셀프체크인 → 담당교사+원장 전원, 교사/원장 기록 → 해당 학생."""
+    raw = getattr(status, "value", status)
+    label = _ATT_STATUS.get(raw, raw)
+    if actor.role == UserRole.STUDENT:
+        staff_ids = [uid for uid in get_teacher_ids_for_student(db, student_id) if uid != actor.id]
+        if staff_ids:
+            await notify_users(db, staff_ids, f"{actor.name}님이 출석 체크했어요 ({label})", entity="attendance")
+    else:
+        await notify_user(db, student_id, f"출결이 기록되었습니다: {label}", entity="attendance")
 
 
 def attendance_to_response(a: Attendance) -> dict:
@@ -227,6 +241,7 @@ async def create_attendance(
         db.refresh(existing)
         a = db.query(Attendance).options(joinedload(Attendance.student)).filter(Attendance.id == existing.id).first()
         await emit_data_changed([data.student_id], "attendance")
+        await _notify_attendance(db, current_user, data.student_id, data.status)
         return attendance_to_response(a)
 
     att = Attendance(
@@ -243,6 +258,7 @@ async def create_attendance(
     a = db.query(Attendance).options(joinedload(Attendance.student)).filter(Attendance.id == att.id).first()
 
     await emit_data_changed([data.student_id], "attendance")
+    await _notify_attendance(db, current_user, data.student_id, data.status)
 
     return attendance_to_response(a)
 
@@ -277,5 +293,6 @@ async def update_attendance(
     db.refresh(a)
 
     await emit_data_changed([a.student_id], "attendance")
+    await _notify_attendance(db, current_user, a.student_id, a.status)
 
     return attendance_to_response(a)

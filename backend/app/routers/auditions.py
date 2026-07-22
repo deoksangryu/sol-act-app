@@ -146,7 +146,7 @@ async def update_audition(
     if not a:
         raise HTTPException(status_code=404, detail="Audition not found")
 
-    if current_user.id != a.creator_id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+    if current_user.id != a.creator_id and current_user.role != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     for field, value in update_data.model_dump(exclude_unset=True).items():
@@ -272,7 +272,7 @@ async def delete_audition(
     if not a:
         raise HTTPException(status_code=404, detail="Audition not found")
 
-    if current_user.id != a.creator_id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
+    if current_user.id != a.creator_id and current_user.role != UserRole.DIRECTOR:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
 
     affected_ids = []

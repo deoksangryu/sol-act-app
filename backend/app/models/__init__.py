@@ -19,6 +19,14 @@ from .praise_sticker import PraiseSticker
 from .music import Track, MusicDownloadRequest
 from .practice import PracticeScript, PracticeDraw, PracticeRequest
 from .plan import Plan, PlanItem
+from .gamification import PointLedger, Streak, UserActivity
+from .submission import Submission
+from .achievement import UserBadge
+from .practice_session import PracticeSession
+from .exam import ExamSchedule
+from .content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, InterviewQuestion
+from .routine import RoutineItem, RoutineCompletion
+from .exchange import ExchangeItem, ExchangeOrder
 
 __all__ = [
     "User",
@@ -50,4 +58,20 @@ __all__ = [
     "PracticeRequest",
     "Plan",
     "PlanItem",
+    "PointLedger",
+    "Streak",
+    "UserActivity",
+    "Submission",
+    "UserBadge",
+    "PracticeSession",
+    "ExamSchedule",
+    "QuizQuestion",
+    "QuizAnswer",
+    "ReadingContent",
+    "MediaResource",
+    "InterviewQuestion",
+    "RoutineItem",
+    "RoutineCompletion",
+    "ExchangeItem",
+    "ExchangeOrder",
 ]

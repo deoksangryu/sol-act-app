@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.audition import Audition, AuditionStatus
 from app.models.user import User, UserRole
+from app.utils.timezone import today_kst, kst_now
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ async def check_registration_deadlines() -> None:
     """Check for upcoming registration deadlines and send notifications."""
     db = SessionLocal()
     try:
-        today = date.today()
+        today = today_kst()  # KST 달력 기준 '오늘'(서버 TZ 무관)
         auditions = (
             db.query(Audition)
             .filter(Audition.status == AuditionStatus.UPCOMING)
@@ -109,7 +110,7 @@ async def check_plan_reminders() -> None:
         from app.models.notification import Notification
         from app.services.notification_service import notify_users
 
-        kst_today = (datetime.utcnow() + timedelta(hours=9)).date()
+        kst_today = today_kst()
         recent_cutoff = datetime.utcnow() - timedelta(hours=20)
         msg = "📝 오늘의 학습 계획을 세워볼까요? 하루 할 일을 적고 체크해봐요."
 
@@ -158,7 +159,7 @@ def complete_past_lessons() -> int:
 
     db = SessionLocal()
     try:
-        now = datetime.now()
+        now = kst_now()  # KST 벽시계 기준(서버 TZ 무관) — l.date/end_time도 KST 입력이므로 일관
         today = now.date()
         cur_hm = now.strftime("%H:%M")
         lessons = db.query(Lesson).filter(Lesson.status == LessonStatus.SCHEDULED).all()

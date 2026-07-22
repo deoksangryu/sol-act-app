@@ -6,6 +6,7 @@ from app.models.user import User, UserRole
 from app.schemas.user import UserResponse, UserUpdate, PasswordChange
 from app.utils.auth import get_current_user, verify_password, get_password_hash
 from app.services.notification_service import emit_data_changed, get_all_user_ids, get_teacher_student_ids
+from app.services.account_deletion import purge_user_data, purge_user_files
 
 router = APIRouter()
 
@@ -94,6 +95,25 @@ async def update_user(
     return user
 
 
+# 본인 계정 삭제 — /{user_id} 보다 먼저 정의(경로 충돌 방지). 앱스토어 인앱 계정삭제 요건.
+@router.delete("/me")
+async def delete_my_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """로그인한 본인 계정과 모든 연관 데이터·파일을 영구 삭제한다(복구 불가)."""
+    uid = current_user.id
+    all_ids = get_all_user_ids(db)
+    purge_user_data(db, uid)
+    db.commit()
+    purge_user_files(uid)  # DB 커밋 후 파일 정리(실패해도 삭제는 이미 확정)
+
+    remaining_ids = [x for x in all_ids if x != uid]
+    if remaining_ids:
+        await emit_data_changed(remaining_ids, "users")
+    return {"message": "Account deleted"}
+
+
 @router.delete("/{user_id}")
 async def delete_user(
     user_id: str,
@@ -108,8 +128,11 @@ async def delete_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     all_ids = get_all_user_ids(db)
-    db.delete(user)
+    # 기존 db.delete(user)는 cascade 미커버 테이블(point_ledger·submissions 등)에서 FK 위반 →
+    # 완전삭제 퍼지로 전 연관 데이터·파일까지 안전 제거.
+    purge_user_data(db, user_id)
     db.commit()
+    purge_user_files(user_id)
 
     remaining_ids = [uid for uid in all_ids if uid != user_id]
     if remaining_ids:

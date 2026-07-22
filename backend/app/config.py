@@ -15,7 +15,7 @@ class Settings(BaseSettings):
     # JWT Authentication
     SECRET_KEY: str = os.environ.get("SECRET_KEY", os.urandom(32).hex())
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours (school day)
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7일(모바일 세션). env로 override 가능. 학생 개인정보 앱이라 과거 60일은 보안상 축소.
 
     # Gemini AI
     GEMINI_API_KEY: str = ""
@@ -28,8 +28,8 @@ class Settings(BaseSettings):
     # External SSD name (leave empty to use local storage)
     EXTERNAL_DRIVE_NAME: str = ""
 
-    # Admin dashboard password
-    ADMIN_PASSWORD: str = "solact2026!"
+    # Admin dashboard password — 반드시 .env(미추적)의 ADMIN_PASSWORD로 주입. 코드 하드코딩 금지(유출 위험).
+    ADMIN_PASSWORD: str = os.environ.get("ADMIN_PASSWORD", "change_me_in_env")
 
     # Redis (Optional)
     REDIS_URL: str = "redis://localhost:6379"

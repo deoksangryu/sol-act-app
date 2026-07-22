@@ -3,9 +3,10 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.models.notification import Notification
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.notification import NotificationCreate, NotificationResponse, NotificationUpdate
 from app.services.websocket_manager import manager
+from app.services.notification_service import get_teacher_student_ids
 from app.utils.auth import get_current_user
 import uuid
 
@@ -35,6 +36,16 @@ async def create_notification(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 권한 검증: 학생은 본인에게만, 교사는 본인/담당 학생에게만, 원장은 제한 없음
+    if current_user.role == UserRole.STUDENT and data.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if (
+        current_user.role == UserRole.TEACHER
+        and data.user_id != current_user.id
+        and data.user_id not in get_teacher_student_ids(db, current_user.id)
+    ):
+        raise HTTPException(status_code=403, detail="담당 학생에게만 보낼 수 있어요")
+
     notification = Notification(
         id=f"noti{uuid.uuid4().hex[:7]}",
         user_id=data.user_id,

@@ -203,6 +203,9 @@ async def request_more(db: Session = Depends(get_db), current_user: User = Depen
     if not (total > 0 and seen >= total):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="제시대사를 모두 연습한 뒤에 요청할 수 있어요.")
     # 12시간 중복방지는 '학생 ID' 기준 — 이름은 학생이 바꿀 수 있어 우회 가능하므로 쓰지 않는다.
+    # check-then-notify가 원자적이지 않으면 동시 요청이 12h 가드를 통과해 원장 전원에게 중복 알림이 감.
+    # 학생 User 행에 row-level lock을 걸어 동시 요청을 직렬화한다(트랜잭션 커밋까지 유지).
+    db.query(User).filter(User.id == current_user.id).with_for_update().first()
     recent = datetime.utcnow() - REQUEST_DEDUP
     already = (
         db.query(PracticeRequest.id)
