@@ -1,15 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, TextInput, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, TextInput, Image, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, IconChip, Tag,
   Cta, Empty, FlowTitle, SearchBar, FilterChips, InfoBox,
 } from '../components/kit';
+import { Card } from '../components/gamify';
 import { TopBar } from '../components/TopBar';
 import { Icon } from '../components/Icon';
-import { color, radius, space } from '../theme/tokens';
+import { color, radius, space, font } from '../theme/tokens';
 import { dietApi, resolveFileUrl } from '../services/api';
 import { pickMedia } from '../services/upload';
 import { useUploads } from '../services/UploadContext';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useDataRefresh } from '../services/ws';
 import { useDebouncedValue } from '../lib/useDebounce';
 import { todayStr } from '../lib/date';
@@ -68,7 +70,9 @@ function DietMain({ user }: { user: User }) {
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [more, setMore] = useState(false);
-  const [screen, setScreen] = useState<'home' | 'addMeal' | 'addWeight'>('home');
+  const route = useRoute<any>();
+  const nav = useNavigation<any>();
+  const [screen, setScreen] = useState<'home' | 'addMeal' | 'addWeight'>(route.params?.openAdd ? 'addMeal' : 'home');
   const [openId, setOpenId] = useState<string | null>(null);
   const [weightOf, setWeightOf] = useState<StudentWeightSummary | null>(null);
   const [meal, setMeal] = useState('all');
@@ -112,13 +116,13 @@ function DietMain({ user }: { user: User }) {
   const open = openId ? meals.find((m) => m.id === openId) : null;
 
   if (open) return <MealDetail meal={open} user={user} isStaff={isStaff} onBack={() => setOpenId(null)} onReload={load} onDeleted={() => { setOpenId(null); load(); }} />;
-  if (screen === 'addMeal') return <AddMeal userId={user.id} onBack={() => setScreen('home')} onDone={() => { setScreen('home'); load(); }} />;
+  if (screen === 'addMeal') return <AddMeal userId={user.id} onBack={() => { if (route.params?.openAdd) nav.goBack(); else setScreen('home'); }} onDone={() => { if (route.params?.openAdd) nav.goBack(); else { setScreen('home'); load(); } }} />;
   if (screen === 'addWeight') return <AddWeight current={weights.length ? weights[weights.length - 1].weight : 58} onBack={() => setScreen('home')} onDone={() => { setScreen('home'); load(); }} />;
   if (weightOf) return <StaffWeightDetail s={weightOf} onBack={() => setWeightOf(null)} />;
 
   const renderMore = () => hasMore ? (
-    <Pressable onPress={loadMore} disabled={more} style={{ alignSelf: 'center', backgroundColor: color.surf, borderRadius: radius.card, paddingHorizontal: 22, paddingVertical: 11, marginVertical: 14 }}>
-      <Text style={{ fontSize: 14, fontWeight: '600', color: color.sub }}>{more ? '불러오는 중…' : '더 보기'}</Text>
+    <Pressable onPress={loadMore} disabled={more} style={{ alignSelf: 'center', backgroundColor: color.white, borderRadius: radius.card, paddingHorizontal: 22, paddingVertical: 11, marginVertical: 14 }}>
+      <Text style={{ fontSize: 14, fontFamily: font.sb, color: color.sub }}>{more ? '불러오는 중…' : '더 보기'}</Text>
     </Pressable>
   ) : null;
 
@@ -126,7 +130,7 @@ function DietMain({ user }: { user: User }) {
   if (isStaff) {
     const need = meals.filter((m) => !m.teacherComment).length;
     return (
-      <Screen edges={['top']}>
+      <Screen edges={['top']} bg={color.bg}>
         <TopBar />
         <BigTitle>학생 식단을{'\n'}살펴봐요</BigTitle>
         <SearchBar value={query} onChangeText={setQuery} placeholder="식단·학생 검색" />
@@ -137,23 +141,29 @@ function DietMain({ user }: { user: User }) {
               {!filtering && studentWeights.length > 0 && (
                 <>
                   <SectionLabel>학생 체중 · {studentWeights.length}명</SectionLabel>
-                  {studentWeights.map((s) => {
-                    const diff = s.latest - s.first;
-                    return <ListRow key={s.studentId} showChevron={s.count <= 1}
-                      left={<IconChip name="scale" tint={color.blue} bg={color.blueBg} />}
-                      title={s.studentName} sub={`${s.latest.toFixed(1)}kg · ${s.count}회 기록`}
-                      right={s.count > 1 ? <Tag label={`${diff <= 0 ? '▼' : '▲'} ${Math.abs(diff).toFixed(1)}kg`} tone={diff <= 0 ? 'done' : 'pending'} /> : undefined}
-                      onPress={() => setWeightOf(s)} />;
-                  })}
+                  <Card style={{ marginHorizontal: space.screenX, marginBottom: 4 }}>
+                    {studentWeights.map((s) => {
+                      const diff = s.latest - s.first;
+                      return <ListRow key={s.studentId} showChevron={s.count <= 1}
+                        left={<IconChip name="scale" tint={color.blue} bg={color.blueBg} />}
+                        title={s.studentName} sub={`${s.latest.toFixed(1)}kg · ${s.count}회 기록`}
+                        right={s.count > 1 ? <Tag label={`${diff <= 0 ? '▼' : '▲'} ${Math.abs(diff).toFixed(1)}kg`} tone={diff <= 0 ? 'done' : 'pending'} /> : undefined}
+                        onPress={() => setWeightOf(s)} />;
+                    })}
+                  </Card>
                 </>
               )}
               <SectionLabel>{filtering ? `검색 결과 ${meals.length}개` : `학생 식단 · 피드백 필요 ${need}개`}</SectionLabel>
-              {meals.length === 0 ? <Empty>{filtering ? '조건에 맞는 식단이 없어요' : '아직 올라온 식단이 없어요'}</Empty> : meals.map((m) => (
-                <ListRow key={m.id} showChevron={false} left={<MealThumb url={m.imageUrl} icon="tools-kitchen-2" />} title={m.description}
-                  sub={`${m.studentName} · ${mealLabel(m.mealType)}${mealTime(m)}`}
-                  right={m.teacherComment ? <Tag label="완료" tone="done" /> : <Tag label="피드백 필요" tone="pending" />}
-                  onPress={() => setOpenId(m.id)} />
-              ))}
+              {meals.length === 0 ? <Empty>{filtering ? '조건에 맞는 식단이 없어요' : '아직 올라온 식단이 없어요'}</Empty> : (
+                <Card style={{ marginHorizontal: space.screenX, marginBottom: 4 }}>
+                  {meals.map((m) => (
+                    <ListRow key={m.id} showChevron={false} left={<MealThumb url={m.imageUrl} icon="tools-kitchen-2" />} title={m.description}
+                      sub={`${m.studentName} · ${mealLabel(m.mealType)}${mealTime(m)}`}
+                      right={m.teacherComment ? <Tag label="완료" tone="done" /> : <Tag label="피드백 필요" tone="pending" />}
+                      onPress={() => setOpenId(m.id)} />
+                  ))}
+                </Card>
+              )}
               {renderMore()}
             </>
           )}
@@ -184,7 +194,7 @@ function DietMain({ user }: { user: User }) {
   };
 
   return (
-    <Screen edges={['top']}>
+    <Screen edges={['top']} bg={color.bg}>
       <TopBar />
       <BigTitle>오늘도 잘{'\n'}챙기고 있어요</BigTitle>
       <SearchBar value={query} onChangeText={setQuery} placeholder="식단 검색" />
@@ -195,31 +205,42 @@ function DietMain({ user }: { user: User }) {
             {!filtering && (
               <>
                 <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.screenX, paddingTop: 18, paddingBottom: 6 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, flex: 1 }}>체중 추이</Text>
-                  <Pressable onPress={() => setScreen('addWeight')} hitSlop={6}><Text style={{ fontSize: 13, fontWeight: '600', color: color.blue }}>+ 기록</Text></Pressable>
+                  <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, flex: 1 }}>체중 추이</Text>
+                  <Pressable onPress={() => setScreen('addWeight')} hitSlop={6}><Text style={{ fontSize: 13, fontFamily: font.sb, color: color.blue }}>+ 기록</Text></Pressable>
                 </View>
-                <View style={{ paddingHorizontal: space.screenX }}>
-                  <View style={{ backgroundColor: color.surf, borderRadius: radius.button, padding: 14 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-                      <Text style={{ fontSize: 30, fontWeight: '700', letterSpacing: -0.6, color: color.ink }}>{cur == null ? '–' : cur.toFixed(1)}</Text>
-                      <Text style={{ fontSize: 14, color: color.sub }}>kg</Text>
-                      {weights.length > 1 && <Text style={{ marginLeft: 'auto', fontSize: 12, fontWeight: '500', color: diff <= 0 ? color.success : color.warn }}>처음보다 {Math.abs(diff).toFixed(1)}kg {diff <= 0 ? '↓' : '↑'}</Text>}
-                    </View>
-                    {infoParts.length > 0 && <Text style={{ fontSize: 12, color: color.sub, marginTop: 8, lineHeight: 19 }}>{infoParts.join(' · ')}</Text>}
-                    <WeightBars points={weights} onBar={deleteWeight} />
-                    {weights.length > 1 && <Text style={{ fontSize: 11, color: color.sub, marginTop: 8, textAlign: 'center' }}>최근 {Math.min(weights.length, 10)}개 · 막대를 누르면 삭제돼요</Text>}
-                  </View>
-                </View>
+                <Card style={{ marginHorizontal: space.screenX, padding: 14 }}>
+                  {cur == null ? (
+                    <Pressable onPress={() => setScreen('addWeight')} style={{ paddingVertical: 6 }}>
+                      <Text style={{ fontSize: 14.5, fontFamily: font.sb, color: color.ink }}>아직 체중 기록이 없어요</Text>
+                      <Text style={{ fontSize: 12.5, fontFamily: font.sb, color: color.blue, marginTop: 5 }}>+ 첫 체중 기록하기</Text>
+                    </Pressable>
+                  ) : (
+                    <>
+                      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
+                        <Text style={{ fontSize: 30, fontFamily: font.b, letterSpacing: -0.6, color: color.ink }}>{cur.toFixed(1)}</Text>
+                        <Text style={{ fontSize: 14, color: color.sub }}>kg</Text>
+                        {weights.length > 1 && <Text style={{ marginLeft: 'auto', fontSize: 12, fontFamily: font.m, color: diff <= 0 ? color.success : color.warn }}>처음보다 {Math.abs(diff).toFixed(1)}kg {diff <= 0 ? '↓' : '↑'}</Text>}
+                      </View>
+                      {infoParts.length > 0 && <Text style={{ fontSize: 12, color: color.sub, marginTop: 8, lineHeight: 19 }}>{infoParts.join(' · ')}</Text>}
+                      <WeightBars points={weights} onBar={deleteWeight} />
+                      {weights.length > 1 && <Text style={{ fontSize: 11, color: color.sub, marginTop: 8, textAlign: 'center' }}>최근 {Math.min(weights.length, 10)}개 · 막대를 누르면 삭제돼요</Text>}
+                    </>
+                  )}
+                </Card>
               </>
             )}
 
             <SectionLabel>{filtering ? `검색 결과 ${meals.length}개` : `오늘 먹은 것 · ${todays.length}/3끼`}</SectionLabel>
-            {list.length === 0 ? <Empty>{filtering ? '조건에 맞는 식단이 없어요' : '오늘 기록한 식단이 없어요'}</Empty> : list.map((m) => (
-              <ListRow key={m.id} showChevron={false} left={<MealThumb url={m.imageUrl} icon={mealIcon(m.mealType)} />} title={m.description}
-                sub={filtering ? `${mmdd(m.date)} · ${mealLabel(m.mealType)}` : `${mealLabel(m.mealType)}${mealTime(m)}`}
-                right={m.teacherComment ? <Tag label="피드백" tone="done" /> : undefined}
-                onPress={() => setOpenId(m.id)} />
-            ))}
+            {list.length === 0 ? <Empty>{filtering ? '조건에 맞는 식단이 없어요' : '오늘 기록한 식단이 없어요'}</Empty> : (
+              <Card style={{ marginHorizontal: space.screenX, marginBottom: 4 }}>
+                {list.map((m) => (
+                  <ListRow key={m.id} showChevron={false} left={<MealThumb url={m.imageUrl} icon={mealIcon(m.mealType)} />} title={m.description}
+                    sub={filtering ? `${mmdd(m.date)} · ${mealLabel(m.mealType)}` : `${mealLabel(m.mealType)}${mealTime(m)}`}
+                    right={m.teacherComment ? <Tag label="피드백" tone="done" /> : undefined}
+                    onPress={() => setOpenId(m.id)} />
+                ))}
+              </Card>
+            )}
             {filtering && renderMore()}
           </>
         )}
@@ -244,9 +265,9 @@ function StaffWeightDetail({ s, onBack }: { s: StudentWeightSummary; onBack: () 
       <Scroll contentStyle={{ padding: space.screenX }}>
         <View style={{ backgroundColor: color.surf, borderRadius: radius.button, padding: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}>
-            <Text style={{ fontSize: 32, fontWeight: '700', letterSpacing: -0.6, color: color.ink }}>{s.latest.toFixed(1)}</Text>
+            <Text style={{ fontSize: 32, fontFamily: font.b, letterSpacing: -0.6, color: color.ink }}>{s.latest.toFixed(1)}</Text>
             <Text style={{ fontSize: 14, color: color.sub }}>kg</Text>
-            {s.count > 1 && <Text style={{ marginLeft: 'auto', fontSize: 13, fontWeight: '500', color: diff <= 0 ? color.success : color.warn }}>처음보다 {Math.abs(diff).toFixed(1)}kg {diff <= 0 ? '↓' : '↑'}</Text>}
+            {s.count > 1 && <Text style={{ marginLeft: 'auto', fontSize: 13, fontFamily: font.m, color: diff <= 0 ? color.success : color.warn }}>처음보다 {Math.abs(diff).toFixed(1)}kg {diff <= 0 ? '↓' : '↑'}</Text>}
           </View>
           {parts.length > 0 && <Text style={{ fontSize: 12, color: color.sub, marginTop: 8, lineHeight: 19 }}>{parts.join(' · ')}</Text>}
           <WeightBars points={s.points || []} />
@@ -294,13 +315,14 @@ function MealDetail({ meal, user, isStaff, onBack, onReload, onDeleted }: { meal
 
   return (
     <Screen edges={['top']}>
-      <BackHeader title="식단" onBack={onBack} right={isOwner ? <Pressable onPress={() => { if (editing) { setDesc(meal.description); setMType(meal.mealType); setNewImg(null); } setEditing((e) => !e); }} hitSlop={6}><Text style={{ fontSize: 13, fontWeight: '600', color: color.blue }}>{editing ? '취소' : '수정'}</Text></Pressable> : undefined} />
+      <BackHeader title="식단" onBack={onBack} right={isOwner ? <Pressable onPress={() => { if (editing) { setDesc(meal.description); setMType(meal.mealType); setNewImg(null); } setEditing((e) => !e); }} hitSlop={6}><Text style={{ fontSize: 13, fontFamily: font.sb, color: color.blue }}>{editing ? '취소' : '수정'}</Text></Pressable> : undefined} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={8}>
       <Scroll contentStyle={{ paddingBottom: 24 }}>
         <Pressable onPress={editing ? changePhoto : undefined} style={{ backgroundColor: color.dietBg, minHeight: 200, alignItems: 'center', justifyContent: 'center' }}>
           {imgUrl ? <Image source={{ uri: imgUrl }} style={{ width: '100%', height: 260 }} resizeMode="contain" /> : <Icon name="salad" size={44} color={color.success} />}
           {editing && (
             <View style={{ position: 'absolute', bottom: 12, backgroundColor: 'rgba(0,0,0,0.55)', borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Icon name="camera" size={15} color={color.white} /><Text style={{ color: color.white, fontSize: 13, fontWeight: '600' }}>사진 바꾸기</Text>
+              <Icon name="camera" size={15} color={color.white} /><Text style={{ color: color.white, fontSize: 13, fontFamily: font.sb }}>사진 바꾸기</Text>
             </View>
           )}
         </Pressable>
@@ -309,28 +331,28 @@ function MealDetail({ meal, user, isStaff, onBack, onReload, onDeleted }: { meal
           {editing ? (
             <>
               <TextInput value={desc} onChangeText={setDesc} placeholder="예: 닭가슴살 샐러드" placeholderTextColor={color.faint} style={inp} />
-              <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, marginTop: 14, marginBottom: 8 }}>끼니</Text>
+              <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, marginTop: 14, marginBottom: 8 }}>끼니</Text>
               <View style={{ flexDirection: 'row', gap: 7 }}>
                 {MEAL_TYPES.map((o) => { const on = mType === o.key; return (
                   <Pressable key={o.key} onPress={() => setMType(o.key)} style={{ flex: 1, borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: 11, paddingVertical: 10, alignItems: 'center' }}>
-                    <Text style={{ fontSize: 14, fontWeight: '500', color: on ? color.blue : color.sub }}>{o.label}</Text>
+                    <Text style={{ fontSize: 14, fontFamily: font.m, color: on ? color.blue : color.sub }}>{o.label}</Text>
                   </Pressable>
                 ); })}
               </View>
-              <Pressable onPress={remove} style={{ marginTop: 18 }} hitSlop={6}><Text style={{ fontSize: 13, fontWeight: '500', color: color.warn }}>이 식단 지우기</Text></Pressable>
+              <Pressable onPress={remove} style={{ marginTop: 18 }} hitSlop={6}><Text style={{ fontSize: 13, fontFamily: font.m, color: color.warn }}>이 식단 지우기</Text></Pressable>
             </>
           ) : (
             <>
-              <Text style={{ fontSize: 19, fontWeight: '700', color: color.ink }}>{meal.description}</Text>
+              <Text style={{ fontSize: 19, fontFamily: font.b, color: color.ink }}>{meal.description}</Text>
               <Text style={{ fontSize: 13, color: color.sub, marginTop: 6 }}>{meal.studentName} · {mealLabel(meal.mealType)}{mealTime(meal)}</Text>
               {meal.teacherComment ? (
                 <View style={{ marginTop: 16 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, marginBottom: 10 }}>선생님 피드백</Text>
+                  <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, marginBottom: 10 }}>선생님 피드백</Text>
                   <View style={{ backgroundColor: color.surf, borderRadius: radius.chip, padding: 13 }}><Text style={{ fontSize: 14, lineHeight: 24, color: color.ink }}>{meal.teacherComment}</Text></View>
                 </View>
               ) : isStaff ? (
                 <View style={{ marginTop: 16 }}>
-                  <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, marginBottom: 10 }}>피드백 남기기</Text>
+                  <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, marginBottom: 10 }}>피드백 남기기</Text>
                   <TextInput value={fb} onChangeText={setFb} placeholder="조언해 주세요" placeholderTextColor={color.faint} multiline style={[inp, { minHeight: 86, textAlignVertical: 'top' }]} />
                 </View>
               ) : (
@@ -345,6 +367,7 @@ function MealDetail({ meal, user, isStaff, onBack, onReload, onDeleted }: { meal
       ) : (!meal.teacherComment && isStaff && (
         <View style={{ paddingHorizontal: space.screenX, paddingBottom: 16 }}><Cta label="피드백 보내기" onPress={send} disabled={!fb.trim()} loading={busy} /></View>
       ))}
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
@@ -378,11 +401,11 @@ function AddMeal({ userId, onBack, onDone }: { userId: string; onBack: () => voi
             <><Icon name="camera" size={30} color={color.faint} /><Text style={{ fontSize: 13, color: color.sub }}>사진 찍거나 불러오기</Text></>
           )}
         </Pressable>
-        <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, marginTop: 16, marginBottom: 8 }}>어떤 끼니예요?</Text>
+        <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, marginTop: 16, marginBottom: 8 }}>어떤 끼니예요?</Text>
         <View style={{ flexDirection: 'row', gap: 7 }}>
           {MEAL_PICKS.map((o) => { const on = mealType === o.key; return (
             <Pressable key={o.key} onPress={() => setMealType(o.key)} style={{ flex: 1, borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: 11, paddingVertical: 10, alignItems: 'center' }}>
-              <Text style={{ fontSize: 14, fontWeight: '500', color: on ? color.blue : color.sub }}>{o.label}</Text>
+              <Text style={{ fontSize: 14, fontFamily: font.m, color: on ? color.blue : color.sub }}>{o.label}</Text>
             </Pressable>
           ); })}
         </View>
@@ -410,7 +433,7 @@ function AddWeight({ current, onBack, onDone }: { current: number; onBack: () =>
   };
   const stepBtn = (label: string, d: number) => (
     <Pressable onPress={() => setW((v) => clamp(v + d))} style={{ width: 52, height: 44, borderRadius: 12, borderWidth: 1, borderColor: color.inputLine, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ fontSize: 15, fontWeight: '600', color: color.ink }}>{label}</Text>
+      <Text style={{ fontSize: 15, fontFamily: font.sb, color: color.ink }}>{label}</Text>
     </Pressable>
   );
   return (
@@ -419,13 +442,13 @@ function AddWeight({ current, onBack, onDone }: { current: number; onBack: () =>
       <Scroll contentStyle={{ padding: space.screenX, paddingBottom: 24 }}>
         <FlowTitle>오늘 체중을{'\n'}알려줘요</FlowTitle>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6, marginTop: 24, marginBottom: 16 }}>
-          <Text style={{ fontSize: 46, fontWeight: '700', letterSpacing: -1, color: color.blue }}>{w.toFixed(1)}</Text>
-          <Text style={{ fontSize: 18, fontWeight: '500', color: color.sub }}>kg</Text>
+          <Text style={{ fontSize: 46, fontFamily: font.b, letterSpacing: -1, color: color.blue }}>{w.toFixed(1)}</Text>
+          <Text style={{ fontSize: 18, fontFamily: font.m, color: color.sub }}>kg</Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
           {stepBtn('−1', -1)}{stepBtn('−0.1', -0.1)}{stepBtn('+0.1', 0.1)}{stepBtn('+1', 1)}
         </View>
-        <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, marginTop: 28, marginBottom: 8 }}>인바디 측정값 (선택)</Text>
+        <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, marginTop: 28, marginBottom: 8 }}>인바디 측정값 (선택)</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {([{ label: '체지방률 %', v: bodyFat, set: setBodyFat, ph: '18.5' }, { label: '근육량 kg', v: muscle, set: setMuscle, ph: '32.0' }, { label: '내장지방', v: visceral, set: setVisceral, ph: '5' }] as const).map((f) => (
             <View key={f.label} style={{ flex: 1 }}>

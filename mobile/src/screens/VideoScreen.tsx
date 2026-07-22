@@ -1,16 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, TextInput, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, Pressable, TextInput, Image, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag,
-  Cta, Empty, InfoBox, ChipSelect, FlowTitle, SearchBar, FilterChips, Divider,
+  Cta, Empty, InfoBox, FlowTitle, SearchBar, FilterChips, Divider,
 } from '../components/kit';
+import { Card } from '../components/gamify';
+import { VideoUploadForm } from '../components/VideoUploadForm';
 import { TopBar } from '../components/TopBar';
 import { Icon } from '../components/Icon';
-import { color, radius, space } from '../theme/tokens';
+import { color, radius, space, font } from '../theme/tokens';
 import { portfolioApi, practiceApi, resolveFileUrl } from '../services/api';
-import { pickMediaMulti } from '../services/upload';
-import { useUploads } from '../services/UploadContext';
 import { useDataRefresh } from '../services/ws';
 import { useDebouncedValue } from '../lib/useDebounce';
 import { useAuth } from '../AuthContext';
@@ -32,6 +33,43 @@ const catLabel = (v: string) => (v === 'scripted' ? '제시대사 연기' : (VID
 const fmtDur = (s?: number) => (s && s > 0 ? ` · ${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
 const coverThumb = (v: PortfolioItem) => v.thumbnailUrl || v.videos?.find((x: any) => x.thumbnailUrl)?.thumbnailUrl;
 const mmdd = (s?: string) => (s || '').slice(5, 10);
+
+// ── 날짜별 그룹핑(한국 시간 기준) ──
+const pad2 = (n: number) => String(n).padStart(2, '0');
+const parseUtcMs = (s?: string) => (!s ? NaN : Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(s) ? s : s.replace(' ', 'T') + 'Z'));
+const kstDayKey = (s?: string): string => {
+  const t = parseUtcMs(s);
+  if (isNaN(t)) return '';
+  const d = new Date(t + 9 * 3600 * 1000);
+  return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+};
+const kstTodayKey = (): string => { const d = new Date(Date.now() + 9 * 3600 * 1000); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`; };
+const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
+const dayLabel = (key: string): string => {
+  if (!key) return '날짜 미상';
+  const today = kstTodayKey();
+  const [y, m, d] = key.split('-').map(Number);
+  // 오늘/어제 상대 라벨
+  const todayMs = Date.parse(today + 'T00:00:00Z');
+  const keyMs = Date.parse(key + 'T00:00:00Z');
+  const diffDays = Math.round((todayMs - keyMs) / 86400000);
+  const wd = WEEKDAYS[new Date(keyMs).getUTCDay()];
+  const base = `${m}월 ${d}일 (${wd})`;
+  if (diffDays === 0) return `오늘 · ${base}`;
+  if (diffDays === 1) return `어제 · ${base}`;
+  return base;
+};
+// 최신순으로 들어온 카드 배열을 KST 날짜별 그룹으로(순서 유지)
+function groupByDate(cards: FeedCard[]): Array<{ key: string; label: string; cards: FeedCard[] }> {
+  const groups: Array<{ key: string; label: string; cards: FeedCard[] }> = [];
+  const idx: Record<string, number> = {};
+  for (const c of cards) {
+    const key = kstDayKey(c.date);
+    if (idx[key] == null) { idx[key] = groups.length; groups.push({ key, label: dayLabel(key), cards: [] }); }
+    groups[idx[key]].cards.push(c);
+  }
+  return groups;
+}
 
 type UpState = 'ready' | 'uploading' | 'failed';
 const hasVideo = (v: PortfolioItem) => !!v.videoUrl || !!(v.videos && v.videos.length);
@@ -79,24 +117,30 @@ export function VideoScreen() {
 
 function VideoFeed({ user }: { user: User }) {
   const isStaff = user.role === UserRole.TEACHER || user.role === UserRole.DIRECTOR;
+  const nav = useNavigation<any>();
+  const route = useRoute<any>();
   const [cards, setCards] = useState<FeedCard[]>([]);
+  const [stats, setStats] = useState<{ month: number; byCat: Record<string, number> } | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasMore, setHasMore] = useState(false);
   const [more, setMore] = useState(false);
   const [catFilter, setCatFilter] = useState('all');
-  const [query, setQuery] = useState('');
+  // 인박스에서 특정 학생을 눌러 들어오면 그 학생 이름을 미리 검색어로 넣어 바로 찾게 한다.
+  const [query, setQuery] = useState<string>(route.params?.q ?? '');
   const search = useDebouncedValue(query.trim(), 300);
   const [openItem, setOpenItem] = useState<PortfolioItem | null>(null);
   const [openGroup, setOpenGroup] = useState<FeedCard | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [uploading, setUploading] = useState(!!route.params?.openUpload);
   const cat = catFilter;
 
+  // 교직원이 특정 학생을 지정해 들어오면 그 학생으로 서버 필터(백엔드 feed는 이름 검색을 지원 안 함 → student_id로).
+  const focusStudentId: string | undefined = isStaff ? route.params?.studentId : undefined;
   const feedParams = useCallback((skip: number) => ({
-    ...(isStaff ? {} : { studentId: user.id }),
+    ...(isStaff ? (focusStudentId ? { studentId: focusStudentId } : {}) : { studentId: user.id }),
     ...(cat !== 'all' ? { category: cat } : {}),
     ...(search ? { search } : {}),
     skip, limit: PAGE,
-  }), [isStaff, user.id, cat, search]);
+  }), [isStaff, focusStudentId, user.id, cat, search]);
 
   const load = useCallback(async () => {
     try {
@@ -116,20 +160,38 @@ function VideoFeed({ user }: { user: User }) {
   useEffect(() => { setLoading(true); load().finally(() => setLoading(false)); }, [load]);
   useDataRefresh(['portfolios'], load);
 
+  // 학생: 이번 달 몇 개·어떤 종류를 올렸는지 요약(한국 날짜 기준). 클라이언트 집계 — 백엔드 무변경.
+  useEffect(() => {
+    if (isStaff) return;
+    const parseMs = (s?: string) => (!s ? NaN : Date.parse(/(Z|[+-]\d\d:?\d\d)$/.test(s) ? s : s.replace(' ', 'T') + 'Z'));
+    const kstYM = (s?: string) => { const t = parseMs(s); if (isNaN(t)) return ''; const d = new Date(t + 9 * 3600 * 1000); return `${d.getUTCFullYear()}-${d.getUTCMonth()}`; };
+    const nowYM = kstYM(new Date().toISOString());
+    portfolioApi.list({ studentId: user.id, limit: 500 }).then((items) => {
+      let month = 0; const byCat: Record<string, number> = {};
+      for (const it of items) {
+        if (kstYM(it.date) === nowYM) { month += 1; byCat[it.category] = (byCat[it.category] || 0) + 1; }
+      }
+      setStats({ month, byCat });
+    }).catch(() => {});
+  }, [isStaff, user.id]);
+
   if (openItem) return <VideoDetail item={openItem} user={user} isStaff={isStaff} onBack={() => setOpenItem(null)} onReload={load}
     onDeleted={() => { setOpenItem(null); load(); }}
     onReupload={async () => { try { await portfolioApi.delete(openItem.id); } catch { /* ignore */ } setOpenItem(null); setUploading(true); }} />;
   if (openGroup) return <GroupDetail card={openGroup} user={user} isStaff={isStaff} cat={cat} search={search} onBack={() => setOpenGroup(null)} />;
-  if (uploading) return <UploadScreen onBack={() => setUploading(false)} onDone={() => { setUploading(false); load(); }} />;
+  if (uploading) return <UploadScreen
+    onBack={() => { if (route.params?.openUpload) nav.goBack(); else setUploading(false); }}
+    onDone={() => { if (route.params?.openUpload) nav.goBack(); else { setUploading(false); load(); } }} />;
 
   const cardSub = (c: FeedCard) => {
+    // 날짜는 섹션 헤더에서 보여주므로 여기선 학생명(교직원)·개수/카테고리만.
     const count = c.kind === 'group' ? `영상 ${c.count}개` : (c.count > 1 ? `영상 ${c.count}개` : (c.portfolio ? catLabel(c.portfolio.category) : ''));
-    return [isStaff ? c.studentName : '', count, mmdd(c.date)].filter(Boolean).join(' · ');
+    return [isStaff ? c.studentName : '', count].filter(Boolean).join(' · ');
   };
   const openCard = (c: FeedCard) => { if (c.kind === 'group') setOpenGroup(c); else if (c.portfolio) setOpenItem(c.portfolio); };
 
   return (
-    <Screen edges={['top']}>
+    <Screen edges={['top']} bg={color.bg}>
       <TopBar />
       <BigTitle>{isStaff ? '학생 영상에\n피드백을 남겨요' : '연습 영상을\n모아봐요'}</BigTitle>
       <SearchBar value={query} onChangeText={setQuery} placeholder={isStaff ? '제목·학생 검색' : '영상 제목 검색'} />
@@ -137,13 +199,27 @@ function VideoFeed({ user }: { user: User }) {
         <FilterChips items={VIDEO_FILTERS as any} value={catFilter} onChange={setCatFilter} />
       </View>
       <Scroll contentStyle={{ paddingBottom: 40 }}>
-        <SectionLabel>{isStaff ? '학생 영상' : '내 연습 영상'} {cards.length}{hasMore ? '+' : ''}</SectionLabel>
+        {!isStaff && stats && stats.month > 0 && (
+          <Card style={{ marginHorizontal: space.screenX, marginTop: 10, marginBottom: 4, padding: 14 }}>
+            <Text style={{ fontSize: 13.5, fontFamily: font.b, color: color.ink }}>이번 달 {stats.month}개 올렸어요 🎬</Text>
+            <Text style={{ fontSize: 12.5, color: color.sub, marginTop: 4 }}>
+              {Object.entries(stats.byCat).map(([k, v]) => `${catLabel(k)} ${v}`).join(' · ')}
+            </Text>
+          </Card>
+        )}
         {loading ? <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={color.blue} /></View>
           : cards.length === 0 ? <Empty>{isStaff ? '아직 올라온 영상이 없어요' : '아직 올린 영상이 없어요'}</Empty>
-            : cards.map((c) => <ListRow key={c.key} showChevron={false} left={<PlayThumb thumb={c.coverThumbnail} status={c.uploadStatus || 'ready'} />} title={c.title} sub={cardSub(c)} right={<CardTag c={c} staff={isStaff} />} onPress={() => openCard(c)} />)}
+            : groupByDate(cards).map((g) => (
+                <React.Fragment key={g.key || 'unknown'}>
+                  <SectionLabel>{g.label} · {g.cards.length}개</SectionLabel>
+                  <Card style={{ marginHorizontal: space.screenX, marginBottom: 4 }}>
+                    {g.cards.map((c) => <ListRow key={c.key} showChevron={false} left={<PlayThumb thumb={c.coverThumbnail} status={c.uploadStatus || 'ready'} />} title={c.title} sub={cardSub(c)} right={<CardTag c={c} staff={isStaff} />} onPress={() => openCard(c)} />)}
+                  </Card>
+                </React.Fragment>
+              ))}
         {hasMore && (
-          <Pressable onPress={loadMore} disabled={more} style={{ alignSelf: 'center', backgroundColor: color.surf, borderRadius: radius.card, paddingHorizontal: 22, paddingVertical: 11, marginVertical: 14 }}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: color.sub }}>{more ? '불러오는 중…' : '더 보기'}</Text>
+          <Pressable onPress={loadMore} disabled={more} style={{ alignSelf: 'center', backgroundColor: color.white, borderRadius: radius.card, paddingHorizontal: 22, paddingVertical: 11, marginVertical: 14 }}>
+            <Text style={{ fontSize: 14, fontFamily: font.sb, color: color.sub }}>{more ? '불러오는 중…' : '더 보기'}</Text>
           </Pressable>
         )}
       </Scroll>
@@ -240,7 +316,8 @@ function VideoDetail({ item, user, isStaff, onBack, onReload, onDeleted, onReupl
 
   return (
     <Screen edges={['top']}>
-      <BackHeader title="영상" onBack={onBack} right={isOwner ? <Pressable onPress={() => setEditing((v) => !v)} hitSlop={6}><Text style={{ fontSize: 13, fontWeight: '600', color: color.blue }}>{editing ? '취소' : '수정'}</Text></Pressable> : undefined} />
+      <BackHeader title="영상" onBack={onBack} right={isOwner ? <Pressable onPress={() => setEditing((v) => !v)} hitSlop={6}><Text style={{ fontSize: 13, fontFamily: font.sb, color: color.blue }}>{editing ? '취소' : '수정'}</Text></Pressable> : undefined} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={8}>
       <Scroll contentStyle={{ paddingBottom: 24 }}>
         {/* 플레이어 */}
         <View style={{ backgroundColor: color.ink, height: 200, alignItems: 'center', justifyContent: 'center' }}>
@@ -249,7 +326,7 @@ function VideoDetail({ item, user, isStaff, onBack, onReload, onDeleted, onReupl
           ) : state === 'failed' ? (
             <View style={{ alignItems: 'center', paddingHorizontal: 24 }}>
               <Icon name="alert-triangle" size={30} color={color.warn} />
-              <Text style={{ color: color.white, fontSize: 14, fontWeight: '600', marginTop: 8 }}>업로드가 완료되지 않았어요</Text>
+              <Text style={{ color: color.white, fontSize: 14, fontFamily: font.sb, marginTop: 8 }}>업로드가 완료되지 않았어요</Text>
               <Text style={{ color: color.white, fontSize: 12, opacity: 0.7, marginTop: 4 }}>{isOwner ? '다시 올리거나 삭제할 수 있어요' : '학생에게 다시 업로드를 요청하세요'}</Text>
             </View>
           ) : (
@@ -284,7 +361,7 @@ function VideoDetail({ item, user, isStaff, onBack, onReload, onDeleted, onReupl
             </View>
           ) : (
             <>
-              <Text style={{ fontSize: 19, fontWeight: '700', color: color.ink }}>{item.title}</Text>
+              <Text style={{ fontSize: 19, fontFamily: font.b, color: color.ink }}>{item.title}</Text>
               <Text style={{ fontSize: 13, color: color.sub, marginTop: 6 }}>{item.studentName} · {catLabel(item.category)} · {mmdd(item.date)}</Text>
               {!!item.description && item.description !== item.title && <Text style={{ fontSize: 14, color: color.ink, lineHeight: 24, marginTop: 12 }}>{item.description}</Text>}
             </>
@@ -298,7 +375,7 @@ function VideoDetail({ item, user, isStaff, onBack, onReload, onDeleted, onReupl
               </View>
               {script.script.map((ln, i) => (
                 <Text key={i} style={{ fontSize: 14, lineHeight: 24, color: color.ink, marginTop: i ? 8 : 0 }}>
-                  {script.type === '2인대사' && ln.speaker ? <Text style={{ fontWeight: '700', color: color.blue }}>{ln.speaker} </Text> : null}{ln.text}
+                  {script.type === '2인대사' && ln.speaker ? <Text style={{ fontFamily: font.b, color: color.blue }}>{ln.speaker} </Text> : null}{ln.text}
                 </Text>
               ))}
             </View>
@@ -307,19 +384,28 @@ function VideoDetail({ item, user, isStaff, onBack, onReload, onDeleted, onReupl
           {state === 'ready' && (
             <>
               <Divider />
-              <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, marginBottom: 10 }}>강사 피드백 {comments.length}개</Text>
+              <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, marginBottom: 10 }}>강사 피드백 {comments.length}개</Text>
               {comments.length === 0 && !isStaff && <InfoBox tone="info">24시간 안에 피드백이 와요</InfoBox>}
               {comments.map((c) => (
                 <View key={c.id} style={{ backgroundColor: color.surf, borderRadius: radius.chip, padding: 13, marginBottom: 8 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '600', color: color.ink }}>{c.authorName}</Text>
+                    <Text style={{ fontSize: 12, fontFamily: font.sb, color: color.ink }}>{c.authorName}</Text>
                     <Text style={{ fontSize: 11, color: color.sub }}>{mmdd(c.date)}</Text>
                   </View>
                   <Text style={{ fontSize: 14, lineHeight: 24, color: color.ink }}>{c.content}</Text>
                 </View>
               ))}
               {isStaff && (
-                <TextInput value={fb} onChangeText={setFb} placeholder="구체적으로 알려주세요" placeholderTextColor={color.faint} multiline style={[inp, { minHeight: 90, textAlignVertical: 'top', marginTop: 4 }]} />
+                <>
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 4, marginBottom: 8 }}>
+                    {FEEDBACK_PRESETS.map((m) => (
+                      <Pressable key={m} onPress={() => setFb(m)} style={{ backgroundColor: color.blueBg, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 }}>
+                        <Text style={{ fontSize: 12.5, fontFamily: font.m, color: color.blue }}>{m}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <TextInput value={fb} onChangeText={setFb} placeholder="빠른 문구를 고르거나 직접 입력하세요" placeholderTextColor={color.faint} multiline style={[inp, { minHeight: 90, textAlignVertical: 'top' }]} />
+                </>
               )}
             </>
           )}
@@ -328,7 +414,7 @@ function VideoDetail({ item, user, isStaff, onBack, onReload, onDeleted, onReupl
             <View style={{ marginTop: 16 }}><Cta label="다시 올리기" onPress={onReupload} /></View>
           )}
           {isOwner && !editing && (
-            <Pressable onPress={remove} style={{ marginTop: 16 }} hitSlop={6}><Text style={{ fontSize: 13, fontWeight: '500', color: color.warn }}>이 영상 삭제하기</Text></Pressable>
+            <Pressable onPress={remove} style={{ marginTop: 16 }} hitSlop={6}><Text style={{ fontSize: 13, fontFamily: font.m, color: color.warn }}>이 영상 삭제하기</Text></Pressable>
           )}
         </View>
       </Scroll>
@@ -337,80 +423,29 @@ function VideoDetail({ item, user, isStaff, onBack, onReload, onDeleted, onReupl
           <Cta label="피드백 보내기" onPress={send} disabled={!fb.trim()} loading={busy} />
         </View>
       )}
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
-// ── 업로드 ──
+// ── 업로드 ── (공용 인라인 폼 재사용 — 선택/촬영 → 제목·카테고리 → 그 자리에서 업로드)
 function UploadScreen({ onBack, onDone }: { onBack: () => void; onDone: () => void }) {
-  const { upload } = useUploads();
-  const [medias, setMedias] = useState<Awaited<ReturnType<typeof pickMediaMulti>>>([]);
-  const [title, setTitle] = useState('');
-  const [desc, setDesc] = useState('');
-  const [cat, setCat] = useState<string | null>(null);
-  const [mode, setMode] = useState<'individual' | 'single'>('individual');
-  const [busy, setBusy] = useState(false);
-
-  const pick = async () => {
-    try { const r = await pickMediaMulti('video'); if (r.length) setMedias(r); }
-    catch (e: any) { Alert.alert('안내', e?.message || '선택하지 못했어요'); }
-  };
-
-  const submit = async () => {
-    if (medias.length === 0 || !cat || !title.trim()) return;
-    setBusy(true);
-    try {
-      const single = medias.length > 1 && mode === 'single';
-      if (single) {
-        const p = await portfolioApi.create({ title: title.trim(), description: desc.trim() || title.trim(), category: cat, videoUrl: '', uploadMode: 'single', totalVideos: medias.length } as any);
-        for (let i = 0; i < medias.length; i++) {
-          await upload(`${title.trim()} ${i + 1}`, medias[i], { subfolder: 'portfolios', targetType: i === 0 ? 'portfolio' : 'portfolio_video', targetId: p.id });
-        }
-      } else {
-        for (let i = 0; i < medias.length; i++) {
-          const t = medias.length > 1 ? `${title.trim()} ${i + 1}` : title.trim();
-          const p = await portfolioApi.create({ title: t, description: desc.trim() || t, category: cat, videoUrl: '', ...(medias.length > 1 ? { practiceGroup: title.trim() } : {}) } as any);
-          await upload(t, medias[i], { subfolder: 'portfolios', targetType: 'portfolio', targetId: p.id });
-        }
-      }
-      onDone();
-    } catch (e: any) { Alert.alert('실패', e?.message || '올리지 못했어요'); } finally { setBusy(false); }
-  };
-
-  const ctaLabel = medias.length > 1 ? (mode === 'single' ? `${medias.length}개 묶어 올리기` : `${medias.length}개 올리기`) : '영상 올리기';
-
   return (
-    <Screen edges={['top']}>
+    <Screen edges={['top']} bg={color.bg}>
       <BackHeader title="영상 올리기" onBack={onBack} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={8}>
       <Scroll contentStyle={{ padding: space.screenX, paddingBottom: 24 }}>
         <FlowTitle>어떤 연습{'\n'}영상인가요?</FlowTitle>
-
-        <Pressable onPress={pick} style={{ backgroundColor: medias.length ? color.successBg : color.surf, borderRadius: 16, height: 116, marginTop: 16, alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-          <Icon name={medias.length ? 'circle-check' : 'photo'} size={30} color={medias.length ? color.success : color.faint} />
-          <Text style={{ fontSize: 13, color: medias.length ? color.success : color.sub }}>{medias.length === 0 ? '영상을 선택하세요 (여러 개 가능)' : `${medias.length}개 선택됨`}</Text>
-        </Pressable>
-
-        {medias.length > 1 && (
-          <>
-            <Text style={label}>업로드 방식</Text>
-            <ChipSelect items={[{ key: 'individual', label: '각각 따로 올리기' }, { key: 'single', label: '하나로 묶기' }]} value={mode} onChange={(v) => setMode(v)} />
-            <Text style={{ fontSize: 12, color: color.sub, marginTop: 6 }}>{mode === 'single' ? '여러 영상을 한 포트폴리오로 묶어요' : '영상마다 별도 포트폴리오로 올려요'}</Text>
-          </>
-        )}
-
-        <Text style={label}>제목</Text>
-        <TextInput value={title} onChangeText={setTitle} placeholder="예: 자유연기 3차" placeholderTextColor={color.faint} style={inp} />
-        <Text style={label}>설명 (선택)</Text>
-        <TextInput value={desc} onChangeText={setDesc} placeholder="예: 복식호흡 중점 연습" placeholderTextColor={color.faint} style={inp} />
-        <Text style={label}>카테고리</Text>
-        <ChipSelect wrap items={VIDEO_CATS} value={cat} onChange={setCat} />
+        <View style={{ marginTop: 16 }}>
+          <VideoUploadForm onUploaded={onDone} />
+        </View>
       </Scroll>
-      <View style={{ paddingHorizontal: space.screenX, paddingBottom: 16 }}>
-        <Cta label={ctaLabel} onPress={submit} disabled={medias.length === 0 || !cat || !title.trim()} loading={busy} />
-      </View>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
 
 const inp = { borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, paddingHorizontal: 13, paddingVertical: 12, fontSize: 15, color: color.ink } as const;
-const label = { fontSize: 13, fontWeight: '500' as const, color: color.sub, marginTop: 16, marginBottom: 8 };
+
+// 빠른 피드백 프리셋 — 탭 한 번으로 입력칸을 채워 바로 보낼 수 있어요(직접 수정도 가능).
+const FEEDBACK_PRESETS = ['자세와 발성 좋아요 👍', '감정 표현이 살아있어요', '발성을 더 키워봐요', '대사를 또렷하게 전달해봐요', '호흡을 안정적으로 가져가요'];

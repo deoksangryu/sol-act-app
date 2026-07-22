@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, Pressable } from 'react-native';
-import { color, radius, space } from '../theme/tokens';
+import { color, radius, space, font } from '../theme/tokens';
 import { Icon } from './Icon';
 import { fmt, fmtKDate, todayStr } from '../lib/date';
 
@@ -38,7 +38,7 @@ export function MiniCalendar({ marked, selected, onSelect, open, onToggle, month
     <View style={{ paddingHorizontal: space.screenX, paddingBottom: 6 }}>
       {/* 헤더: 선택 날짜 + 펼치기 토글 */}
       <Pressable onPress={onToggle} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 8 }}>
-        <Text style={{ fontSize: 14, fontWeight: '600', color: color.ink }}>
+        <Text style={{ fontSize: 14, fontFamily: font.sb, color: color.ink }}>
           {toggleLabel} · {fmtKDate(selected)}
         </Text>
         <Icon name={open ? 'chevron-left' : 'chevron-right'} size={18} color={color.sub} />
@@ -51,7 +51,7 @@ export function MiniCalendar({ marked, selected, onSelect, open, onToggle, month
             <Pressable onPress={() => onMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} hitSlop={8}>
               <Icon name="chevron-left" size={20} color={color.sub} />
             </Pressable>
-            <Text style={{ fontSize: 15, fontWeight: '700', color: color.ink }}>
+            <Text style={{ fontSize: 15, fontFamily: font.b, color: color.ink }}>
               {month.getFullYear()}년 {month.getMonth() + 1}월
             </Text>
             <Pressable onPress={() => onMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} hitSlop={8}>
@@ -80,7 +80,7 @@ export function MiniCalendar({ marked, selected, onSelect, open, onToggle, month
               return (
                 <Pressable key={ds} onPress={() => onSelect(ds)} style={{ width: `${100 / 7}%`, height: 38, alignItems: 'center', justifyContent: 'center' }}>
                   <View style={{ width: 30, height: 30, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: isSel ? color.blue : 'transparent' }}>
-                    <Text style={{ fontSize: 13, fontWeight: isSel || isToday ? '700' : '400', color: isSel ? color.white : isToday ? color.blue : isSun ? color.danger : color.ink }}>
+                    <Text style={{ fontSize: 13, fontFamily: isSel || isToday ? font.b : font.r, color: isSel ? color.white : isToday ? color.blue : isSun ? color.danger : color.ink }}>
                       {dayNum}
                     </Text>
                   </View>

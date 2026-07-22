@@ -62,6 +62,10 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   }
 
   if (response.status === 401) {
+    // 로그인 요청 자체의 401 = 잘못된 자격증명(세션 만료가 아님). 세션만료 전환 없이 안내만.
+    if (path.includes('/auth/login')) {
+      throw new Error('이메일 또는 비밀번호가 올바르지 않습니다.');
+    }
     await clearToken();
     if (!_sessionExpiredScheduled) {
       _sessionExpiredScheduled = true;
@@ -72,7 +76,15 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}): Pr
   if (!response.ok) {
     if (response.status === 403) throw new Error('접근 권한이 없습니다.');
     const err = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error((err as { detail?: string }).detail || '요청을 처리하지 못했습니다.');
+    // FastAPI 422는 detail이 [{loc,msg,type}, …] 배열, 그 외에도 객체일 수 있음 → 읽을 수 있는 문자열로 변환("[object Object]" 방지)
+    const d = (err as { detail?: unknown }).detail;
+    let msg = '요청을 처리하지 못했습니다.';
+    if (typeof d === 'string' && d.trim()) msg = d;
+    else if (Array.isArray(d) && d.length) msg = (d[0] as any)?.msg || (d[0] as any)?.message || msg;
+    else if (d && typeof d === 'object') msg = (d as any).msg || (d as any).message || msg;
+    // Pydantic가 붙이는 "Value error, "/"Assertion error, " 접두사 제거 → 사용자에겐 한글 문장만 노출
+    msg = msg.replace(/^(Value error|Assertion error),\s*/, '');
+    throw new Error(msg);
   }
 
   const data = await response.json().catch(() => null);
@@ -90,7 +102,7 @@ export const authApi = {
       method: 'POST',
       body: jsonBody({ email, password }),
     });
-    if (res?.accessToken) await setToken(res.accessToken);
+    if (res?.accessToken) { await setToken(res.accessToken); _sessionExpiredScheduled = false; } // 재로그인 시 세션만료 플래그 리셋(이후 401 처리 복구)
     return res;
   },
   register(data: { name: string; email: string; password: string; inviteCode?: string }): Promise<any> {
@@ -114,6 +126,10 @@ export const usersApi = {
       method: 'PUT',
       body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
     });
+  },
+  /** 본인 계정·데이터 영구 삭제(복구 불가) — 앱스토어 인앱 계정삭제 요건 */
+  deleteAccount(): Promise<{ message: string }> {
+    return apiRequest<{ message: string }>('/api/users/me', { method: 'DELETE' });
   },
   /** 현재 토큰의 sub로 본인 조회(백엔드에 GET /me 없음 → id 조회) */
   async getMe(): Promise<User | null> {
@@ -353,6 +369,19 @@ export const portfolioApi = {
   },
 };
 
+// === 학생 연습 일지 (portfolios/journals) ===
+export const practiceJournalApi = {
+  create(data: { title: string; content: string; attachmentUrl?: string }): Promise<any> {
+    return apiRequest('/api/portfolios/journals', { method: 'POST', body: JSON.stringify(toSnake(data)) });
+  },
+  list(params?: { studentId?: string }): Promise<any[]> {
+    const q = new URLSearchParams();
+    if (params?.studentId) q.set('student_id', params.studentId);
+    const qs = q.toString();
+    return apiRequest<any[]>(`/api/portfolios/journals${qs ? '?' + qs : ''}`);
+  },
+};
+
 // === Diet (식단 / 체중) ===
 export const dietApi = {
   list(params?: { studentId?: string; date?: string; mealType?: string; search?: string; skip?: number; limit?: number }): Promise<DietLog[]> {
@@ -416,4 +445,127 @@ export const musicApi = {
   respondRequest(id: string, data: { status: 'approved' | 'rejected'; responseNote?: string }): Promise<MusicDownloadRequest> {
     return apiRequest<MusicDownloadRequest>(`/api/music/requests/${id}`, { method: 'PUT', body: JSON.stringify(toSnake(data)) });
   },
+};
+
+// === Gamification (박수·커튼콜) — v2 ===
+export interface GamificationMe {
+  clapsBalance: number;
+  clapsToday: number;
+  dailyCap: number;
+  streakDays: number;
+  streakLongest: number;
+  freezes: number;
+}
+export const gamificationApi = {
+  me(): Promise<GamificationMe> {
+    return apiRequest<GamificationMe>('/api/gamification/me');
+  },
+  award(reason: string, amount: number, ref?: string): Promise<{ granted: number; clapsToday: number; clapsBalance: number; streakDays: number }> {
+    return apiRequest('/api/gamification/award', { method: 'POST', body: JSON.stringify(ref ? { reason, amount, ref } : { reason, amount }) });
+  },
+};
+
+// === Submissions (통합 인박스 + 리드타임) — v2 ===
+export type SubmissionKind = 'recording' | 'video' | 'journal' | 'diet' | 'interview';
+export interface InboxOpen { id: string; student: string; studentId?: string; kind: SubmissionKind; title: string; note?: string | null; ago: string; createdAt?: string }
+export interface InboxDone { id: string; student: string; studentId?: string; kind: SubmissionKind; title: string; lead: string }
+export interface Inbox { count: number; open: InboxOpen[]; doneToday: InboxDone[] }
+export interface MySubmission { id: string; kind: SubmissionKind; title: string; status: 'open' | 'done'; feedback?: string | null; ago: string; feedbackAgo?: string | null; createdAt?: string }
+export const submissionsApi = {
+  submit(kind: SubmissionKind, title: string, note?: string): Promise<{ id: string; granted: number; streakDays: number }> {
+    return apiRequest('/api/submissions/submit', { method: 'POST', body: jsonBody({ kind, title, note }) });
+  },
+  inbox(): Promise<Inbox> { return apiRequest<Inbox>('/api/submissions/inbox'); },
+  inboxCount(): Promise<{ count: number }> { return apiRequest('/api/submissions/inbox/count'); },
+  mine(): Promise<MySubmission[]> { return apiRequest<MySubmission[]>('/api/submissions/mine'); },
+  feedback(id: string, feedback: string): Promise<{ id: string; status: string; lead: string }> {
+    return apiRequest(`/api/submissions/${id}/feedback`, { method: 'POST', body: jsonBody({ feedback }) });
+  },
+};
+
+// === Achievements (갈채 뱃지) — v2 ===
+export interface BadgeView { code: string; title: string; sub: string; icon: string; owned: boolean }
+export interface BadgeSet { badges: BadgeView[]; ownedCount: number; total: number }
+export const achievementsApi = {
+  me(): Promise<BadgeSet> { return apiRequest<BadgeSet>('/api/achievements/me'); },
+  student(id: string): Promise<BadgeSet> { return apiRequest<BadgeSet>(`/api/achievements/student/${id}`); },
+  grant(studentId: string, code = 'growth'): Promise<{ ok: boolean; already: boolean }> {
+    return apiRequest('/api/achievements/grant', { method: 'POST', body: jsonBody({ studentId, code }) });
+  },
+};
+
+// === Practice Sessions (연습 타이머) — v2 ===
+export const sessionsApi = {
+  log(seconds: number, source: 'timer' | 'music' = 'timer', ref?: string): Promise<{ granted: number; monthSeconds: number }> {
+    return apiRequest('/api/sessions/log', { method: 'POST', body: jsonBody({ seconds, source, ref }) });
+  },
+  summary(): Promise<{ monthSeconds: number; lastMonthSeconds: number }> {
+    return apiRequest('/api/sessions/summary');
+  },
+  today(): Promise<{ todaySeconds: number }> {
+    return apiRequest('/api/sessions/today');
+  },
+};
+
+// === Exam Schedule (D-day) — v2 ===
+export interface ExamView { id: string; title: string; examDate?: string | null; note?: string | null; dday?: number | null }
+export const examsApi = {
+  list(): Promise<ExamView[]> { return apiRequest<ExamView[]>('/api/exams/list'); },
+  dday(): Promise<{ exam: ExamView | null }> { return apiRequest('/api/exams/dday'); },
+  create(title: string, examDate: string, note?: string): Promise<ExamView> {
+    return apiRequest('/api/exams/create', { method: 'POST', body: jsonBody({ title, examDate, note }) });
+  },
+  remove(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/exams/${id}`, { method: 'DELETE' }); },
+};
+
+// === Learn Content (배움) — v2 ===
+export interface QuizView { id: string; category: string; question: string; options: string[] }
+export interface QuizToday { question: QuizView | null; answered: boolean; chosenIndex?: number; correct?: boolean; answerIndex?: number; explanation?: string | null }
+export interface ReadingView { id: string; title: string; sub?: string | null; minutes: number }
+export interface MediaView { id: string; title: string; sub?: string | null; url?: string | null; duration?: string | null }
+export interface InterviewView { id: string; question: string; category?: string | null }
+export const contentApi = {
+  quizToday(): Promise<QuizToday> { return apiRequest<QuizToday>('/api/content/quiz/today'); },
+  quizAnswer(questionId: string, chosenIndex: number): Promise<{ correct: boolean; answerIndex: number; explanation?: string | null; granted: number }> {
+    return apiRequest('/api/content/quiz/answer', { method: 'POST', body: jsonBody({ questionId, chosenIndex }) });
+  },
+  reading(): Promise<ReadingView[]> { return apiRequest<ReadingView[]>('/api/content/reading'); },
+  media(): Promise<MediaView[]> { return apiRequest<MediaView[]>('/api/content/media'); },
+  watchMedia(id: string): Promise<{ granted: number }> { return apiRequest(`/api/content/media/${id}/watch`, { method: 'POST' }); },
+  interviewRandom(): Promise<{ question: InterviewView | null }> { return apiRequest('/api/content/interview/random'); },
+};
+
+// === Routines (오늘의 루틴) — v2 ===
+export interface RoutineView { id: string; title: string; sub?: string | null; reward: number; done: boolean }
+export interface RoutineToday { items: RoutineView[]; doneCount: number; total: number }
+export const routinesApi = {
+  today(): Promise<RoutineToday> { return apiRequest<RoutineToday>('/api/routines/today'); },
+  check(id: string): Promise<{ granted: number; doneCount: number }> {
+    return apiRequest(`/api/routines/${id}/check`, { method: 'POST' });
+  },
+};
+
+// === Dashboard (원장/강사 현황) — v2 ===
+export interface DashClass { id: string; name: string; members: number; open: number; submissionsWeek: number }
+export interface DashAttention { name: string; reason: string }
+export interface DashStats {
+  studentsTotal: number; curtaincallToday: number; pendingFeedback: number;
+  leadtimeMedianHours: number | null; journalRate: number;
+  attention: DashAttention[]; classes: DashClass[];
+}
+export interface RosterRow { id: string; name: string; streak: number; weekSubmissions: number; slump: boolean }
+export const dashboardApi = {
+  stats(): Promise<DashStats> { return apiRequest<DashStats>('/api/dashboard/stats'); },
+  roster(): Promise<RosterRow[]> { return apiRequest<RosterRow[]>('/api/dashboard/roster'); },
+};
+
+// === Exchange (박수 교환소) — v2 ===
+export interface ExchangeItemView { id: string; name: string; description?: string | null; cost: number; icon?: string | null; kind: string }
+export interface ExchangeOrderView { id: string; itemName: string; cost: number; status: string; createdAt?: string | null }
+export const exchangeApi = {
+  items(): Promise<{ balance: number; items: ExchangeItemView[] }> { return apiRequest('/api/exchange/items'); },
+  redeem(itemId: string): Promise<{ ok: boolean; balance: number }> {
+    return apiRequest('/api/exchange/redeem', { method: 'POST', body: jsonBody({ itemId }) });
+  },
+  orders(): Promise<ExchangeOrderView[]> { return apiRequest<ExchangeOrderView[]>('/api/exchange/orders'); },
 };

@@ -5,6 +5,7 @@ import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigat
 import { Icon } from '../components/Icon';
 import { color, font } from '../theme/tokens';
 import { useAuth } from '../AuthContext';
+import { useRoleOverride } from '../DevRole';
 import { useWebSocketConnection } from '../services/ws';
 import { UserRole } from '../types';
 import { HomeScreen } from '../screens/v2Home';
@@ -21,7 +22,7 @@ type TabMeta = { label: string; icon: string; fab?: boolean };
 const STU_META: Record<string, TabMeta> = {
   home: { label: '홈', icon: 'home' },
   practice: { label: '연습', icon: 'timer' },
-  submit: { label: '제출', icon: 'microphone', fab: true },
+  submit: { label: '제출', icon: 'plus', fab: true },
   learn: { label: '배움', icon: 'book' },
   my: { label: 'MY', icon: 'account' },
 };
@@ -91,16 +92,18 @@ function SimpleTabs({ items }: { items: Array<{ name: string; label: string; ico
 
 export function TabNavigator() {
   const { user } = useAuth();
+  const { role: override } = useRoleOverride();
   useWebSocketConnection(user?.id ?? null);
+  const role = override ?? user?.role;
 
-  if (user?.role === UserRole.TEACHER) {
+  if (role === UserRole.TEACHER) {
     return <SimpleTabs items={[
       { name: 't-inbox', label: '인박스', icon: 'inbox', component: InboxScreen },
       { name: 't-log', label: '수업일지', icon: 'notebook', component: TeacherLogScreen },
       { name: 't-students', label: '학생', icon: 'account-group', component: TeacherStudentsScreen },
     ]} />;
   }
-  if (user?.role === UserRole.DIRECTOR) {
+  if (role === UserRole.DIRECTOR) {
     return <SimpleTabs items={[
       { name: 'a-dash', label: '현황', icon: 'chart-box', component: AdminDashScreen },
       { name: 'a-schedule', label: '일정', icon: 'calendar', component: AdminScheduleScreen },

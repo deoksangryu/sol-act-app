@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen, Scroll, BackHeader, ListRow, Tag, Empty, Cta, FlowTitle } from '../components/kit';
 import { Icon } from '../components/Icon';
-import { color, radius, space } from '../theme/tokens';
+import { color, radius, space, font } from '../theme/tokens';
 import { noticeApi } from '../services/api';
 import { useDataRefresh } from '../services/ws';
 import { useAppData } from '../services/appData';
@@ -50,15 +50,15 @@ export function NoticesScreen() {
     };
     return (
       <Screen edges={['top']}>
-        <BackHeader title="공지" onBack={() => setOpenId(null)} right={canWrite ? <Pressable onPress={() => setEditing(open)} hitSlop={6}><Text style={{ fontSize: 13, fontWeight: '600', color: color.blue }}>수정</Text></Pressable> : undefined} />
+        <BackHeader title="공지" onBack={() => setOpenId(null)} right={canWrite ? <Pressable onPress={() => setEditing(open)} hitSlop={6}><Text style={{ fontSize: 13, fontFamily: font.sb, color: color.blue }}>수정</Text></Pressable> : undefined} />
         <Scroll contentStyle={{ paddingHorizontal: space.screenX, paddingBottom: 24 }}>
           {open.important && <View style={{ marginTop: 8 }}><Tag label="중요" tone="pending" /></View>}
-          <Text style={{ fontSize: 21, fontWeight: '700', lineHeight: 28, letterSpacing: -0.42, color: color.ink, marginTop: open.important ? 10 : 8 }}>{open.title}</Text>
-          <Text style={{ fontSize: 13, color: color.sub, marginTop: 6 }}>{open.author} · 대상 {targetLabel(open)} · {fmtDate(open.date)}</Text>
+          <Text style={{ fontSize: 21, fontFamily: font.b, lineHeight: 28, letterSpacing: -0.42, color: color.ink, marginTop: open.important ? 10 : 8 }}>{open.title}</Text>
+          <Text style={{ fontSize: 13, color: color.sub, marginTop: 6 }}>쏠연기뮤지컬학원 · 대상 {targetLabel(open)} · {fmtDate(open.date)}</Text>
           <Text style={{ fontSize: 15, lineHeight: 27, color: color.ink, marginTop: 16 }}>{open.content}</Text>
           {canWrite && (
             <Pressable onPress={del} style={{ marginTop: 24 }} hitSlop={6}>
-              <Text style={{ fontSize: 13, fontWeight: '500', color: color.warn }}>이 공지 삭제하기</Text>
+              <Text style={{ fontSize: 13, fontFamily: font.m, color: color.warn }}>이 공지 삭제하기</Text>
             </Pressable>
           )}
         </Scroll>
@@ -68,7 +68,7 @@ export function NoticesScreen() {
 
   return (
     <Screen edges={['top']}>
-      <BackHeader title="공지사항" onBack={() => nav.goBack()} right={canWrite ? <Pressable onPress={() => setEditing('new')} hitSlop={6}><Text style={{ fontSize: 14, fontWeight: '600', color: color.blue }}>작성</Text></Pressable> : undefined} />
+      <BackHeader title="공지사항" onBack={() => nav.goBack()} right={canWrite ? <Pressable onPress={() => setEditing('new')} hitSlop={6}><Text style={{ fontSize: 14, fontFamily: font.sb, color: color.blue }}>작성</Text></Pressable> : undefined} />
       <Scroll contentStyle={{ paddingBottom: 24 }}>
         {isLoading ? <Empty>불러오는 중…</Empty> : notices.length === 0 ? <Empty>아직 공지사항이 없어요</Empty> : notices.map((n) => (
           <ListRow key={n.id} showChevron={false}
@@ -81,6 +81,12 @@ export function NoticesScreen() {
     </Screen>
   );
 }
+
+// 빠른 공지 프리셋 — 탭으로 제목·내용을 채워 바로 올릴 수 있어요(직접 수정 가능).
+const NOTICE_PRESETS = [
+  { title: '이번 주 모의고사 안내', content: '이번 주 토요일 오후 2시에 모의고사가 있어요. 지정 대사를 준비해 오세요.' },
+  { title: '연습실 이용 안내', content: '연습실은 오전 10시부터 오후 9시까지 이용 가능합니다. 사용 후 정리 부탁드려요.' },
+];
 
 function NoticeForm({ authorName, classes, notice, onBack, onDone }: { authorName: string; classes: ClassInfo[]; notice: Notice | null; onBack: () => void; onDone: () => void }) {
   const [title, setTitle] = useState(notice?.title || '');
@@ -103,21 +109,31 @@ function NoticeForm({ authorName, classes, notice, onBack, onDone }: { authorNam
 
   const chip = (label: string, on: boolean, onPress: () => void) => (
     <Pressable onPress={onPress} style={{ backgroundColor: on ? color.ink : color.white, borderWidth: 1, borderColor: on ? color.ink : color.inputLine, borderRadius: radius.pill, paddingHorizontal: 13, paddingVertical: 8 }}>
-      <Text style={{ fontSize: 13, fontWeight: '500', color: on ? color.white : color.sub }}>{label}</Text>
+      <Text style={{ fontSize: 13, fontFamily: font.m, color: on ? color.white : color.sub }}>{label}</Text>
     </Pressable>
   );
 
   return (
     <Screen edges={['top']}>
       <BackHeader title={notice ? '공지 수정' : '새 공지'} onBack={onBack} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={8}>
       <Scroll contentStyle={{ padding: space.screenX }}>
         <FlowTitle>{notice ? '공지를\n수정해요' : '무엇을\n알릴까요?'}</FlowTitle>
+        {!notice && (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+            {NOTICE_PRESETS.map((p) => (
+              <Pressable key={p.title} onPress={() => { setTitle(p.title); setContent(p.content); }} style={{ backgroundColor: color.blueBg, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 7 }}>
+                <Text style={{ fontSize: 12.5, fontFamily: font.m, color: color.blue }}>{p.title}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
         <TextInput value={title} onChangeText={setTitle} placeholder="제목" placeholderTextColor={color.faint}
           style={{ marginTop: 16, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, paddingHorizontal: 13, paddingVertical: 12, fontSize: 15, color: color.ink }} />
         <TextInput value={content} onChangeText={setContent} placeholder="공지 내용을 적어요" placeholderTextColor={color.faint} multiline
           style={{ marginTop: 10, minHeight: 140, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, padding: 12, fontSize: 15, color: color.ink, textAlignVertical: 'top' }} />
 
-        <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, marginTop: 16, marginBottom: 8 }}>받는 대상</Text>
+        <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, marginTop: 16, marginBottom: 8 }}>받는 대상</Text>
         <View style={{ flexDirection: 'row', gap: 7, flexWrap: 'wrap' }}>
           {chip('전체', selected.length === 0, () => setSelected([]))}
           {classes.map((c) => chip(c.name, selected.includes(c.id), () => setSelected((s) => s.includes(c.id) ? s.filter((x) => x !== c.id) : [...s, c.id])))}
@@ -134,6 +150,7 @@ function NoticeForm({ authorName, classes, notice, onBack, onDone }: { authorNam
       <View style={{ paddingHorizontal: space.screenX, paddingBottom: 16 }}>
         <Cta label={notice ? '수정 저장하기' : '공지 올리기'} onPress={submit} disabled={!title.trim() || !content.trim()} loading={busy} />
       </View>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }

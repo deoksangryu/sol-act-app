@@ -12,6 +12,12 @@ export interface UploadOpts {
 }
 export interface PickedMedia { uri: string; filename: string; mimeType?: string; durationMs?: number }
 
+// 실제로 영상 파일인지 검증(picker가 videos로 제한하지만 안전망: 타입·MIME·확장자 중 하나라도 영상).
+const VIDEO_EXT = /\.(mp4|mov|m4v|3gp|avi|mkv|webm|hevc|qt|ts)$/i;
+function isVideoAsset(a: ImagePicker.ImagePickerAsset): boolean {
+  return a.type === 'video' || (a.mimeType?.startsWith('video') ?? false) || VIDEO_EXT.test(a.fileName || a.uri || '');
+}
+
 /** 라이브러리에서 사진/영상 1개 선택 (권한 요청 포함). 취소 시 null. */
 export async function pickMedia(kind: 'image' | 'video', options: Partial<ImagePicker.ImagePickerOptions> = {}): Promise<PickedMedia | null> {
   const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -23,8 +29,35 @@ export async function pickMedia(kind: 'image' | 'video', options: Partial<ImageP
   });
   if (res.canceled || !res.assets?.length) return null;
   const a = res.assets[0];
+  if (kind === 'video' && !isVideoAsset(a)) throw new Error('영상 파일만 올릴 수 있어요 (사진·문서는 안 돼요)');
   const ext = kind === 'video' ? 'mp4' : 'jpg';
   return { uri: a.uri, filename: a.fileName || `upload_${Date.now()}.${ext}`, mimeType: a.mimeType ?? undefined, durationMs: a.duration ?? undefined };
+}
+
+/** 카메라로 직접 촬영(영상). 권한 요청 포함. 취소 시 null. */
+export async function captureVideo(options: Partial<ImagePicker.ImagePickerOptions> = {}): Promise<PickedMedia | null> {
+  const perm = await ImagePicker.requestCameraPermissionsAsync();
+  if (!perm.granted) throw new Error('카메라 접근 권한이 필요해요 (설정에서 허용)');
+  const res = await ImagePicker.launchCameraAsync({
+    mediaTypes: ['videos'],
+    quality: 1,
+    videoMaxDuration: 300,
+    ...options,
+  });
+  if (res.canceled || !res.assets?.length) return null;
+  const a = res.assets[0];
+  if (!isVideoAsset(a)) throw new Error('영상만 촬영할 수 있어요');
+  return { uri: a.uri, filename: a.fileName || `capture_${Date.now()}.mp4`, mimeType: a.mimeType ?? undefined, durationMs: a.duration ?? undefined };
+}
+
+/** 카메라로 사진 촬영. 권한 요청 포함. 취소 시 null. */
+export async function captureImage(options: Partial<ImagePicker.ImagePickerOptions> = {}): Promise<PickedMedia | null> {
+  const perm = await ImagePicker.requestCameraPermissionsAsync();
+  if (!perm.granted) throw new Error('카메라 접근 권한이 필요해요 (설정에서 허용)');
+  const res = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8, ...options });
+  if (res.canceled || !res.assets?.length) return null;
+  const a = res.assets[0];
+  return { uri: a.uri, filename: a.fileName || `capture_${Date.now()}.jpg`, mimeType: a.mimeType ?? undefined };
 }
 
 /** 여러 개 선택(영상 다중 업로드용). 취소 시 빈 배열. */
@@ -39,8 +72,10 @@ export async function pickMediaMulti(kind: 'image' | 'video', options: Partial<I
     ...options,
   });
   if (res.canceled || !res.assets?.length) return [];
+  const assets = kind === 'video' ? res.assets.filter(isVideoAsset) : res.assets;
+  if (kind === 'video' && assets.length === 0) throw new Error('영상 파일만 올릴 수 있어요 (사진·문서는 안 돼요)');
   const ext = kind === 'video' ? 'mp4' : 'jpg';
-  return res.assets.map((a, i) => ({ uri: a.uri, filename: a.fileName || `upload_${Date.now()}_${i}.${ext}`, mimeType: a.mimeType ?? undefined, durationMs: a.duration ?? undefined }));
+  return assets.map((a, i) => ({ uri: a.uri, filename: a.fileName || `upload_${Date.now()}_${i}.${ext}`, mimeType: a.mimeType ?? undefined, durationMs: a.duration ?? undefined }));
 }
 
 /**

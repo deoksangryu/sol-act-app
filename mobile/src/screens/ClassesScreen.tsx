@@ -1,15 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, TextInput, Alert } from 'react-native';
+import { View, Text, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Screen, Scroll, BigTitle, SectionLabel, BackHeader, ListRow, Tag, Avatar,
   Cta, Empty, FlowTitle, DoneScreen,
 } from '../components/kit';
+import { Card } from '../components/gamify';
 import { CategoryIcon, catColor } from '../components/CategoryIcon';
 import { TopBar } from '../components/TopBar';
 import { Icon } from '../components/Icon';
 import { MiniCalendar } from '../components/MiniCalendar';
-import { color, radius, space } from '../theme/tokens';
+import { color, radius, space, font } from '../theme/tokens';
 import { lessonApi, attendanceApi, journalApi } from '../services/api';
 import { useDataRefresh } from '../services/ws';
 import { useAppData } from '../services/appData';
@@ -183,13 +184,13 @@ export function ClassesScreen() {
     return (
       <React.Fragment key={date}>
         <SectionLabel>{label}{ls.length ? ` · ${ls.length}개` : ''}</SectionLabel>
-        {ls.length === 0 ? <Text style={{ paddingHorizontal: space.screenX, paddingVertical: 6, fontSize: 13, color: color.sub }}>수업이 없어요</Text> : ls.map(lessonRow)}
+        {ls.length === 0 ? <Text style={{ paddingHorizontal: space.screenX, paddingVertical: 6, fontSize: 13, color: color.sub }}>수업이 없어요</Text> : <Card style={{ marginHorizontal: space.screenX, marginBottom: 4 }}>{ls.map(lessonRow)}</Card>}
       </React.Fragment>
     );
   };
 
   return (
-    <Screen edges={['top']}>
+    <Screen edges={['top']} bg={color.bg}>
       <TopBar />
       <BigTitle>{isStaff ? '수업을\n운영하고 기록해요' : '수업을\n준비하고 돌아봐요'}</BigTitle>
       <Scroll contentStyle={{ paddingBottom: 40 }}>
@@ -202,7 +203,7 @@ export function ClassesScreen() {
         ) : selDate ? (
           <>
             <SectionLabel>{selDate.slice(5).replace('-', '/')} 수업 {dayLessons.length}개</SectionLabel>
-            {dayLessons.length === 0 ? <Empty>이 날은 수업이 없어요</Empty> : dayLessons.map(lessonRow)}
+            {dayLessons.length === 0 ? <Empty>이 날은 수업이 없어요</Empty> : <Card style={{ marginHorizontal: space.screenX, marginBottom: 4 }}>{dayLessons.map(lessonRow)}</Card>}
           </>
         ) : (
           <>
@@ -242,18 +243,18 @@ function AttendScreen({ lesson, userId, onBack, onDone }: { lesson: Lesson; user
         <View style={{ backgroundColor: color.surf, borderRadius: radius.button, padding: 14, marginTop: 16, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
           <CategoryIcon cat={lesson.subject} />
           <View>
-            <Text style={{ fontSize: 15, fontWeight: '600', color: color.ink }}>{lesson.className}</Text>
+            <Text style={{ fontSize: 15, fontFamily: font.sb, color: color.ink }}>{lesson.className}</Text>
             <Text style={{ fontSize: 13, color: color.success, marginTop: 2 }}>학원 위치 확인됨</Text>
           </View>
         </View>
-        <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub, marginTop: 18, marginBottom: 10 }}>오늘 컨디션은 어때요?</Text>
+        <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub, marginTop: 18, marginBottom: 10 }}>오늘 컨디션은 어때요?</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           {CONDITIONS.map((o) => {
             const on = cond === o.value;
             return (
               <Pressable key={o.value} onPress={() => setCond(o.value)} style={{ flex: 1, backgroundColor: on ? color.blueBg : color.white, borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, borderRadius: radius.button, paddingVertical: 13, alignItems: 'center', gap: 6 }}>
                 <Icon name={o.icon} size={23} color={on ? color.blue : color.sub} />
-                <Text style={{ fontSize: 12, fontWeight: '500', color: on ? color.blue : color.sub }}>{o.label}</Text>
+                <Text style={{ fontSize: 12, fontFamily: font.m, color: on ? color.blue : color.sub }}>{o.label}</Text>
               </Pressable>
             );
           })}
@@ -288,6 +289,7 @@ function JournalWrite({ lesson, type, journal, onBack, onDone }: { lesson: Lesso
   return (
     <Screen edges={['top']}>
       <BackHeader title={isTeacher ? '수업일지' : '수업 일지'} onBack={onBack} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={8}>
       <Scroll contentStyle={{ padding: space.screenX }}>
         <FlowTitle>{isTeacher ? '이 수업,\n어떻게 진행됐나요?' : '이 수업,\n어땠어요?'}</FlowTitle>
         <Text style={{ fontSize: 14, color: color.sub, marginTop: 6 }}>{lesson.className} · {md(lesson.date)}</Text>
@@ -305,6 +307,7 @@ function JournalWrite({ lesson, type, journal, onBack, onDone }: { lesson: Lesso
       <View style={{ paddingHorizontal: space.screenX, paddingBottom: 16 }}>
         <Cta label={editing ? '일지 수정하기' : isTeacher ? '수업일지 저장하기' : '일지 저장하기'} onPress={submit} disabled={!content.trim()} loading={busy} />
       </View>
+      </KeyboardAvoidingView>
     </Screen>
   );
 }
@@ -329,19 +332,19 @@ function JournalView({ journal, lesson, canComment, canEdit, onEdit, onBack, onR
   };
   return (
     <Screen edges={['top']}>
-      <BackHeader title="수업 일지" onBack={onBack} right={canEdit ? <Pressable onPress={onEdit} hitSlop={6}><Text style={{ fontSize: 13, fontWeight: '600', color: color.blue }}>다시 쓰기</Text></Pressable> : undefined} />
+      <BackHeader title="수업 일지" onBack={onBack} right={canEdit ? <Pressable onPress={onEdit} hitSlop={6}><Text style={{ fontSize: 13, fontFamily: font.sb, color: color.blue }}>다시 쓰기</Text></Pressable> : undefined} />
       <Scroll contentStyle={{ paddingHorizontal: space.screenX, paddingBottom: 24 }}>
-        <Text style={{ fontSize: 20, fontWeight: '700', marginTop: 10, color: color.ink }}>{lesson?.className || '수업'}</Text>
+        <Text style={{ fontSize: 20, fontFamily: font.b, marginTop: 10, color: color.ink }}>{lesson?.className || '수업'}</Text>
         <Text style={{ fontSize: 13, color: color.sub, marginTop: 6 }}>{journal.authorName} · {md(journal.date)}</Text>
         <Text style={{ fontSize: 15, lineHeight: 27, marginTop: 14, color: color.ink }}>{journal.content}</Text>
         <View style={{ height: 1, backgroundColor: color.line, marginVertical: 18 }} />
-        <Text style={{ fontSize: 13, fontWeight: '500', color: color.sub }}>선생님 댓글 {comments.length}개</Text>
+        <Text style={{ fontSize: 13, fontFamily: font.m, color: color.sub }}>선생님 댓글 {comments.length}개</Text>
         {comments.map((c) => (
           <View key={c.id} style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
             <Avatar name={c.authorName} size={34} bg={color.purpleBg} fg={color.purple} />
             <View style={{ flex: 1, backgroundColor: color.surf, borderRadius: radius.chip, borderTopLeftRadius: 4, padding: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                <Text style={{ fontSize: 12, fontWeight: '600', color: color.ink }}>{c.authorName}</Text>
+                <Text style={{ fontSize: 12, fontFamily: font.sb, color: color.ink }}>{c.authorName}</Text>
                 {canComment && <Pressable onPress={() => removeComment(c.id)} hitSlop={6}><Text style={{ fontSize: 12, color: color.faint }}>삭제</Text></Pressable>}
               </View>
               <Text style={{ fontSize: 14, lineHeight: 22, marginTop: 3, color: color.ink }}>{c.content}</Text>
@@ -353,7 +356,7 @@ function JournalView({ journal, lesson, canComment, canEdit, onEdit, onBack, onR
             <TextInput value={text} onChangeText={setText} placeholder="코칭 댓글을 남겨요" placeholderTextColor={color.faint}
               style={{ flex: 1, borderWidth: 1, borderColor: color.inputLine, borderRadius: 11, padding: 11, fontSize: 13, color: color.ink }} />
             <Pressable onPress={add} disabled={busy || !text.trim()} style={{ backgroundColor: text.trim() ? color.blue : color.surf, borderRadius: 11, paddingHorizontal: 16, justifyContent: 'center' }}>
-              <Text style={{ color: text.trim() ? color.white : color.sub, fontSize: 14, fontWeight: '600' }}>등록</Text>
+              <Text style={{ color: text.trim() ? color.white : color.sub, fontSize: 14, fontFamily: font.sb }}>등록</Text>
             </Pressable>
           </View>
         )}
@@ -410,7 +413,7 @@ function TeacherLessonDetail({ lesson, students, teacherJournal, studentJournals
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: space.screenX, paddingTop: 8, paddingBottom: 4 }}>
           <CategoryIcon cat={lesson.subject} />
           <View>
-            <Text style={{ fontSize: 19, fontWeight: '700', letterSpacing: -0.38, color: color.ink }}>{lesson.className}</Text>
+            <Text style={{ fontSize: 19, fontFamily: font.b, letterSpacing: -0.38, color: color.ink }}>{lesson.className}</Text>
             <Text style={{ fontSize: 13, color: color.sub, marginTop: 3 }}>{md(lesson.date)} · {lesson.startTime}</Text>
           </View>
         </View>
@@ -424,7 +427,7 @@ function TeacherLessonDetail({ lesson, students, teacherJournal, studentJournals
                 title={s.name} sub={marks[s.id] ? '출석함' : '아직 출석 전'}
                 right={
                   <Pressable onPress={() => setMarks((m) => ({ ...m, [s.id]: !m[s.id] }))} style={{ backgroundColor: marks[s.id] ? color.successBg : color.surf, borderRadius: radius.tag, paddingHorizontal: 9, paddingVertical: 4 }}>
-                    <Text style={{ fontSize: 12, fontWeight: '500', color: marks[s.id] ? color.success : color.sub }}>{marks[s.id] ? '출석' : '미출석'}</Text>
+                    <Text style={{ fontSize: 12, fontFamily: font.m, color: marks[s.id] ? color.success : color.sub }}>{marks[s.id] ? '출석' : '미출석'}</Text>
                   </Pressable>
                 } />
             ))}
@@ -460,7 +463,7 @@ function TeacherLessonDetail({ lesson, students, teacherJournal, studentJournals
         <View style={{ paddingHorizontal: space.screenX, paddingBottom: 16, gap: 4 }}>
           <Cta label="출결 저장하기" onPress={saveAttendance} loading={busy} />
           <Pressable onPress={completeLesson} disabled={busy} style={{ paddingVertical: 12, alignItems: 'center', opacity: busy ? 0.5 : 1 }}>
-            <Text style={{ fontSize: 14, fontWeight: '600', color: color.sub }}>수업 종료하고 일지 쓰기</Text>
+            <Text style={{ fontSize: 14, fontFamily: font.sb, color: color.sub }}>수업 종료하고 일지 쓰기</Text>
           </Pressable>
         </View>
       ) : (

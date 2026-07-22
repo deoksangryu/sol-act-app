@@ -8,10 +8,21 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.solact.academy"
+      "bundleIdentifier": "com.solact.academy",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.solact.academy",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -29,11 +40,21 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "프로필 사진과 과제·영상·식단 업로드를 위해 사진 접근이 필요합니다."
+          "photosPermission": "프로필 사진과 과제·영상·식단 업로드를 위해 사진 접근이 필요합니다.",
+          "cameraPermission": "연기 영상을 촬영해 제출하기 위해 카메라 접근이 필요합니다.",
+          "microphonePermission": "연기 영상의 소리를 녹음하기 위해 마이크 접근이 필요합니다."
         }
       ],
       "expo-video",
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "연기 녹음과 답변 녹음을 위해 마이크 접근이 필요합니다."
+        }
+      ],
+      "expo-asset",
+      "@react-native-community/datetimepicker",
+      "./plugins/withReleaseSigning"
     ]
   }
 }

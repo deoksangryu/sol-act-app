@@ -4,7 +4,7 @@ import {
   StyleSheet, ActivityIndicator, ViewStyle, StyleProp,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { color, text, radius, space, MAX_WIDTH } from '../theme/tokens';
+import { color, text, radius, space, MAX_WIDTH, font } from '../theme/tokens';
 import { Icon } from './Icon';
 
 // === Screen: 안전영역 + 배경(기본 흰색, v2는 bg=surf) + 480 중앙정렬 ===
@@ -132,7 +132,7 @@ export function Avatar({ name, size = 36, bg = color.blueBg, fg = color.blue, ur
   }
   return (
     <View style={{ width: size, height: size, borderRadius: radius.pill, backgroundColor: bg, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: fg, fontWeight: '600', fontSize: Math.round(size * 0.42) }}>{initial}</Text>
+      <Text style={{ color: fg, fontFamily: font.sb, fontSize: Math.round(size * 0.42) }}>{initial}</Text>
     </View>
   );
 }
@@ -182,8 +182,8 @@ export function FilterChips<T extends string>({ items, value, onChange }: { item
       {items.map((it) => {
         const active = it.key === value;
         return (
-          <Pressable key={it.key} onPress={() => onChange(it.key)} style={[s.filterChip, { backgroundColor: active ? color.ink : color.surf }]}>
-            <Text style={{ fontSize: 13, fontWeight: '500', color: active ? color.white : color.sub }}>{it.label}</Text>
+          <Pressable key={it.key} onPress={() => onChange(it.key)} style={[s.filterChip, { backgroundColor: active ? color.ink : color.white, borderWidth: 1, borderColor: active ? color.ink : color.inputLine }]}>
+            <Text style={{ fontSize: 13, fontFamily: font.m, color: active ? color.white : color.sub }}>{it.label}</Text>
           </Pressable>
         );
       })}
@@ -199,7 +199,7 @@ export function ChipSelect<T extends string>({ items, value, onChange, wrap }: {
         const active = it.key === value;
         return (
           <Pressable key={it.key} onPress={() => onChange(it.key)} style={{ borderWidth: 1.5, borderColor: active ? color.blue : color.inputLine, backgroundColor: active ? color.blueBg : color.white, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 9 }}>
-            <Text style={{ fontSize: 14, fontWeight: '500', color: active ? color.blue : color.sub }}>{it.label}</Text>
+            <Text style={{ fontSize: 14, fontFamily: font.m, color: active ? color.blue : color.sub }}>{it.label}</Text>
           </Pressable>
         );
       })}
@@ -224,7 +224,7 @@ export function DoneScreen({ title, sub, onConfirm }: { title: string; sub?: str
         <Animated.View style={{ width: 82, height: 82, borderRadius: radius.pill, backgroundColor: color.blue, alignItems: 'center', justifyContent: 'center', transform: [{ scale }] }}>
           <Icon name="check" size={44} color={color.white} />
         </Animated.View>
-        <Text style={{ fontSize: 20, fontWeight: '700', color: color.ink, textAlign: 'center' }}>{title}</Text>
+        <Text style={{ fontSize: 20, fontFamily: font.b, color: color.ink, textAlign: 'center' }}>{title}</Text>
         {!!sub && <Text style={{ fontSize: 14, color: color.sub, textAlign: 'center' }}>{sub}</Text>}
       </View>
       <View style={{ paddingHorizontal: space.screenX, paddingBottom: 16 }}>
@@ -240,7 +240,7 @@ const s = StyleSheet.create({
   flex1: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.headerX, paddingVertical: 8, gap: 4 },
   headerBtn: { padding: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: space.screenX, paddingVertical: space.rowY },
+  row: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: color.line },
   cta: { height: 52, borderRadius: radius.button, alignItems: 'center', justifyContent: 'center' },
   ghost: { height: 52, borderRadius: radius.button, alignItems: 'center', justifyContent: 'center', backgroundColor: color.white, borderWidth: 1.5, borderColor: color.blue },
   tag: { paddingHorizontal: 9, paddingVertical: 4, borderRadius: radius.tag, alignSelf: 'flex-start' },

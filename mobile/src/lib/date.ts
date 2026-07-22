@@ -36,3 +36,7 @@ export function dayOffset(n: number): string {
 
 /** ISO/날짜 → 'MM/DD' */
 export const md = (iso: string) => (iso || '').slice(5, 10).replace('-', '/');
+
+/** D-day 표기: 미래=D-N, 당일=D-DAY, 지난날=D+N (과거에 'D--6' 같은 이중부호 방지) */
+export const fmtDday = (dday: number | null | undefined): string =>
+  dday == null ? '' : dday > 0 ? `D-${dday}` : dday < 0 ? `D+${-dday}` : 'D-DAY';
