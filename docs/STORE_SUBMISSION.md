@@ -14,7 +14,7 @@
 | **인앱 계정 삭제** | 구현·검증 완료 (내 정보 → 계정 삭제). **양 스토어 필수 요건 충족** |
 | Android **AAB(서명)** | `mobile/android/app/build/outputs/bundle/release/app-release.aab` (59.6MB, 릴리스 키 서명 확인, 2053까지 유효) |
 | EAS 빌드 설정 | `mobile/eas.json` (development/preview/production 프로파일) |
-| 개인정보처리방침 초안 | `docs/PRIVACY_POLICY.md` (대괄호 항목 채우고 웹 게시 필요) |
+| **개인정보처리방침 게시** | ✅ **https://sol-manager.com/privacy 라이브** (실제 데이터수집 감사 반영). 스토어에 이 URL 등록 |
 | 아이콘/스플래시 | `mobile/assets/` 준비됨 (icon.png, adaptive-icon 세트) |
 | 백엔드 업로드 경로 하드닝 | 경로우회·이벤트루프 블로킹·동시성·실패정리 개선 완료 |
 
@@ -26,8 +26,8 @@
 ## 🔴 본인만 할 수 있는 잔업 (계정 로그인·심사 제출)
 
 ### A. 사전 준비 (공통)
-1. **개인정보처리방침 게시**: `docs/PRIVACY_POLICY.md` 의 `[  ]` 항목(운영자·연락처·주소) 채워서
-   `https://sol-manager.com/privacy` 같은 공개 URL로 게시. → 두 스토어에 URL 입력.
+1. ✅ **개인정보처리방침 게시 완료**: **https://sol-manager.com/privacy** 로 라이브. 두 스토어(App Store Connect·Play Console)의 "개인정보처리방침 URL"에 이 주소를 입력하면 됩니다.
+   - (참고) AI 분석(Gemini) 기능을 나중에 켜면 방침의 제3자 조항과 스토어 데이터 라벨을 함께 갱신해야 합니다.
 2. **스크린샷 촬영**: 실기기/시뮬레이터에서 주요 화면 캡처.
    - iPhone 6.7" (1290×2796) 및 6.5" 최소 3~10장 / iPad(선택)
    - Android 폰 스크린샷 2~8장 (최소 320px, 16:9 또는 9:16)
