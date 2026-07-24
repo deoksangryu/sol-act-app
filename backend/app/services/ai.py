@@ -44,48 +44,73 @@ _FALLBACK = {
 }
 
 
+_SYSTEM = "너는 연기·뮤지컬 입시 면접 코치다. 학생을 존중하는 따뜻한 말투로, 과장 없이 구체적으로 첨삭한다."
+
+
+def _user_prompt(question: str, answer: str) -> str:
+    return (
+        "아래 '질문'에 대한 학생의 '답변'을 첨삭하라.\n"
+        "반드시 아래 JSON 형식으로만 답하라(키: revised, feedback, summary):\n"
+        '{"revised": "더 좋은 답변 예시(3~5문장, 학생 원래 취지 유지)",'
+        ' "feedback": ["개선점1", "개선점2", "개선점3"],'
+        ' "summary": "한 줄 총평"}\n\n'
+        f"[질문]\n{question}\n\n[학생 답변]\n{answer}\n"
+    )
+
+
+def _parse(text: str) -> dict:
+    import json
+    data = json.loads(text)
+    revised = str(data.get("revised", "")).strip()
+    fb = data.get("feedback", [])
+    if isinstance(fb, str):
+        fb = [fb]
+    feedback = [str(x).strip() for x in fb if str(x).strip()][:5]
+    summary = str(data.get("summary", "")).strip()
+    if not revised:
+        return dict(_FALLBACK)
+    return {"ok": True, "revised": revised, "feedback": feedback, "summary": summary}
+
+
 def revise_interview_answer(question: str, answer: str) -> dict:
     """입시 면접(연기·뮤지컬) 답변을 첨삭한다.
     반환: {ok, revised(개선 답변), feedback([개선점]), summary(한 줄 총평)}.
-    키가 없거나 오류면 _FALLBACK을 반환(호출측은 항상 dict를 받음)."""
+    OpenAI 키가 있으면 OpenAI, 없으면 Gemini, 둘 다 없으면 _FALLBACK(항상 dict 반환)."""
     from app.config import settings
     import logging
     log = logging.getLogger(__name__)
-    key = (getattr(settings, "GEMINI_API_KEY", "") or "").strip()
-    if not key:
-        return dict(_FALLBACK)
-    try:
-        import json
-        import google.generativeai as genai
-        genai.configure(api_key=key)
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        prompt = (
-            "너는 연기·뮤지컬 입시 면접 코치다. 아래 '질문'에 대한 학생의 '답변'을 첨삭하라.\n"
-            "학생을 존중하는 따뜻한 말투로, 과장 없이 구체적으로.\n"
-            "반드시 아래 JSON 형식으로만 답하라(키: revised, feedback, summary):\n"
-            '{"revised": "더 좋은 답변 예시(3~5문장, 학생 원래 취지 유지)",'
-            ' "feedback": ["개선점1", "개선점2", "개선점3"],'
-            ' "summary": "한 줄 총평"}\n\n'
-            f"[질문]\n{question}\n\n[학생 답변]\n{answer}\n"
-        )
-        resp = model.generate_content(
-            prompt,
-            generation_config={
-                "response_mime_type": "application/json",
-                "temperature": 0.6,
-                "max_output_tokens": 1024,
-            },
-        )
-        data = json.loads(resp.text)
-        revised = str(data.get("revised", "")).strip()
-        fb = data.get("feedback", [])
-        if isinstance(fb, str):
-            fb = [fb]
-        feedback = [str(x).strip() for x in fb if str(x).strip()][:5]
-        summary = str(data.get("summary", "")).strip()
-        if not revised:
+    openai_key = (getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+    gemini_key = (getattr(settings, "GEMINI_API_KEY", "") or "").strip()
+    user = _user_prompt(question, answer)
+
+    if openai_key:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_key)
+            resp = client.chat.completions.create(
+                model=(getattr(settings, "OPENAI_MODEL", "") or "gpt-4o-mini"),
+                messages=[{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}],
+                response_format={"type": "json_object"},
+                temperature=0.6,
+                max_tokens=1024,
+            )
+            return _parse(resp.choices[0].message.content or "")
+        except Exception as e:
+            log.warning(f"revise_interview_answer(openai) failed: {e}")
             return dict(_FALLBACK)
-        return {"ok": True, "revised": revised, "feedback": feedback, "summary": summary}
-    except Exception as e:
-        log.warning(f"revise_interview_answer failed: {e}")
-        return dict(_FALLBACK)
+
+    if gemini_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            resp = model.generate_content(
+                _SYSTEM + "\n\n" + user,
+                generation_config={"response_mime_type": "application/json", "temperature": 0.6, "max_output_tokens": 1024},
+            )
+            return _parse(resp.text)
+        except Exception as e:
+            log.warning(f"revise_interview_answer(gemini) failed: {e}")
+            return dict(_FALLBACK)
+
+    return dict(_FALLBACK)

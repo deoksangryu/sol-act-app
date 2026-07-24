@@ -16,6 +16,7 @@ python-multipart==0.0.20
 
 # AI & Image Processing
 google-generativeai==0.8.6
+openai==1.109.1
 pillow==11.1.0
 pillow-heif==0.21.0  # HEIC(아이폰 기본 포맷) 읽기/JPEG 변환
 

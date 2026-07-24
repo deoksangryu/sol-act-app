@@ -17,7 +17,9 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7일(모바일 세션). env로 override 가능. 학생 개인정보 앱이라 과거 60일은 보안상 축소.
 
-    # Gemini AI
+    # AI (둘 중 하나만 넣으면 됨 — OpenAI 우선, 없으면 Gemini)
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o-mini"   # 저렴·충분. 원하면 gpt-4o 등으로 변경
     GEMINI_API_KEY: str = ""
 
     # AWS S3 (Optional)
