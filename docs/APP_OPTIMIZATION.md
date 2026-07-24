@@ -1,5 +1,14 @@
 # SOL-ACT 앱 최적화 가이드 (Play "최적화 점수" 대응)
 
+## ✅ 적용 완료 (2026-07-24, versionCode 3)
+- **R8 코드·리소스 축소 적용·검증 완료**: `plugins/withR8.js`(config plugin)로 `enableMinifyInReleaseBuilds`·`enableShrinkResourcesInReleaseBuilds`=true.
+  - **결과: dex 27MB → 10.4MB (−61%)**, AAB 59.4→55.2MB, mapping.txt 생성(Play 크래시 역난독화용).
+  - **런타임 검증**: 유니버설 APK를 에뮬레이터에 설치·실행 → 홈·배움·AI첨삭 신규화면 정상 렌더, 크래시 0 → R8 keep 규칙 문제 없음 확인.
+  - 산출물: `mobile/android/app/build/outputs/bundle/release/app-release.aab` (55.2MB, versionCode 3) / 바탕화면 `SOL-ACT-v1.0.0-build3-R8.aab`.
+- **남은 최적화(프로덕션 최종에)**: x86/x86_64 ABI 제외(아래 1번). 지금 적용하면 x86 에뮬 테스트가 막혀 **최종 출시 직전에만** 적용.
+
+---
+
 ## 결론 먼저
 - Play Console의 "앱 최적화 점수 낮음"은 **정보성 권장**이며 **게시를 막지 않습니다.**
 - AAB는 Play가 **기기별로 쪼개 배포**하므로 **실제 사용자 다운로드 크기는 이미 작습니다**(arm64 기기 ~25~35MB). 83MB는 "전부 합친 유니버설" 크기일 뿐.
