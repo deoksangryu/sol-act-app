@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.solact.academy",
-      "versionCode": 2,
+      "versionCode": 3,
       "permissions": [
         "android.permission.CAMERA"
       ],
@@ -53,7 +53,8 @@
       ],
       "expo-asset",
       "@react-native-community/datetimepicker",
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "./plugins/withR8"
     ]
   }
 }
