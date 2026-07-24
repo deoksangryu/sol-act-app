@@ -12,6 +12,10 @@ import { RecordScreen } from '../screens/RecordScreen';
 import { ExchangeScreen } from '../screens/ExchangeScreen';
 import { AdminStudentDetail } from '../screens/AdminStudentDetail';
 import { AIReviseScreen } from '../screens/AIReviseScreen';
+import { MockTestScreen } from '../screens/MockTestScreen';
+import { MockTestVideosScreen } from '../screens/MockTestVideosScreen';
+import { MockTestAdminScreen } from '../screens/MockTestAdminScreen';
+import { MockTestDetailScreen } from '../screens/MockTestDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -39,6 +43,11 @@ export function MainStack() {
       <Stack.Screen name="studentDetail" component={AdminStudentDetail} />
       {/* AI 면접 질의응답 첨삭(학생): 질문+답변 → 개선 답변·개선점·총평 */}
       <Stack.Screen name="aiRevise" component={AIReviseScreen} />
+      {/* 모의테스트 — 학생: 내 목록+음원 업로드 / 원장: 생성·순번·음원수집·영상배포·공지 */}
+      <Stack.Screen name="mockTest" component={MockTestScreen} />
+      <Stack.Screen name="mockTestVideos" component={MockTestVideosScreen} />
+      <Stack.Screen name="mockTestAdmin" component={MockTestAdminScreen} />
+      <Stack.Screen name="mockTestDetail" component={MockTestDetailScreen} />
     </Stack.Navigator>
   );
 }

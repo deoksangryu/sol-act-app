@@ -466,6 +466,11 @@ def _update_video_urls_in_db(old_path: str, new_path: str) -> None:
             updated += db.query(Assignment).filter(Assignment.submission_file_url == old_url).update(
                 {Assignment.submission_file_url: new_url}
             )
+            # Update mock_test_videos (원장이 올린 모의테스트 영상도 .mov→.mp4 재멕싱 시 URL 갱신)
+            from app.models.mock_test import MockTestVideo
+            updated += db.query(MockTestVideo).filter(MockTestVideo.video_url == old_url).update(
+                {MockTestVideo.video_url: new_url}
+            )
             # Update lesson_journal media_urls (JSON array of strings or {url, name} objects)
             import json
             from app.models.lesson_journal import LessonJournal

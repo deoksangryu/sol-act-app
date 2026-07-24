@@ -222,6 +222,12 @@ export function LearnScreen() {
           </Card>
         </Section>
 
+        <Section title="모의테스트">
+          <Card>
+            <V2Row first icon="microphone" iconBg={color.blueBg} iconColor={color.blue} title="모의테스트 참여" sub="순번 확인 · 음원 제출 · 내 영상 보기" onPress={() => nav.navigate('mockTest')} right={<Icon name="chevron-right" size={18} color={color.faint} />} />
+          </Card>
+        </Section>
+
         <Section title="시청각 자료" right="이번 주 배정">
           <Card>
             {media.length > 0 ? media.map((m, i) => (

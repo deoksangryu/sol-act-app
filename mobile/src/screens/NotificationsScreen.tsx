@@ -15,6 +15,7 @@ import { md } from '../lib/date';
 // 'home'/'my'는 탭(중첩 네비) — goto에서 별도 처리. RN 미사용 기능(과제·질문·평가·오디션·개인레슨·계획)은
 // 현재 알림이 발생하지 않으므로 매핑하지 않는다(발생 시 null=무동작, 오화면 이동보다 안전).
 function inferTarget(message: string): string | null {
+  if (/모의테스트/.test(message)) return 'mockTest';                            // 모의테스트 공지·음원제출·영상도착 (videos보다 먼저)
   if (/공지/.test(message)) return 'notices';                                   // 새 공지사항 / 공지 수정
   if (/일지|수업|출석|출결|클래스/.test(message)) return 'classes';             // 수업일지·연습일지·출결·클래스 등록/제외·새 수업 (videos보다 먼저: "수업일지 AI피드백")
   if (/영상|포트폴리오|피드백|리뷰|최적화|제출/.test(message)) return 'videos'; // 업로드·댓글·AI피드백·최적화완료·제출리뷰
@@ -33,6 +34,7 @@ const CAT: Record<string, { icon: string; bg: string; fg: string }> = {
   my: { icon: 'flame', bg: color.amberBg, fg: color.amber },
   notices: { icon: 'bell', bg: color.blueBg, fg: color.blue },
   home: { icon: 'calendar', bg: color.purpleBg, fg: color.purple },
+  mockTest: { icon: 'microphone', bg: color.purpleBg, fg: color.purple },
 };
 
 function dtShort(iso: string): string {
@@ -55,6 +57,11 @@ export function NotificationsScreen() {
   const goto = (route: string) => {
     if (route === 'my' || route === 'home') {
       if (user?.role === UserRole.STUDENT) nav.navigate('tabs', { screen: route });
+      return;
+    }
+    // 모의테스트: 원장은 관리 화면, 학생은 내 모의테스트 화면으로
+    if (route === 'mockTest') {
+      nav.navigate(user?.role === UserRole.DIRECTOR ? 'mockTestAdmin' : 'mockTest');
       return;
     }
     nav.navigate(route);

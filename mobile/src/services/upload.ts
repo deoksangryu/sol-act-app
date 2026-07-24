@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import { API_URL, toCamel } from './api';
 import { getToken } from './storage';
 
@@ -32,6 +33,24 @@ export async function pickMedia(kind: 'image' | 'video', options: Partial<ImageP
   if (kind === 'video' && !isVideoAsset(a)) throw new Error('영상 파일만 올릴 수 있어요 (사진·문서는 안 돼요)');
   const ext = kind === 'video' ? 'mp4' : 'jpg';
   return { uri: a.uri, filename: a.fileName || `upload_${Date.now()}.${ext}`, mimeType: a.mimeType ?? undefined, durationMs: a.duration ?? undefined };
+}
+
+// 백엔드 허용 오디오 확장자(file_upload.py ALLOWED_DOCS와 일치)
+const AUDIO_EXT = /\.(mp3|m4a|wav)$/i;
+
+/** 오디오 파일 1개 선택 (모의테스트 음원 제출용). 취소 시 null.
+ *  copyToCacheDirectory로 content:// URI를 file:// 캐시로 복사 → 업로드 안정화. */
+export async function pickAudioFile(): Promise<PickedMedia | null> {
+  const res = await DocumentPicker.getDocumentAsync({
+    type: 'audio/*',
+    copyToCacheDirectory: true,
+    multiple: false,
+  });
+  if (res.canceled || !res.assets?.length) return null;
+  const a = res.assets[0];
+  const name = a.name || `audio_${Date.now()}.mp3`;
+  if (!AUDIO_EXT.test(name)) throw new Error('음원은 mp3·m4a·wav 파일만 올릴 수 있어요');
+  return { uri: a.uri, filename: name, mimeType: a.mimeType ?? undefined };
 }
 
 /** 카메라로 직접 촬영(영상). 권한 요청 포함. 취소 시 null. */

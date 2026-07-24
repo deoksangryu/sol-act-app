@@ -151,6 +151,15 @@ export function AdminScheduleScreen() {
       <PageHeader eyebrow="시험 일정 관리" title="2027학년도" bell onSettings={() => nav.navigate('profile')} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={8}>
         <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 40 }}>
+          <Pressable onPress={() => nav.navigate('mockTestAdmin')} style={{ marginHorizontal: space.screenX, marginTop: 8 }}>
+            <Card style={{ padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: font.b, fontSize: 15, color: color.ink }}>🎤 모의테스트</Text>
+                <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub, marginTop: 2 }}>순번 지정 · 음원 수집 · 영상 배포 · 공지</Text>
+              </View>
+              <Text style={{ fontFamily: font.b, fontSize: 18, color: color.faint }}>›</Text>
+            </Card>
+          </Pressable>
           <View style={{ marginHorizontal: space.screenX, marginTop: 8 }}>
             <Card style={{ padding: 20 }}>
               <Text style={{ fontFamily: font.b, fontSize: 12.5, color: color.sub2, marginBottom: 7 }}>학교 · 전형</Text>
