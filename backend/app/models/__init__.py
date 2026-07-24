@@ -27,6 +27,7 @@ from .exam import ExamSchedule
 from .content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, InterviewQuestion
 from .routine import RoutineItem, RoutineCompletion
 from .exchange import ExchangeItem, ExchangeOrder
+from .mock_test import MockTest, MockTestEntry, MockTestVideo
 
 __all__ = [
     "User",
@@ -74,4 +75,7 @@ __all__ = [
     "RoutineCompletion",
     "ExchangeItem",
     "ExchangeOrder",
+    "MockTest",
+    "MockTestEntry",
+    "MockTestVideo",
 ]

@@ -391,6 +391,45 @@ def _patch_target_file(
                 a.submission_file_url = url
                 db.commit()
                 return a.student_id
+        elif target_type == "mock_test_audio":
+            # 학생이 본인 모의테스트 음원을 업로드 → 해당 엔트리에 URL 패치. target_id=mock_test_id
+            from app.models.mock_test import MockTestEntry
+            from datetime import datetime as _dt
+            e = db.query(MockTestEntry).filter(
+                MockTestEntry.mock_test_id == target_id,
+                MockTestEntry.student_id == user_id,
+            ).first()
+            if e:
+                e.audio_url = url
+                e.status = "submitted"
+                e.audio_submitted_at = _dt.utcnow()
+                db.commit()
+                return e.student_id
+        elif target_type == "mock_test_video":
+            # 원장이 학생별 시험영상 업로드 → MockTestVideo 행 생성. target_id="{mock_test_id}:{student_id}"
+            from app.models.mock_test import MockTest, MockTestVideo
+            from app.models.user import User as _User, UserRole as _Role
+            uploader = db.query(_User).filter(_User.id == user_id).first()
+            if not uploader or uploader.role != _Role.DIRECTOR:
+                return None  # 원장만 영상 배포 가능
+            try:
+                mt_id, sid = target_id.split(":", 1)
+            except ValueError:
+                return None
+            mt = db.query(MockTest).filter(MockTest.id == mt_id).first()
+            if mt:
+                order = db.query(MockTestVideo).filter(
+                    MockTestVideo.mock_test_id == mt_id,
+                    MockTestVideo.student_id == sid,
+                ).count()
+                v = MockTestVideo(
+                    id=f"mtv{uuid.uuid4().hex[:8]}",
+                    mock_test_id=mt_id, student_id=sid,
+                    video_url=url, thumbnail_url=thumbnail_url, sort_order=order,
+                )
+                db.add(v)
+                db.commit()
+                return sid  # 배포 대상 학생(알림 대상)
         return None
     except Exception as e:
         logger.warning(f"_patch_target_file failed ({target_type}/{target_id}): {e}")
@@ -404,12 +443,26 @@ async def _emit_target_patched(db: Session, target_type: str, owner_id: str) -> 
     For a portfolio cover video, also push the teacher notification HERE (when the
     video actually landed) instead of at empty-record creation time."""
     try:
+        from app.models.user import User, UserRole
+        # 모의테스트: 음원 제출 → 원장 알림 / 영상 배포 → 대상 학생 알림
+        if target_type in ("mock_test_audio", "mock_test_video"):
+            student = db.query(User).filter(User.id == owner_id).first()
+            name = student.name if student else "학생"
+            if target_type == "mock_test_audio":
+                director_ids = [r[0] for r in db.query(User.id).filter(User.role == UserRole.DIRECTOR).all()]
+                await emit_data_changed([owner_id, *director_ids], "mock_tests")
+                if director_ids:
+                    await notify_users(db, director_ids, f"{name}님이 모의테스트 음원을 제출했어요", entity="mock_tests")
+            else:  # mock_test_video
+                await emit_data_changed([owner_id], "mock_tests")
+                await notify_users(db, [owner_id], "모의테스트 영상이 도착했어요", entity="mock_tests")
+            return
+
         entity = "assignments" if target_type == "assignment" else "portfolios"
         teacher_ids = get_teacher_ids_for_student(db, owner_id)
         await emit_data_changed([owner_id, *teacher_ids], entity)
         # 새 영상 커버가 실제로 도착한 시점에 교사 알림(추가 영상 portfolio_video는 알림 생략)
         if target_type == "portfolio" and teacher_ids:
-            from app.models.user import User
             student = db.query(User).filter(User.id == owner_id).first()
             name = student.name if student else "학생"
             await notify_users(db, teacher_ids, f"{name}님이 새 영상을 올렸어요", entity="portfolios")

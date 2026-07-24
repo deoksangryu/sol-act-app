@@ -63,10 +63,13 @@ _PURGE_SQL = [
     "DELETE FROM device_tokens WHERE user_id=:uid",
     "DELETE FROM push_subscriptions WHERE user_id=:uid",
     "DELETE FROM class_students WHERE student_id=:uid",
+    "DELETE FROM mock_test_videos WHERE student_id=:uid",
+    "DELETE FROM mock_test_entries WHERE student_id=:uid",
     # 학원 공용기록 보존(삭제된 사용자만 떼어냄)
     "UPDATE lessons SET teacher_id=NULL WHERE teacher_id=:uid",
     "UPDATE exam_schedules SET created_by=NULL WHERE created_by=:uid",
     "UPDATE music_tracks SET created_by=NULL WHERE created_by=:uid",
+    "UPDATE mock_tests SET created_by=NULL WHERE created_by=:uid",
     # 마지막: 사용자
     "DELETE FROM users WHERE id=:uid",
 ]

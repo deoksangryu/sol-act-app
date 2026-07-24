@@ -14,7 +14,7 @@ from app.routers import (
     auth, users, assignments, diet, classes, chat, qna, notices, notifications,
     lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
     ws, upload, admin, push, praise_stickers, music, badges, practice, plans, gamification,
-    submissions, achievements, sessions, exams, content, routines, dashboard, exchange
+    submissions, achievements, sessions, exams, content, routines, dashboard, exchange, mock_tests
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -150,6 +150,7 @@ app.include_router(content.router, prefix="/api/content", tags=["Learn Content"]
 app.include_router(routines.router, prefix="/api/routines", tags=["Routines"], dependencies=GATE)
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"], dependencies=GATE)
 app.include_router(exchange.router, prefix="/api/exchange", tags=["Exchange"], dependencies=GATE)
+app.include_router(mock_tests.router, prefix="/api/mock-tests", tags=["Mock Tests"], dependencies=GATE)
 
 # Static file serving for uploads — with security headers + Range support
 # Serves from external SSD if available, falls back to local directory
