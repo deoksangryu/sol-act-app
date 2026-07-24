@@ -11,6 +11,7 @@ import { MusicScreen } from '../screens/MusicScreen';
 import { RecordScreen } from '../screens/RecordScreen';
 import { ExchangeScreen } from '../screens/ExchangeScreen';
 import { AdminStudentDetail } from '../screens/AdminStudentDetail';
+import { AIReviseScreen } from '../screens/AIReviseScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -36,6 +37,8 @@ export function MainStack() {
       <Stack.Screen name="exchange" component={ExchangeScreen} />
       {/* 학생 종합 상세(원장·교사): 갈채·영상·체중·식단·연습일지 한 화면 */}
       <Stack.Screen name="studentDetail" component={AdminStudentDetail} />
+      {/* AI 면접 질의응답 첨삭(학생): 질문+답변 → 개선 답변·개선점·총평 */}
+      <Stack.Screen name="aiRevise" component={AIReviseScreen} />
     </Stack.Navigator>
   );
 }

@@ -545,6 +545,48 @@ export const routinesApi = {
   },
 };
 
+// === AI 면접 질의응답 첨삭 — v3 ===
+export interface AiReviseResult { ok: boolean; revised: string; feedback: string[]; summary: string }
+export const aiApi = {
+  interviewRevise(question: string, answer: string): Promise<AiReviseResult> {
+    return apiRequest('/api/ai/interview-revise', { method: 'POST', body: jsonBody({ question, answer }) });
+  },
+};
+
+// === 모의테스트 — v3 (백엔드 완료. 프론트 화면은 후속) ===
+export interface MockTestSummary {
+  id: string; title: string; testDate?: string | null; description?: string | null;
+  status: string; entryCount?: number; submittedCount?: number;
+}
+export interface MockTestEntryView {
+  id: string; studentId: string; studentName: string; sortOrder: number;
+  audioUrl?: string | null; status: string; audioSubmittedAt?: string | null;
+}
+export interface MockTestVideoView { id: string; studentId?: string; studentName?: string; videoUrl: string; thumbnailUrl?: string | null }
+export interface MockTestDetail extends MockTestSummary { entries: MockTestEntryView[]; videos: MockTestVideoView[] }
+export interface MyMockTest {
+  id: string; title: string; testDate?: string | null; description?: string | null; status: string;
+  myOrder: number; myAudioUrl?: string | null; myStatus: string; myVideoCount: number;
+}
+export const mockTestApi = {
+  // 원장
+  list(): Promise<MockTestSummary[]> { return apiRequest('/api/mock-tests'); },
+  create(title: string, testDate: string | null, studentIds: string[], description?: string): Promise<MockTestDetail> {
+    return apiRequest('/api/mock-tests', { method: 'POST', body: jsonBody({ title, testDate, studentIds, description }) });
+  },
+  detail(id: string): Promise<MockTestDetail> { return apiRequest(`/api/mock-tests/${id}`); },
+  reorder(id: string, studentIds: string[]): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/mock-tests/${id}/order`, { method: 'PATCH', body: jsonBody({ studentIds }) });
+  },
+  announce(id: string): Promise<{ ok: boolean; notified: number }> {
+    return apiRequest(`/api/mock-tests/${id}/announce`, { method: 'POST' });
+  },
+  remove(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/mock-tests/${id}`, { method: 'DELETE' }); },
+  // 학생
+  mine(): Promise<MyMockTest[]> { return apiRequest('/api/mock-tests/student/mine'); },
+  myVideos(id: string): Promise<MockTestVideoView[]> { return apiRequest(`/api/mock-tests/${id}/my-videos`); },
+};
+
 // === Dashboard (원장/강사 현황) — v2 ===
 export interface DashClass { id: string; name: string; members: number; open: number; submissionsWeek: number }
 export interface DashAttention { name: string; reason: string }

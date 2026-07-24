@@ -217,7 +217,7 @@ export function LearnScreen() {
             )}
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Pressable onPress={() => nav.navigate('record')} style={{ flex: 1, backgroundColor: color.blue, borderRadius: radius.button, paddingVertical: 13, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.white }}>🎙️ 답변 녹음</Text></Pressable>
-              <Pressable style={{ backgroundColor: color.surf, borderRadius: radius.button, paddingHorizontal: 16, justifyContent: 'center' }}><Icon name="dots" size={18} color={color.sub} /></Pressable>
+              <Pressable onPress={() => nav.navigate('aiRevise', { question: interview ?? '' })} style={{ flex: 1, backgroundColor: color.blueBg, borderRadius: radius.button, paddingVertical: 13, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.blue }}>✨ AI 첨삭</Text></Pressable>
             </View>
           </Card>
         </Section>
