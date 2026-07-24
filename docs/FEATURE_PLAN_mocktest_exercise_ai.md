@@ -128,3 +128,37 @@
 
 ## 규모
 큰것=모의테스트, 중간=AI첨삭, 작은것=운동. 셋 다 네이티브 무변경(화면 재빌드만).
+
+---
+
+# 📌 구현 진행 상황 (2026-07-23, release/store-prep-v1.0.0)
+
+## ✅ 완료 (커밋됨, 프로덕션 무접촉 — 백엔드 재시작 시 반영)
+- **기능1 모의테스트 백엔드 전체**: `models/mock_test.py`(3모델) + `routers/mock_tests.py`(원장 생성·순번·상세·공지·삭제 / 학생 내목록·본인영상) + `upload.py` 패치분기(`mock_test_audio`/`mock_test_video`) + `main.py` 등록 + 계정삭제 purge. **신규 테이블(additive) → create_all 자동생성**. 격리검증 7/7 통과(생성·음원패치·원장영상배포·학생차단·본인영상격리·cascade·purge).
+- **기능3 AI 첨삭 전체(백엔드+프론트)**: `ai.py revise_interview_answer`(Gemini 1.5 Flash, 키없음/실패 폴백) + `routers/ai.py`(입력 5~2000자) + `AIReviseScreen`(질문·답변→개선답변·개선점·총평) + 배움탭 "✨ AI 첨삭" 버튼 + `api.ts` aiApi. tsc 통과. **활성화=GEMINI_API_KEY + 앱 재빌드**.
+- `api.ts`에 `mockTestApi`(원장/학생 전체) 클라이언트 준비 완료.
+
+## ⏳ 남은 작업 (자리 복귀 후)
+
+### A. 모의테스트 프론트 화면 (🔴 재빌드, 백엔드는 이미 완료)
+- **원장**: `MockTestAdminScreen`(목록+만들기: 제목·날짜·학생선택·순번) / `MockTestDetailScreen`(엔트리 음원 순번대로 나열+다운로드, 학생별 영상 업로드=`pickMedia('video')`→`uploadMedia({subfolder:'mock_tests', targetType:'mock_test_video', targetId:'${mtId}:${studentId}'})`, 공지 버튼=`mockTestApi.announce`).
+- **학생**: `MockTestScreen`(`mockTestApi.mine()` 목록 + 내 순번/제출상태 + "내 영상 보기"=`mockTestApi.myVideos`).
+- **⚠️ 결정 필요 — 학생 음원 업로드 방식**: 학생이 올릴 "음원"은 오디오 파일. 현재 `expo-image-picker`는 오디오 선택 불가 → 두 방법 중 택1:
+  1. **`expo-document-picker` 추가**(파일 선택) — 새 네이티브 의존성(prebuild+재빌드). 기존 음원 파일 업로드에 적합.
+  2. **앱 내 녹음**(`expo-audio` 이미 있음, RecordScreen 방식) — 반주에 맞춰 즉석 녹음. 파일 픽커 불필요.
+  → 업로드는 `uploadMedia({subfolder:'mock_tests', targetType:'mock_test_audio', targetId: mtId})`. api·백엔드는 준비됨.
+- 원장 진입점=`a-schedule`/`a-dash` 탭, 학생 진입점=`home`/`learn` 카드 또는 알림 딥링크(`mock_tests` entity).
+
+### B. 기능2 운동 습관 (🟢 백엔드 소 + 🔴 화면 소) — **DB 동의 필요라 미착수**
+- `RoutineItem.category` 컬럼 추가(`ALTER TABLE routine_items ADD COLUMN category VARCHAR DEFAULT 'routine'`) — **무손실, 사용자 동의 후**.
+- `routes/routines.py`에 `?category=exercise` 필터 + 운동 기본항목 시드 + `achievements.py` 운동 뱃지.
+- 학생 화면에 "운동" 섹션(`ClapCheckRow` 재사용, `routinesApi.today('exercise')`).
+
+### C. 사용자(원장)가 직접 할 것
+- [ ] **백엔드 재시작**(`bash scripts/start.sh`) → 모의테스트/AI API 활성(새 테이블 생성).
+- [ ] **Gemini API 키**(무료, aistudio.google.com) → `backend/.env` `GEMINI_API_KEY=...` → AI 첨삭 실동작.
+- [ ] **운동 DB 컬럼 ALTER 동의** → 기능2 착수.
+- [ ] 모의테스트 음원 업로드 방식 결정(문서 A) + 운동 기본항목 확정.
+- [ ] 프론트 완성 후 **재빌드(AAB versionCode+1 / iOS 아카이브)** → 내부 테스트 재업로드.
+- [ ] **E2E**(3에뮬 실시간, 위 매트릭스) — 백엔드 재시작 후 함께 진행.
+- [ ] AI 켤 때 **개인정보방침 4항 "활성"으로 갱신** + Play 데이터안전/App Privacy 라벨.
