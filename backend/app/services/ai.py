@@ -126,7 +126,7 @@ _SCENE_SYSTEM = (
     "너는 연기 입시(연극영화과) 장면의 '상대역' 대사를 쓰는 극작 보조다. "
     "학생의 대사(고정, 절대 수정 금지) 사이에 등장하는 '부재하는 상대'의 대사를 채운다. "
     "규칙: (1) 상대는 처음부터 끝까지 '한 인물'로 일관되게 유지한다. "
-    "(2) 각 상대 대사는 바로 앞 학생 대사에 자연스럽게 반응하고, 바로 뒤 학생 대사가 매끄럽게 이어지도록 '다리'를 놓는다. "
+    "(2) 각 상대 대사는 (a) 바로 앞 학생 대사에 대한 자연스러운 반응이면서, (b) 바로 뒤 학생 대사가 매끄럽게 이어지도록 '다리'를 놓고, (c) 장면 전체의 상황·관계·감정 흐름과 일관돼야 한다. 앞뒤 대사와 전체 맥락을 모두 근거로 삼아라. "
     "(3) 짧게 — 보통 1~2문장. 장면을 늘어뜨리지 않는다. "
     "(4) 자연스러운 한국어 구어체. 10~20대 인물에 어울리게. "
     "(5) 100% 창작 — 기존 희곡·영화·드라마의 실제 대사를 복제하지 않는다. "
@@ -147,13 +147,16 @@ def _scene_user_prompt(turns, partner_hint: str) -> str:
     who = f"\n상대 인물 설정: {partner_hint.strip()}\n" if (partner_hint or "").strip() else "\n"
     return (
         "아래는 학생이 혼자 연기할 장면이다. '나:'는 학생의 고정 대사이고, "
-        "[상대 대사 #n]은 네가 채워야 할 '부재하는 상대'의 자리다." + who + "\n"
+        "[상대 대사 #n]은 네가 채워야 할 '부재하는 상대'의 자리다. "
+        "장면 전체를 먼저 읽고 상황·관계·감정 흐름을 파악한 뒤, 각 상대 대사를 앞뒤 대사와 전체 맥락에 맞게 써라." + who + "\n"
         f"{seq}\n\n"
+        "아래 보이스 목록에서 상대 인물에 가장 어울리는 목소리 하나를 골라 그 voice_id를 반환하라(성별·나이·성격 특성 고려):\n"
+        f"{catalog_prompt()}\n\n"
         "[상대 대사 #1]부터 순서대로 각 자리를 채워라. 반드시 아래 JSON만 출력하라:\n"
-        '{"partner": ["#1 자리 상대 대사", ...], "gender": "남|여|중성", "age": "young|middle|old"}\n'
+        '{"partner": ["#1 자리 상대 대사", ...], "gender": "남|여|중성", "age": "young|middle|old", "voice_id": "위 목록의 id 중 하나"}\n'
         "partner 배열 길이는 상대 자리 개수와 정확히 같아야 한다. "
-        "gender=상대 인물의 성별(남/여/중성). age=상대 나이대(young=10~30대 / middle=40~50대 / old=60대 이상). "
-        "상대 인물 설정(예: 늙은 왕, 어린 딸)에 반드시 맞춰라."
+        "gender=상대 성별(남/여/중성). age=상대 나이대(young=10~30대 / middle=40~50대 / old=60대 이상). "
+        "voice_id는 반드시 위 목록에 있는 id여야 하고 상대 인물 설정(예: 늙은 왕→인자한/괴팍한 노인 남성)에 맞춰라."
     )
 
 
@@ -207,7 +210,7 @@ def generate_scene_partner(turns, partner_hint: str = "") -> dict:
                 partner = [partner]
             if not partner:
                 return _scene_fallback(turns)
-            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower()}
+            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower(), "voice_id": str(data.get("voice_id") or "").strip()}
         except Exception as e:
             log.warning(f"generate_scene_partner(openai) failed: {e}")
             return _scene_fallback(turns)
@@ -227,7 +230,7 @@ def generate_scene_partner(turns, partner_hint: str = "") -> dict:
                 partner = [partner]
             if not partner:
                 return _scene_fallback(turns)
-            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower()}
+            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower(), "voice_id": str(data.get("voice_id") or "").strip()}
         except Exception as e:
             log.warning(f"generate_scene_partner(gemini) failed: {e}")
             return _scene_fallback(turns)
@@ -235,21 +238,39 @@ def generate_scene_partner(turns, partner_hint: str = "") -> dict:
     return _scene_fallback(turns)
 
 
-# ── 클라우드 TTS — 상대 대사를 성별×나이 맞춤 보이스로 음성 합성 ──────────────
-# ElevenLabs(한국어 캐릭터 보이스 우수) 우선 → 실패/키없음 시 OpenAI TTS → 둘 다 없으면 None.
-# ElevenLabs 보이스ID = 무료플랜에서 API 합성 검증된 기본 보이스(성별×나이).
-_EL_VOICE = {
-    ("남", "young"): "Ir7oQcBXWiq4oFGROCfj",   # taemin — 20대 친근한 남성
-    ("남", "middle"): "4JJwo477JUAx3HV0T7n7",  # Yohan Koo — 30대 권위 남성
-    ("남", "old"): "5ON5Fnz24cnOozEQfGAm",     # Namchun — 할아버지(노년 남성)
-    ("여", "young"): "uyVNoMrnUku1dZyVEXwD",   # Anna Kim — 젊은 여성
-    ("여", "middle"): "ZjAPD4f11zlnEnZpKDgo",  # Haemi — 중년 여성
-    ("여", "old"): "6yp5xWNuHEXOVkwW5Ghz",     # Sunhee — 60대 할머니(노년 여성)
-    ("중성", "young"): "0IhKyLYnD1w7n6ZVziN1",  # Ohana — 차분한 중성
-    ("중성", "middle"): "0IhKyLYnD1w7n6ZVziN1",
-    ("중성", "old"): "5ON5Fnz24cnOozEQfGAm",   # Namchun — 노년 중성
-}
+# ── 보이스 카탈로그 (한국어 네이티브, TTS 합성 검증됨) ──────────────────────────
+# GPT가 상대 인물 특성에 맞는 voice_id를 이 목록에서 고른다(AI 모드). 커스텀 모드는
+# 성별×나이 매칭 중 랜덤. ElevenLabs 실패 시 OpenAI TTS 폴백.
+_VOICE_CATALOG = [
+    {"id": "Ir7oQcBXWiq4oFGROCfj", "gender": "남", "age": "young", "traits": "친근한 20대"},
+    {"id": "3MTvEr8xCMCC2mL9ujrI", "gender": "남", "age": "young", "traits": "맑고 밝은 청년"},
+    {"id": "gmRUMzXYROUiUpOrXA0z", "gender": "남", "age": "young", "traits": "깊은 저음의 청년"},
+    {"id": "4JJwo477JUAx3HV0T7n7", "gender": "남", "age": "middle", "traits": "권위 있는 30대"},
+    {"id": "CxErO97xpQgQXYmapDKX", "gender": "남", "age": "middle", "traits": "편안한 대화체"},
+    {"id": "LS3HmRGCXV8wxCAhUbTt", "gender": "남", "age": "middle", "traits": "따뜻한 40대"},
+    {"id": "UmYoqGlufKxhJ6NCx5Mv", "gender": "남", "age": "middle", "traits": "허스키한"},
+    {"id": "FQ3MuLxZh0jHcZmA5vW1", "gender": "남", "age": "middle", "traits": "저음의 어둡고 위협적인"},
+    {"id": "aQzFKIjVemqRAhfd9est", "gender": "남", "age": "middle", "traits": "깊은 베이스"},
+    {"id": "5ON5Fnz24cnOozEQfGAm", "gender": "남", "age": "old", "traits": "인자한 할아버지"},
+    {"id": "PLfpgtLkFW07fDYbUiRJ", "gender": "남", "age": "old", "traits": "괴팍한 노인"},
+    {"id": "9AF5ESbG4ckj76tceOv8", "gender": "남", "age": "old", "traits": "노련하고 무게감 있는"},
+    {"id": "uyVNoMrnUku1dZyVEXwD", "gender": "여", "age": "young", "traits": "맑은 젊은 여성"},
+    {"id": "0oqpliV6dVSr9XomngOW", "gender": "여", "age": "young", "traits": "청량한"},
+    {"id": "iWLjl1zCuqXRkW6494ve", "gender": "여", "age": "young", "traits": "발랄한"},
+    {"id": "ZjAPD4f11zlnEnZpKDgo", "gender": "여", "age": "middle", "traits": "차분한 중년 여성"},
+    {"id": "o2sPqaz4lRxUCRm2QqQK", "gender": "여", "age": "middle", "traits": "다정하고 친근한"},
+    {"id": "8MwPLtBplylvbrksiBOC", "gender": "여", "age": "middle", "traits": "성숙한"},
+    {"id": "6yp5xWNuHEXOVkwW5Ghz", "gender": "여", "age": "old", "traits": "정겨운 할머니"},
+    {"id": "0IhKyLYnD1w7n6ZVziN1", "gender": "중성", "age": "middle", "traits": "차분한 중성적"},
+]
+_CATALOG_IDS = {v["id"] for v in _VOICE_CATALOG}
+_FALLBACK_VOICE = "0IhKyLYnD1w7n6ZVziN1"  # Ohana
 _OPENAI_VOICE = {"남": "onyx", "여": "nova", "중성": "alloy"}
+
+
+def catalog_prompt() -> str:
+    """GPT 프롬프트에 넣을 보이스 목록(voice_id : 특성)."""
+    return "\n".join(f'- {v["id"]} : {v["gender"]}/{v["age"]}, {v["traits"]}' for v in _VOICE_CATALOG)
 
 
 def _norm_gender(g: str) -> str:
@@ -260,6 +281,18 @@ def _norm_gender(g: str) -> str:
 def _norm_age(a: str) -> str:
     a = (a or "").strip().lower()
     return a if a in ("young", "middle", "old") else "middle"
+
+
+def pick_voice(gender: str, age: str, preferred_id: str = "") -> str:
+    """GPT가 고른 voice_id가 카탈로그에 있으면 그걸, 아니면 성별×나이 매칭 중 랜덤(없으면 성별만/폴백)."""
+    import random
+    if preferred_id and preferred_id in _CATALOG_IDS:
+        return preferred_id
+    g, a = _norm_gender(gender), _norm_age(age)
+    matches = [v["id"] for v in _VOICE_CATALOG if v["gender"] == g and v["age"] == a]
+    if not matches:
+        matches = [v["id"] for v in _VOICE_CATALOG if v["gender"] == g]
+    return random.choice(matches) if matches else _FALLBACK_VOICE
 
 
 def _elevenlabs_tts(text: str, voice_id: str, api_key: str):
@@ -279,18 +312,17 @@ def _elevenlabs_tts(text: str, voice_id: str, api_key: str):
     return None
 
 
-def synthesize_tts(text: str, gender: str = "중성", age: str = "middle"):
-    """상대 대사를 성별×나이 맞춤 보이스로 합성 → mp3 bytes. ElevenLabs 우선/OpenAI 폴백/None."""
+def synthesize_tts(text: str, voice_id: str = "", gender: str = "중성"):
+    """상대 대사를 지정 voice_id(카탈로그)로 합성 → mp3 bytes. ElevenLabs 우선/OpenAI 폴백(gender)/None."""
     from app.config import settings
     import logging
     log = logging.getLogger(__name__)
     text = (text or "").strip()
     if not text:
         return None
-    g, a = _norm_gender(gender), _norm_age(age)
+    vid = voice_id if voice_id in _CATALOG_IDS else _FALLBACK_VOICE
     el_key = (getattr(settings, "ELEVENLABS_API_KEY", "") or "").strip()
     if el_key:
-        vid = _EL_VOICE.get((g, a)) or _EL_VOICE.get((g, "middle")) or "SAz9YHcvj6GT2YYXdXww"
         audio = _elevenlabs_tts(text, vid, el_key)
         if audio:
             return audio
@@ -301,7 +333,7 @@ def synthesize_tts(text: str, gender: str = "중성", age: str = "middle"):
             from openai import OpenAI
             client = OpenAI(api_key=openai_key)
             resp = client.audio.speech.create(
-                model="gpt-4o-mini-tts", voice=_OPENAI_VOICE.get(g, "alloy"),
+                model="gpt-4o-mini-tts", voice=_OPENAI_VOICE.get(_norm_gender(gender), "alloy"),
                 input=text[:600], response_format="mp3",
             )
             return resp.read()

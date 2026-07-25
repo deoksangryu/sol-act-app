@@ -81,10 +81,11 @@ def _build_scene(turns: List[Dict[str, Any]], partner_hint: str) -> Dict[str, An
         return result
     gender = result.get("voice_gender", "중성")
     age = result.get("voice_age", "middle")
+    vid = ai.pick_voice(gender, age, result.get("voice_id", ""))  # GPT가 고른 보이스(카탈로그 검증)
     tts_dir = UPLOAD_DIR / "tts"
     for t in result.get("turns", []):
         if t.get("speaker") == "상대" and (t.get("text") or "").strip():
-            audio = ai.synthesize_tts(t["text"], gender, age)
+            audio = ai.synthesize_tts(t["text"], vid, gender)
             if audio:
                 try:
                     tts_dir.mkdir(parents=True, exist_ok=True)
@@ -93,7 +94,7 @@ def _build_scene(turns: List[Dict[str, Any]], partner_hint: str) -> Dict[str, An
                     t["audioUrl"] = f"/uploads/tts/{fname}"
                 except Exception:
                     pass
-    result["voice"] = f"{gender}/{age}"
+    result["voice"] = vid
     return result
 
 
@@ -101,6 +102,7 @@ def _build_custom_scene(turns: List[Dict[str, Any]], gender: str, age: str) -> D
     """커스텀 모드: 학생이 직접 쓴 상대 대사를 학생이 고른 성별×나이 보이스로 TTS만 합성.
     (LLM 생성 없음 — 진짜 대본 그대로 연습.) 블로킹 → run_in_threadpool."""
     g, a = ai._norm_gender(gender), ai._norm_age(age)
+    vid = ai.pick_voice(g, a)  # 커스텀: 학생이 고른 성별×나이 매칭 중 랜덤(GPT 미사용)
     tts_dir = UPLOAD_DIR / "tts"
     out: List[Dict[str, Any]] = []
     for t in turns:
@@ -108,7 +110,7 @@ def _build_custom_scene(turns: List[Dict[str, Any]], gender: str, age: str) -> D
             text = (t.get("text") or "").strip()
             row: Dict[str, Any] = {"speaker": "상대", "text": text}
             if text:
-                audio = ai.synthesize_tts(text, g, a)
+                audio = ai.synthesize_tts(text, vid, g)
                 if audio:
                     try:
                         tts_dir.mkdir(parents=True, exist_ok=True)
@@ -120,7 +122,7 @@ def _build_custom_scene(turns: List[Dict[str, Any]], gender: str, age: str) -> D
             out.append(row)
         else:
             out.append({"speaker": "나", "text": (t.get("text") or "").strip()})
-    return {"ok": True, "turns": out, "voice": f"{g}/{a}"}
+    return {"ok": True, "turns": out, "voice": vid}
 
 
 class ReviseReq(BaseModel):
