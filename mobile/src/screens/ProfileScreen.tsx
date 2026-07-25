@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Screen, Scroll, BackHeader, SectionLabel, Avatar, Cta, InfoBox } from '../components/kit';
 import { color, radius, space, font } from '../theme/tokens';
-import { usersApi, resolveFileUrl } from '../services/api';
+import { usersApi, resolveFileUrl, sceneApi } from '../services/api';
 import { pickMedia } from '../services/upload';
 import { useUploads } from '../services/UploadContext';
 import { useAuth } from '../AuthContext';
@@ -23,6 +23,10 @@ export function ProfileScreen() {
   const [newPw, setNewPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [sceneLimit, setSceneLimit] = useState<number | null>(null);
+  const isDirector = user?.role === UserRole.DIRECTOR;
+  useEffect(() => { if (isDirector) sceneApi.getLimit().then((r) => setSceneLimit(r.limit)).catch(() => {}); }, [isDirector]);
+  const saveSceneLimit = async (n: number) => { const v = Math.max(0, Math.min(50, n)); setSceneLimit(v); try { await sceneApi.setLimit(v); } catch {} };
 
   if (!user) return null;
 
@@ -112,6 +116,22 @@ export function ProfileScreen() {
           <Row k="역할" v={ROLE_LABEL[user.role]} />
           {user.role === UserRole.STUDENT && user.height != null && <Row k="키" v={`${user.height} cm`} />}
         </View>
+
+        {isDirector && (
+          <>
+            <SectionLabel>AI 상대역 설정</SectionLabel>
+            <View style={{ paddingHorizontal: space.screenX, gap: 8 }}>
+              <Text style={{ fontFamily: font.m, fontSize: 13, lineHeight: 20, color: color.sub }}>학생 1인당 <Text style={{ fontFamily: font.b, color: color.ink }}>하루에 새 상대역을 만들 수 있는 횟수</Text>입니다. (저장한 장면 다시 불러오기는 무제한 · 새로 만들 때만 AI 비용 발생)</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: color.white, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, padding: 12 }}>
+                <Text style={{ fontFamily: font.b, fontSize: 14, color: color.ink, flex: 1 }}>하루 생성 제한</Text>
+                <Pressable onPress={() => saveSceneLimit((sceneLimit ?? 3) - 1)} disabled={sceneLimit == null} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: color.inputLine, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 18, color: color.ink }}>–</Text></Pressable>
+                <Text style={{ fontFamily: font.b, fontSize: 16, color: color.blue, minWidth: 54, textAlign: 'center' }}>{sceneLimit == null ? '…' : `${sceneLimit}회`}</Text>
+                <Pressable onPress={() => saveSceneLimit((sceneLimit ?? 3) + 1)} disabled={sceneLimit == null} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: color.inputLine, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 18, color: color.ink }}>+</Text></Pressable>
+              </View>
+              <Text style={{ fontFamily: font.r, fontSize: 11.5, color: color.sub2 }}>0으로 두면 새 생성을 잠급니다(저장된 장면만 연습). 변경은 즉시 저장돼요.</Text>
+            </View>
+          </>
+        )}
 
         <SectionLabel>비밀번호 변경</SectionLabel>
         <View style={{ paddingHorizontal: space.screenX, gap: 10 }}>

@@ -549,9 +549,12 @@ export const routinesApi = {
 export interface AiReviseResult { ok: boolean; revised: string; feedback: string[]; summary: string }
 
 // === AI 상대역 대사 생성 ===
-// 학생 대사(고정) 사이의 '상대 등장' 자리를 AI가 채운다. 상대 대사는 성별맞춤 TTS 오디오(audioUrl)로 미리 합성됨.
-export interface SceneTurn { speaker: '나' | '상대'; text?: string; hint?: string; audioUrl?: string }
-export interface ScenePartnerResult { ok: boolean; turns: SceneTurn[]; voice?: string; message?: string }
+// 학생 대사(고정) 사이의 '상대 등장' 자리를 AI가 채운다. 상대 대사는 성별×나이 맞춤 TTS 오디오(audioUrl)로 미리 합성됨.
+export interface SceneTurn { speaker: '나' | '상대'; text?: string; hint?: string; audioUrl?: string; sec?: number }
+export interface ScenePartnerResult { ok: boolean; turns: SceneTurn[]; voice?: string; message?: string; limit?: number; remaining?: number; sceneId?: string }
+export interface SavedSceneSummary { id: string; title: string; partnerHint?: string | null; voice?: string | null; lineCount: number; createdAt?: string | null }
+export interface SavedScene { id: string; title: string; partnerHint?: string | null; voice?: string | null; turns: SceneTurn[] }
+export interface SceneQuota { limit: number; used: number; remaining: number }
 
 export const aiApi = {
   interviewRevise(question: string, answer: string): Promise<AiReviseResult> {
@@ -560,6 +563,16 @@ export const aiApi = {
   scenePartner(turns: SceneTurn[], partner = ''): Promise<ScenePartnerResult> {
     return apiRequest('/api/ai/scene-partner', { method: 'POST', body: jsonBody({ turns, partner }) });
   },
+};
+
+// 저장된 장면 라이브러리(불러오기=크레딧 0) + 하루 생성 제한
+export const sceneApi = {
+  list(): Promise<SavedSceneSummary[]> { return apiRequest('/api/ai/scenes'); },
+  get(id: string): Promise<SavedScene> { return apiRequest(`/api/ai/scenes/${id}`); },
+  remove(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/ai/scenes/${id}`, { method: 'DELETE' }); },
+  quota(): Promise<SceneQuota> { return apiRequest('/api/ai/scene-quota'); },
+  getLimit(): Promise<{ limit: number }> { return apiRequest('/api/ai/scene-limit'); },
+  setLimit(limit: number): Promise<{ limit: number }> { return apiRequest('/api/ai/scene-limit', { method: 'PUT', body: jsonBody({ limit }) }); },
 };
 
 // === 모의테스트 — v3 (백엔드 완료. 프론트 화면은 후속) ===

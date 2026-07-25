@@ -6,7 +6,7 @@ import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-aud
 import { Screen, Scroll, BackHeader } from '../components/kit';
 import { Card } from '../components/gamify';
 import { color, font, radius, space } from '../theme/tokens';
-import { aiApi, SceneTurn, API_URL } from '../services/api';
+import { aiApi, SceneTurn, API_URL, sceneApi, SavedSceneSummary } from '../services/api';
 
 // AI 상대역 연습 — 학생이 자기 대사 + '상대 등장' 자리 표시 → AI가 상대 대사 생성 + 성별×나이 맞춤 TTS.
 // 연습(타이머식): 내 대사마다 정해둔 시간이 지나면 상대 대사 자동 재생 → 상대 대사 끝나면 다음 내 대사 타이머 시작.
@@ -28,6 +28,8 @@ export function ScenePartnerScreen() {
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<SceneTurn[] | null>(null);
   const [reveal, setReveal] = useState(false);
+  const [savedScenes, setSavedScenes] = useState<SavedSceneSummary[]>([]);
+  const [quota, setQuota] = useState<{ limit: number; remaining: number } | null>(null);
 
   const [running, setRunning] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'mine' | 'partner' | 'done'>('idle');
@@ -43,6 +45,24 @@ export function ScenePartnerScreen() {
 
   useEffect(() => { setAudioModeAsync({ playsInSilentMode: true }).catch(() => {}); }, []);
   useEffect(() => () => { stopAll(); }, []);
+
+  const refreshLib = useCallback(async () => {
+    try {
+      const [q, s] = await Promise.all([sceneApi.quota(), sceneApi.list()]);
+      setQuota({ limit: q.limit, remaining: q.remaining }); setSavedScenes(s);
+    } catch { /* 목록 없어도 화면은 동작 */ }
+  }, []);
+  useEffect(() => { refreshLib(); }, [refreshLib]);
+
+  const loadScene = async (id: string) => {
+    stopAll(); setErr(null);
+    try {
+      const sc = await sceneApi.get(id);
+      secListRef.current = sc.turns.map((t) => (t.speaker === '나' ? clampSec(t.sec ?? autoSec(t.text)) : 0));
+      setResult(sc.turns); setReveal(false); setPhase('idle'); setCursor(-1); setRunning(false); setPartner(sc.partnerHint || ''); setMode('practice');
+    } catch (e: any) { setErr(e?.message || '장면을 불러오지 못했어요.'); }
+  };
+  const deleteScene = async (id: string) => { try { await sceneApi.remove(id); refreshLib(); } catch {} };
 
   const clearTick = () => { if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; } };
   const stopAll = () => {
@@ -113,6 +133,8 @@ export function ScenePartnerScreen() {
       if (!r.ok) { setErr(r.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.'); return; }
       // 내 대사 시간(초)을 result 순서에 맞춰 저장 (payload=turns=result 동일 순서)
       secListRef.current = turns.map((t) => (t.speaker === '나' ? clampSec(t.sec ?? autoSec(t.text)) : 0));
+      if (typeof r.remaining === 'number' && typeof r.limit === 'number') setQuota({ limit: r.limit, remaining: r.remaining });
+      refreshLib();
       setResult(r.turns); setReveal(false); setPhase('idle'); setCursor(-1); setRunning(false); setMode('practice');
     } catch (e: any) {
       setErr(e?.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
@@ -128,6 +150,25 @@ export function ScenePartnerScreen() {
           내 대사를 쓰고 상대가 말하는 지점에 <Text style={{ fontFamily: font.b }}>🎭 상대 등장</Text>을 넣으면 AI가 상대 대사를 채워 <Text style={{ fontFamily: font.b }}>목소리로</Text> 만들어줘요. 각 내 대사에 <Text style={{ fontFamily: font.b }}>연기할 시간(초)</Text>을 정해두면, 그 시간이 지날 때 상대가 자동으로 응답해요.
         </Text>
       </Card>
+
+      {savedScenes.length > 0 && (
+        <View>
+          <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>저장된 장면 불러오기 (재연습은 무제한)</Text>
+          <View style={{ gap: 6 }}>
+            {savedScenes.map((s) => (
+              <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: color.white, borderWidth: 1, borderColor: color.line, borderRadius: radius.card, paddingLeft: 14, paddingRight: 8, paddingVertical: 10 }}>
+                <Pressable onPress={() => loadScene(s.id)} style={{ flex: 1 }}>
+                  <Text style={{ fontFamily: font.b, fontSize: 14, color: color.ink }} numberOfLines={1}>{s.title}</Text>
+                  <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, marginTop: 2 }}>{s.lineCount}줄{s.createdAt ? ` · ${s.createdAt.slice(5, 10)}` : ''}</Text>
+                </Pressable>
+                <Pressable onPress={() => loadScene(s.id)} hitSlop={6} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><Text style={{ fontFamily: font.b, fontSize: 13, color: color.blue }}>▶ 열기</Text></Pressable>
+                <Pressable onPress={() => deleteScene(s.id)} hitSlop={6} style={{ paddingHorizontal: 6 }}><Text style={{ fontFamily: font.b, fontSize: 15, color: color.faint }}>✕</Text></Pressable>
+              </View>
+            ))}
+          </View>
+        </View>
+      )}
+
       <View>
         <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (선택 — 성별·나이에 맞는 보이스가 나와요)</Text>
         <TextInput value={partner} onChangeText={setPartner} placeholder="예: 늙고 병든 왕 / 어린 딸 / 헤어진 연인" placeholderTextColor={color.faint} style={input} maxLength={60} />
@@ -165,10 +206,23 @@ export function ScenePartnerScreen() {
         <Pressable onPress={() => setTurns((ts) => [...ts, mk('상대')])} style={{ flex: 1, borderWidth: 1, borderColor: color.requestLine, borderRadius: radius.button, paddingVertical: 12, alignItems: 'center', backgroundColor: color.amberBg }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.warn }}>+ 🎭 상대 등장</Text></Pressable>
       </View>
       {err && <Text style={{ fontFamily: font.m, fontSize: 13, color: color.danger, textAlign: 'center' }}>{err}</Text>}
-      <Pressable onPress={generate} disabled={busy} style={{ backgroundColor: busy ? color.inputLine : color.blue, borderRadius: radius.button, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
-        {busy ? <ActivityIndicator color={color.white} /> : <Text style={{ fontFamily: font.b, fontSize: 15, color: color.white }}>✨ AI 상대역 만들기</Text>}
-      </Pressable>
-      {busy && <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, textAlign: 'center' }}>상대 대사 생성 + 목소리 합성 중… (몇 초 걸려요)</Text>}
+      {(() => {
+        const over = !!quota && quota.remaining <= 0;
+        return (
+          <>
+            <Pressable onPress={generate} disabled={busy || over} style={{ backgroundColor: (busy || over) ? color.inputLine : color.blue, borderRadius: radius.button, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
+              {busy ? <ActivityIndicator color={color.white} /> : <Text style={{ fontFamily: font.b, fontSize: 15, color: over ? color.sub2 : color.white }}>{over ? '오늘 새 생성 한도를 다 썼어요' : '✨ AI 상대역 만들기'}</Text>}
+            </Pressable>
+            {busy ? (
+              <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, textAlign: 'center' }}>상대 대사 생성 + 목소리 합성 중… (몇 초 걸려요)</Text>
+            ) : quota ? (
+              <Text style={{ fontFamily: font.m, fontSize: 12, color: over ? color.danger : color.sub2, textAlign: 'center' }}>
+                {over ? '저장된 장면을 불러와 연습하거나 내일 다시 만들어요' : `오늘 새 생성 ${quota.remaining}/${quota.limit}회 남음 · 저장한 장면 불러오기는 무제한`}
+              </Text>
+            ) : null}
+          </>
+        );
+      })()}
     </View>
   );
 

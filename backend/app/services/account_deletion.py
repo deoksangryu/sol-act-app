@@ -65,6 +65,7 @@ _PURGE_SQL = [
     "DELETE FROM class_students WHERE student_id=:uid",
     "DELETE FROM mock_test_videos WHERE student_id=:uid",
     "DELETE FROM mock_test_entries WHERE student_id=:uid",
+    "DELETE FROM scene_rehearsals WHERE student_id=:uid",
     # 학원 공용기록 보존(삭제된 사용자만 떼어냄)
     "UPDATE lessons SET teacher_id=NULL WHERE teacher_id=:uid",
     "UPDATE exam_schedules SET created_by=NULL WHERE created_by=:uid",
@@ -75,8 +76,28 @@ _PURGE_SQL = [
 ]
 
 
+def _purge_scene_audio(db: Session, uid: str) -> None:
+    """삭제 전, 저장 장면의 TTS mp3 파일(uploads/tts/*.mp3)을 먼저 제거."""
+    try:
+        import json as _json
+        rows = db.execute(text("SELECT turns FROM scene_rehearsals WHERE student_id=:uid"), {"uid": uid}).fetchall()
+        tts_dir = (Path(UPLOAD_DIR) / "tts").resolve()
+        for (turns,) in rows:
+            items = turns if isinstance(turns, list) else (_json.loads(turns) if turns else [])
+            for t in items:
+                url = (t or {}).get("audioUrl") or ""
+                if "/uploads/tts/" in url:
+                    name = url.split("/uploads/tts/", 1)[1].split("/")[0]
+                    p = (tts_dir / name).resolve()
+                    if str(p).startswith(str(tts_dir)):
+                        p.unlink(missing_ok=True)
+    except Exception as e:
+        logger.warning(f"Failed to purge scene audio for {uid}: {e}")
+
+
 def purge_user_data(db: Session, uid: str) -> None:
     """사용자와 연관 데이터 전부 삭제(FK 안전순). 커밋은 호출자. 파일은 별도(purge_user_files)."""
+    _purge_scene_audio(db, uid)
     for stmt in _PURGE_SQL:
         db.execute(text(stmt), {"uid": uid})
 
