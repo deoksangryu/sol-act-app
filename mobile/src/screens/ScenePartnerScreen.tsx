@@ -24,6 +24,9 @@ export function ScenePartnerScreen() {
   const [mode, setMode] = useState<'edit' | 'practice'>('edit');
   const [turns, setTurns] = useState<EditTurn[]>(STARTER);
   const [partner, setPartner] = useState('');
+  const [sceneMode, setSceneMode] = useState<'ai' | 'custom'>('ai');
+  const [custGender, setCustGender] = useState<'남' | '여' | '중성'>('남');
+  const [custAge, setCustAge] = useState<'young' | 'middle' | 'old'>('middle');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<SceneTurn[] | null>(null);
@@ -124,12 +127,17 @@ export function ScenePartnerScreen() {
 
   const generate = useCallback(async () => {
     stopAll();
-    const payload: SceneTurn[] = turns.map((t) => (t.speaker === '상대' ? { speaker: '상대', hint: t.hint.trim() || undefined } : { speaker: '나', text: t.text.trim() }));
+    const custom = sceneMode === 'custom';
+    const payload: SceneTurn[] = turns.map((t) => {
+      if (t.speaker === '상대') return custom ? { speaker: '상대', text: t.text.trim() } : { speaker: '상대', hint: t.hint.trim() || undefined };
+      return { speaker: '나', text: t.text.trim() };
+    });
     if (payload.filter((t) => t.speaker === '나' && (t.text || '').length).length < 1) { setErr('내 대사를 한 줄 이상 입력해주세요.'); return; }
     if (payload.filter((t) => t.speaker === '상대').length < 1) { setErr('상대가 등장하는 지점을 한 곳 이상 추가해주세요.'); return; }
+    if (custom && payload.some((t) => t.speaker === '상대' && !(t.text || '').trim())) { setErr('상대 대사를 직접 입력해주세요.'); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await aiApi.scenePartner(payload, partner.trim());
+      const r = await aiApi.scenePartner(payload, partner.trim(), custom ? { mode: 'custom', gender: custGender, age: custAge } : { mode: 'ai' });
       if (!r.ok) { setErr(r.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.'); return; }
       // 내 대사 시간(초)을 result 순서에 맞춰 저장 (payload=turns=result 동일 순서)
       secListRef.current = turns.map((t) => (t.speaker === '나' ? clampSec(t.sec ?? autoSec(t.text)) : 0));
@@ -139,7 +147,7 @@ export function ScenePartnerScreen() {
     } catch (e: any) {
       setErr(e?.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally { setBusy(false); }
-  }, [turns, partner]);
+  }, [turns, partner, sceneMode, custGender, custAge, refreshLib]);
 
   const input = { borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: color.ink, fontFamily: font.m, backgroundColor: color.white } as const;
 
@@ -147,9 +155,41 @@ export function ScenePartnerScreen() {
     <View style={{ paddingHorizontal: space.screenX, gap: 12, marginTop: 8 }}>
       <Card style={{ padding: 14, backgroundColor: color.blueBg }}>
         <Text style={{ fontFamily: font.m, fontSize: 13, lineHeight: 20, color: color.infoInk }}>
-          내 대사를 쓰고 상대가 말하는 지점에 <Text style={{ fontFamily: font.b }}>🎭 상대 등장</Text>을 넣으면 AI가 상대 대사를 채워 <Text style={{ fontFamily: font.b }}>목소리로</Text> 만들어줘요. 각 내 대사에 <Text style={{ fontFamily: font.b }}>연기할 시간(초)</Text>을 정해두면, 그 시간이 지날 때 상대가 자동으로 응답해요.
+          내 대사를 쓰고 상대가 말하는 지점을 넣으면, <Text style={{ fontFamily: font.b }}>AI가 상대 대사를 만들거나</Text> 원하는 <Text style={{ fontFamily: font.b }}>상대 대사를 직접 써서</Text> 목소리로 연습할 수 있어요. 각 내 대사에 <Text style={{ fontFamily: font.b }}>연기 시간(초)</Text>을 정하면 그 뒤 상대가 응답해요.
         </Text>
       </Card>
+
+      {/* 모드 토글 */}
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {([['ai', '🤖 AI가 상대 대사 생성'], ['custom', '✍️ 내가 직접 쓰기']] as const).map(([m, label]) => {
+          const on = sceneMode === m;
+          return (
+            <Pressable key={m} onPress={() => setSceneMode(m)} style={{ flex: 1, borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.button, paddingVertical: 11, alignItems: 'center' }}>
+              <Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.blue : color.sub }}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {sceneMode === 'custom' && (
+        <View style={{ gap: 8, backgroundColor: color.surf, borderRadius: radius.card, padding: 12 }}>
+          <Text style={{ fontFamily: font.b, fontSize: 12.5, color: color.sub }}>상대 목소리 (직접 선택 — AI가 추론하지 않아요)</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, width: 34 }}>성별</Text>
+            {(['남', '여', '중성'] as const).map((g) => {
+              const on = custGender === g;
+              return <Pressable key={g} onPress={() => setCustGender(g)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.white : color.ink }}>{g}</Text></Pressable>;
+            })}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, width: 34 }}>나이</Text>
+            {([['young', '젊음'], ['middle', '중년'], ['old', '노년']] as const).map(([a, label]) => {
+              const on = custAge === a;
+              return <Pressable key={a} onPress={() => setCustAge(a)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.white : color.ink }}>{label}</Text></Pressable>;
+            })}
+          </View>
+        </View>
+      )}
 
       {savedScenes.length > 0 && (
         <View>
@@ -169,10 +209,12 @@ export function ScenePartnerScreen() {
         </View>
       )}
 
-      <View>
-        <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (선택 — 성별·나이에 맞는 보이스가 나와요)</Text>
-        <TextInput value={partner} onChangeText={setPartner} placeholder="예: 늙고 병든 왕 / 어린 딸 / 헤어진 연인" placeholderTextColor={color.faint} style={input} maxLength={60} />
-      </View>
+      {sceneMode === 'ai' && (
+        <View>
+          <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (선택 — 성별·나이에 맞는 보이스가 나와요)</Text>
+          <TextInput value={partner} onChangeText={setPartner} placeholder="예: 늙고 병든 왕 / 어린 딸 / 헤어진 연인" placeholderTextColor={color.faint} style={input} maxLength={60} />
+        </View>
+      )}
       <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginTop: 2 }}>장면 대본</Text>
       {turns.map((t) => (
         <View key={t.key} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
@@ -193,8 +235,10 @@ export function ScenePartnerScreen() {
             <>
               <View style={{ width: 40, paddingTop: 12 }}><Text style={{ fontFamily: font.b, fontSize: 15 }}>🎭</Text></View>
               <View style={{ flex: 1, borderWidth: 1, borderColor: color.requestLine, borderRadius: radius.card, backgroundColor: color.amberBg, paddingHorizontal: 12, paddingVertical: 10 }}>
-                <Text style={{ fontFamily: font.b, fontSize: 13, color: color.warn, marginBottom: 6 }}>상대 등장 (AI가 채움)</Text>
-                <TextInput value={t.hint} onChangeText={(v) => setHint(t.key, v)} placeholder="느낌 힌트(선택) 예: 다그치듯" placeholderTextColor={color.faint} style={{ fontFamily: font.m, fontSize: 13.5, color: color.ink, padding: 0 }} />
+                <Text style={{ fontFamily: font.b, fontSize: 13, color: color.warn, marginBottom: 6 }}>{sceneMode === 'custom' ? '상대 대사 (직접 입력)' : '상대 등장 (AI가 채움)'}</Text>
+                {sceneMode === 'custom'
+                  ? <TextInput value={t.text} onChangeText={(v) => setText(t.key, v)} placeholder="상대의 실제 대사를 입력" placeholderTextColor={color.faint} style={{ fontFamily: font.m, fontSize: 14, color: color.ink, padding: 0 }} multiline />
+                  : <TextInput value={t.hint} onChangeText={(v) => setHint(t.key, v)} placeholder="느낌 힌트(선택) 예: 다그치듯" placeholderTextColor={color.faint} style={{ fontFamily: font.m, fontSize: 13.5, color: color.ink, padding: 0 }} />}
               </View>
             </>
           )}

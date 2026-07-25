@@ -97,6 +97,32 @@ def _build_scene(turns: List[Dict[str, Any]], partner_hint: str) -> Dict[str, An
     return result
 
 
+def _build_custom_scene(turns: List[Dict[str, Any]], gender: str, age: str) -> Dict[str, Any]:
+    """커스텀 모드: 학생이 직접 쓴 상대 대사를 학생이 고른 성별×나이 보이스로 TTS만 합성.
+    (LLM 생성 없음 — 진짜 대본 그대로 연습.) 블로킹 → run_in_threadpool."""
+    g, a = ai._norm_gender(gender), ai._norm_age(age)
+    tts_dir = UPLOAD_DIR / "tts"
+    out: List[Dict[str, Any]] = []
+    for t in turns:
+        if t.get("speaker") == "상대":
+            text = (t.get("text") or "").strip()
+            row: Dict[str, Any] = {"speaker": "상대", "text": text}
+            if text:
+                audio = ai.synthesize_tts(text, g, a)
+                if audio:
+                    try:
+                        tts_dir.mkdir(parents=True, exist_ok=True)
+                        fname = f"{_uuid.uuid4().hex}.mp3"
+                        (tts_dir / fname).write_bytes(audio)
+                        row["audioUrl"] = f"/uploads/tts/{fname}"
+                    except Exception:
+                        pass
+            out.append(row)
+        else:
+            out.append({"speaker": "나", "text": (t.get("text") or "").strip()})
+    return {"ok": True, "turns": out, "voice": f"{g}/{a}"}
+
+
 class ReviseReq(BaseModel):
     question: str
     answer: str
@@ -105,6 +131,9 @@ class ReviseReq(BaseModel):
 class ScenePartnerReq(BaseModel):
     turns: List[Dict[str, Any]]   # [{speaker:"나"|"상대", text?:str, hint?:str}]
     partner: str = ""             # (선택) 상대 인물 설정 힌트
+    mode: str = "ai"              # "ai"=AI가 상대 대사 생성 / "custom"=학생이 직접 작성
+    gender: str = ""              # custom 모드: 학생이 고른 성별(남/여/중성)
+    age: str = ""                 # custom 모드: 학생이 고른 나이(young/middle/old)
 
 
 @router.post("/interview-revise")
@@ -132,17 +161,23 @@ async def scene_partner(data: ScenePartnerReq, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=400, detail="내 대사를 한 줄 이상 입력해주세요.")
     if len(slots) < 1:
         raise HTTPException(status_code=400, detail="상대가 등장하는 지점을 한 곳 이상 표시해주세요.")
+    is_custom = (data.mode or "ai") == "custom"
+    if is_custom and any(not (t.get("text") or "").strip() for t in slots):
+        raise HTTPException(status_code=400, detail="커스텀 모드에선 상대 대사를 직접 입력해주세요.")
     total = sum(len((t.get("text") or "")) for t in turns)
     if total > 4000:
         raise HTTPException(status_code=400, detail="장면이 너무 길어요(전체 4000자 이내).")
 
-    # 하루 생성 제한 (저장된 장면 불러오기는 무제한 — 여긴 '새 생성'만 카운트)
+    # 하루 생성 제한 (저장된 장면 불러오기는 무제한 — 여긴 '새 생성'만 카운트. 커스텀도 TTS 비용이라 포함)
     limit = _daily_limit(db)
     used = _today_count(db, current_user.id)
     if used >= limit:
         raise HTTPException(status_code=429, detail=f"오늘 새 상대역 생성 한도({limit}회)를 다 썼어요. 저장된 장면을 불러와 연습하거나 내일 다시 시도해주세요.")
 
-    result = await run_in_threadpool(_build_scene, turns, (data.partner or "")[:100])
+    if is_custom:
+        result = await run_in_threadpool(_build_custom_scene, turns, data.gender, data.age)
+    else:
+        result = await run_in_threadpool(_build_scene, turns, (data.partner or "")[:100])
     if result.get("ok"):
         try:
             result["sceneId"] = _save_scene(db, current_user.id, turns, result, (data.partner or "")[:100])
