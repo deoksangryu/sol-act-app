@@ -1,4 +1,5 @@
 import type { TextStyle, ViewStyle } from 'react-native';
+import { useWindowDimensions } from 'react-native';
 
 // === v2 디자인 토큰 (프로토타입 sol-prototype-v1.html 팔레트) ===
 // 의미 규약: 박수=amber · 완료/성장=success · 마감/위험=danger · 주액션=blue · 음악/녹음=purple
@@ -35,8 +36,22 @@ export const shadow: { card: ViewStyle } = {
   card: { shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
 };
 
-// 콘텐츠 최대 폭(중앙정렬)
+// 콘텐츠 최대 폭(중앙정렬) — 폰 기준
 export const MAX_WIDTH = 480;
+// 태블릿 대응: 이 폭 이상이면 태블릿으로 보고 콘텐츠 컬럼을 조금 넓힘(가독성 유지 위해 과하게 넓히지 않음).
+// 폰은 화면폭이 480보다 좁아 아래 값이 적용돼도 실제 폭은 그대로다(무영향).
+export const TABLET_MIN_WIDTH = 700;
+export const CONTENT_MAX_WIDTH_TABLET = 640;
+// 현재 화면 폭에 맞는 콘텐츠 최대폭 반환(폰=480 / 태블릿=640).
+export function useContentMaxWidth(): number {
+  const { width } = useWindowDimensions();
+  return width >= TABLET_MIN_WIDTH ? CONTENT_MAX_WIDTH_TABLET : MAX_WIDTH;
+}
+// 태블릿(대형 화면) 여부.
+export function useIsTablet(): boolean {
+  const { width } = useWindowDimensions();
+  return width >= TABLET_MIN_WIDTH;
+}
 
 // 시그니처 overshoot 스프링 (확인 완료 애니메이션 등)
 export const SPRING = { damping: 12, stiffness: 180, mass: 0.6 };

@@ -4,15 +4,16 @@ import {
   StyleSheet, ActivityIndicator, ViewStyle, StyleProp,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { color, text, radius, space, MAX_WIDTH, font } from '../theme/tokens';
+import { color, text, radius, space, MAX_WIDTH, font, useContentMaxWidth } from '../theme/tokens';
 import { Icon } from './Icon';
 
-// === Screen: 안전영역 + 배경(기본 흰색, v2는 bg=surf) + 480 중앙정렬 ===
+// === Screen: 안전영역 + 배경(기본 흰색, v2는 bg=surf) + 콘텐츠 중앙정렬(폰480/태블릿640) ===
 export function Screen({ children, edges, bg }: { children: React.ReactNode; edges?: Array<'top' | 'bottom' | 'left' | 'right'>; bg?: string }) {
+  const maxWidth = useContentMaxWidth();
   const tint = bg ? { backgroundColor: bg } : null;
   return (
     <SafeAreaView style={[s.screen, tint]} edges={edges ?? ['top', 'bottom']}>
-      <View style={[s.centered, tint]}>{children}</View>
+      <View style={[s.centered, { maxWidth }, tint]}>{children}</View>
     </SafeAreaView>
   );
 }
