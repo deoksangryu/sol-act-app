@@ -239,15 +239,15 @@ def generate_scene_partner(turns, partner_hint: str = "") -> dict:
 # ElevenLabs(한국어 캐릭터 보이스 우수) 우선 → 실패/키없음 시 OpenAI TTS → 둘 다 없으면 None.
 # ElevenLabs 보이스ID = 무료플랜에서 API 합성 검증된 기본 보이스(성별×나이).
 _EL_VOICE = {
-    ("남", "young"): "TX3LPaxmHKxFdv7VOQHJ",   # Liam — 젊은 남성
-    ("남", "middle"): "onwK4e9ZLuTAKqWW03F9",  # Daniel — 중년/권위 남성
-    ("남", "old"): "pqHfZKP75CvOlQylNhV4",     # Bill — 노년 남성(신뢰감)
-    ("여", "young"): "EXAVITQu4vr4xnSDxMaL",   # Sarah — 젊은 여성
-    ("여", "middle"): "Xb7hH8MSUJpSbSDYk0k2",  # Alice — 중년 여성
-    ("여", "old"): "pFZP5JQG7iQjIQuC4Bku",     # Lily — 성숙/노년 여성
-    ("중성", "young"): "SAz9YHcvj6GT2YYXdXww",  # River — 중성
-    ("중성", "middle"): "SAz9YHcvj6GT2YYXdXww",
-    ("중성", "old"): "JBFqnCBsd6RMkjVDRZzb",   # George — 따뜻한 성숙
+    ("남", "young"): "Ir7oQcBXWiq4oFGROCfj",   # taemin — 20대 친근한 남성
+    ("남", "middle"): "4JJwo477JUAx3HV0T7n7",  # Yohan Koo — 30대 권위 남성
+    ("남", "old"): "5ON5Fnz24cnOozEQfGAm",     # Namchun — 할아버지(노년 남성)
+    ("여", "young"): "uyVNoMrnUku1dZyVEXwD",   # Anna Kim — 젊은 여성
+    ("여", "middle"): "ZjAPD4f11zlnEnZpKDgo",  # Haemi — 중년 여성
+    ("여", "old"): "6yp5xWNuHEXOVkwW5Ghz",     # Sunhee — 60대 할머니(노년 여성)
+    ("중성", "young"): "0IhKyLYnD1w7n6ZVziN1",  # Ohana — 차분한 중성
+    ("중성", "middle"): "0IhKyLYnD1w7n6ZVziN1",
+    ("중성", "old"): "5ON5Fnz24cnOozEQfGAm",   # Namchun — 노년 중성
 }
 _OPENAI_VOICE = {"남": "onyx", "여": "nova", "중성": "alloy"}
 
