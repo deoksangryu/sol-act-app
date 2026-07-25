@@ -150,8 +150,10 @@ def _scene_user_prompt(turns, partner_hint: str) -> str:
         "[상대 대사 #n]은 네가 채워야 할 '부재하는 상대'의 자리다." + who + "\n"
         f"{seq}\n\n"
         "[상대 대사 #1]부터 순서대로 각 자리를 채워라. 반드시 아래 JSON만 출력하라:\n"
-        '{"partner": ["#1 자리 상대 대사", "#2 자리 상대 대사", ...], "gender": "남|여|중성"}\n'
-        "partner 배열 길이는 상대 자리 개수와 정확히 같아야 한다. gender는 상대 인물의 성별(남/여/중성)이다."
+        '{"partner": ["#1 자리 상대 대사", ...], "gender": "남|여|중성", "age": "young|middle|old"}\n'
+        "partner 배열 길이는 상대 자리 개수와 정확히 같아야 한다. "
+        "gender=상대 인물의 성별(남/여/중성). age=상대 나이대(young=10~30대 / middle=40~50대 / old=60대 이상). "
+        "상대 인물 설정(예: 늙은 왕, 어린 딸)에 반드시 맞춰라."
     )
 
 
@@ -205,7 +207,7 @@ def generate_scene_partner(turns, partner_hint: str = "") -> dict:
                 partner = [partner]
             if not partner:
                 return _scene_fallback(turns)
-            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip()}
+            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower()}
         except Exception as e:
             log.warning(f"generate_scene_partner(openai) failed: {e}")
             return _scene_fallback(turns)
@@ -225,7 +227,7 @@ def generate_scene_partner(turns, partner_hint: str = "") -> dict:
                 partner = [partner]
             if not partner:
                 return _scene_fallback(turns)
-            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip()}
+            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower()}
         except Exception as e:
             log.warning(f"generate_scene_partner(gemini) failed: {e}")
             return _scene_fallback(turns)
@@ -233,37 +235,76 @@ def generate_scene_partner(turns, partner_hint: str = "") -> dict:
     return _scene_fallback(turns)
 
 
-# ── 클라우드 TTS (OpenAI) — 상대 대사를 성별에 맞는 보이스로 음성 합성 ──────────
-# 상대 성별(남/여/중성)에 맞춰 OpenAI 보이스를 고르고 mp3 바이트를 반환한다.
-# 키 없음/실패 시 None(호출측이 온디바이스 TTS로 폴백).
-_VOICE_BY_GENDER = {"남": "onyx", "여": "nova", "중성": "alloy"}
+# ── 클라우드 TTS — 상대 대사를 성별×나이 맞춤 보이스로 음성 합성 ──────────────
+# ElevenLabs(한국어 캐릭터 보이스 우수) 우선 → 실패/키없음 시 OpenAI TTS → 둘 다 없으면 None.
+# ElevenLabs 보이스ID = 무료플랜에서 API 합성 검증된 기본 보이스(성별×나이).
+_EL_VOICE = {
+    ("남", "young"): "TX3LPaxmHKxFdv7VOQHJ",   # Liam — 젊은 남성
+    ("남", "middle"): "onwK4e9ZLuTAKqWW03F9",  # Daniel — 중년/권위 남성
+    ("남", "old"): "pqHfZKP75CvOlQylNhV4",     # Bill — 노년 남성(신뢰감)
+    ("여", "young"): "EXAVITQu4vr4xnSDxMaL",   # Sarah — 젊은 여성
+    ("여", "middle"): "Xb7hH8MSUJpSbSDYk0k2",  # Alice — 중년 여성
+    ("여", "old"): "pFZP5JQG7iQjIQuC4Bku",     # Lily — 성숙/노년 여성
+    ("중성", "young"): "SAz9YHcvj6GT2YYXdXww",  # River — 중성
+    ("중성", "middle"): "SAz9YHcvj6GT2YYXdXww",
+    ("중성", "old"): "JBFqnCBsd6RMkjVDRZzb",   # George — 따뜻한 성숙
+}
+_OPENAI_VOICE = {"남": "onyx", "여": "nova", "중성": "alloy"}
 
 
-def voice_for_gender(gender: str) -> str:
-    return _VOICE_BY_GENDER.get((gender or "").strip(), "alloy")
+def _norm_gender(g: str) -> str:
+    g = (g or "").strip()
+    return g if g in ("남", "여", "중성") else "중성"
 
 
-def synthesize_tts(text: str, voice: str = "alloy"):
-    """텍스트를 OpenAI TTS로 음성 합성해 mp3 bytes를 반환. 실패/키없음 시 None."""
+def _norm_age(a: str) -> str:
+    a = (a or "").strip().lower()
+    return a if a in ("young", "middle", "old") else "middle"
+
+
+def _elevenlabs_tts(text: str, voice_id: str, api_key: str):
+    import logging, requests
+    try:
+        r = requests.post(
+            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+            headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+            json={"text": text[:800], "model_id": "eleven_multilingual_v2"},
+            timeout=45,
+        )
+        if r.status_code == 200 and r.content[:1] != b"{":
+            return r.content
+        logging.getLogger(__name__).warning(f"elevenlabs tts {r.status_code}: {r.text[:120]}")
+    except Exception as e:
+        logging.getLogger(__name__).warning(f"elevenlabs tts error: {e}")
+    return None
+
+
+def synthesize_tts(text: str, gender: str = "중성", age: str = "middle"):
+    """상대 대사를 성별×나이 맞춤 보이스로 합성 → mp3 bytes. ElevenLabs 우선/OpenAI 폴백/None."""
     from app.config import settings
     import logging
     log = logging.getLogger(__name__)
     text = (text or "").strip()
     if not text:
         return None
+    g, a = _norm_gender(gender), _norm_age(age)
+    el_key = (getattr(settings, "ELEVENLABS_API_KEY", "") or "").strip()
+    if el_key:
+        vid = _EL_VOICE.get((g, a)) or _EL_VOICE.get((g, "middle")) or "SAz9YHcvj6GT2YYXdXww"
+        audio = _elevenlabs_tts(text, vid, el_key)
+        if audio:
+            return audio
+        # ElevenLabs 실패 → OpenAI 폴백
     openai_key = (getattr(settings, "OPENAI_API_KEY", "") or "").strip()
-    if not openai_key:
-        return None
-    try:
-        from openai import OpenAI
-        client = OpenAI(api_key=openai_key)
-        resp = client.audio.speech.create(
-            model="gpt-4o-mini-tts",
-            voice=voice if voice in _VOICE_BY_GENDER.values() else "alloy",
-            input=text[:600],
-            response_format="mp3",
-        )
-        return resp.read()
-    except Exception as e:
-        log.warning(f"synthesize_tts failed: {e}")
-        return None
+    if openai_key:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_key)
+            resp = client.audio.speech.create(
+                model="gpt-4o-mini-tts", voice=_OPENAI_VOICE.get(g, "alloy"),
+                input=text[:600], response_format="mp3",
+            )
+            return resp.read()
+        except Exception as e:
+            log.warning(f"openai tts failed: {e}")
+    return None

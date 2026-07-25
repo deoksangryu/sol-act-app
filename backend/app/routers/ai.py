@@ -24,11 +24,12 @@ def _build_scene(turns: List[Dict[str, Any]], partner_hint: str) -> Dict[str, An
     result = ai.generate_scene_partner(turns, partner_hint)
     if not result.get("ok"):
         return result
-    voice = ai.voice_for_gender(result.get("voice_gender", ""))
+    gender = result.get("voice_gender", "중성")
+    age = result.get("voice_age", "middle")
     tts_dir = UPLOAD_DIR / "tts"
     for t in result.get("turns", []):
         if t.get("speaker") == "상대" and (t.get("text") or "").strip():
-            audio = ai.synthesize_tts(t["text"], voice)
+            audio = ai.synthesize_tts(t["text"], gender, age)
             if audio:
                 try:
                     tts_dir.mkdir(parents=True, exist_ok=True)
@@ -37,7 +38,7 @@ def _build_scene(turns: List[Dict[str, Any]], partner_hint: str) -> Dict[str, An
                     t["audioUrl"] = f"/uploads/tts/{fname}"
                 except Exception:
                     pass
-    result["voice"] = voice
+    result["voice"] = f"{gender}/{age}"
     return result
 
 

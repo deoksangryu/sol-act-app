@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"   # 저렴·충분. 원하면 gpt-4o 등으로 변경
     GEMINI_API_KEY: str = ""
+    # TTS: ElevenLabs(한국어 캐릭터 보이스 우수) 우선, 없으면 OpenAI TTS 폴백
+    ELEVENLABS_API_KEY: str = ""
 
     # AWS S3 (Optional)
     AWS_ACCESS_KEY_ID: str = ""
