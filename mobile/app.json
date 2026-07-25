@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.solact.academy",
-      "versionCode": 7,
+      "versionCode": 8,
       "permissions": [
         "android.permission.CAMERA"
       ],
@@ -54,14 +54,7 @@
       "expo-asset",
       "@react-native-community/datetimepicker",
       "./plugins/withReleaseSigning",
-      "./plugins/withR8",
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "AI 상대역 연습에서 내 대사가 끝났는지 감지하기 위해 마이크 접근이 필요합니다.",
-          "speechRecognitionPermission": "AI 상대역 연습에서 대사가 끝나는 시점을 인식하기 위해 음성 인식이 필요합니다."
-        }
-      ]
+      "./plugins/withR8"
     ]
   }
 }

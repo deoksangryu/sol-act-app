@@ -3,20 +3,21 @@ import { View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingVi
 import { useNavigation } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { Screen, Scroll, BackHeader } from '../components/kit';
 import { Card } from '../components/gamify';
 import { color, font, radius, space } from '../theme/tokens';
 import { aiApi, SceneTurn, API_URL } from '../services/api';
 
 // AI 상대역 연습 — 학생이 자기 대사 + '상대 등장' 자리 표시 → AI가 상대 대사 생성 + 성별×나이 맞춤 TTS.
-// 연습: 시작 → 내 대사 말함(마이크 소리 레벨 표시) → 멈추면(침묵 감지) 상대 자동 응답 → 다음. 수동 '다음' 폴백.
-type EditTurn = { key: string; speaker: '나' | '상대'; text: string; hint: string };
+// 연습(타이머식): 내 대사마다 정해둔 시간이 지나면 상대 대사 자동 재생 → 상대 대사 끝나면 다음 내 대사 타이머 시작.
+type EditTurn = { key: string; speaker: '나' | '상대'; text: string; hint: string; sec?: number };
 let _seq = 0;
 const mk = (speaker: '나' | '상대', text = '', hint = ''): EditTurn => ({ key: `t${_seq++}`, speaker, text, hint });
 const STARTER: EditTurn[] = [mk('나', '아무 일도 아닙니다.'), mk('상대'), mk('나', '그가 제게 말했죠. 다 끝났다고.')];
 const absUrl = (u?: string) => (u && u.startsWith('/') ? `${API_URL}${u}` : u || '');
-const SR_OPTS = { lang: 'ko-KR', interimResults: true, continuous: true, volumeChangeEventOptions: { enabled: true, intervalMillis: 100 } } as const;
+// 대사 길이로 기본 시간(초) 추정 — 연기 호흡 고려해 넉넉히
+const autoSec = (t?: string) => Math.max(3, Math.min(40, Math.round((t || '').trim().length / 3)));
+const clampSec = (n: number) => Math.max(1, Math.min(60, n));
 
 export function ScenePartnerScreen() {
   const nav = useNavigation<any>();
@@ -29,60 +30,36 @@ export function ScenePartnerScreen() {
   const [reveal, setReveal] = useState(false);
 
   const [running, setRunning] = useState(false);
-  const [phase, setPhase] = useState<'idle' | 'listening' | 'partner' | 'done'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'mine' | 'partner' | 'done'>('idle');
   const [cursor, setCursor] = useState(-1);
-  const [micLevel, setMicLevel] = useState(0);
-  const [micWarn, setMicWarn] = useState(false);
+  const [remain, setRemain] = useState(0);   // 내 대사 남은 시간(초)
+  const [total, setTotal] = useState(0);      // 내 대사 총 시간(초)
 
   const idxRef = useRef(0);
   const runRef = useRef(false);
-  const listenRef = useRef(false);
   const playerRef = useRef<AudioPlayer | null>(null);
-  const grantedRef = useRef(false);
-  const heardRef = useRef(false);
-  const lastLoudRef = useRef(0);
-  const startedAtRef = useRef(0);
-  const warnRef = useRef(false);
-  const monitorRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const secListRef = useRef<number[]>([]);    // result index별 내 대사 시간(상대=0)
 
   useEffect(() => { setAudioModeAsync({ playsInSilentMode: true }).catch(() => {}); }, []);
   useEffect(() => () => { stopAll(); }, []);
 
-  const clearMonitor = () => { if (monitorRef.current) { clearInterval(monitorRef.current); monitorRef.current = null; } };
+  const clearTick = () => { if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; } };
   const stopAll = () => {
-    runRef.current = false; listenRef.current = false; clearMonitor();
-    try { ExpoSpeechRecognitionModule.abort(); } catch {}
+    runRef.current = false; clearTick();
     try { Speech.stop(); } catch {}
     if (playerRef.current) { try { playerRef.current.remove(); } catch {} playerRef.current = null; }
   };
 
-  // 마이크 볼륨(-2~10): 레벨 표시 + '말하다가 멈춤' 감지
-  useSpeechRecognitionEvent('volumechange', (e) => {
-    if (!listenRef.current) return;
-    const v = typeof e.value === 'number' ? e.value : -2;
-    setMicLevel(Math.max(0, Math.min(1, v / 7)));
-    if (v > 0.5) { heardRef.current = true; lastLoudRef.current = Date.now(); if (warnRef.current) { warnRef.current = false; setMicWarn(false); } }
-  });
-  useSpeechRecognitionEvent('end', () => { if (runRef.current && listenRef.current && heardRef.current) advance(); });
-
-  const startMonitor = () => {
-    clearMonitor();
-    monitorRef.current = setInterval(() => {
-      if (!listenRef.current) { clearMonitor(); return; }
-      const now = Date.now();
-      if (heardRef.current && now - lastLoudRef.current > 1300) advance();               // 말 끝나고 침묵 → 진행
-      else if (!heardRef.current && now - startedAtRef.current > 2800 && !warnRef.current) { warnRef.current = true; setMicWarn(true); } // 소리 안 잡힘 경고
-    }, 200);
-  };
-
-  const startListen = async () => {
-    listenRef.current = true; heardRef.current = false; lastLoudRef.current = 0; startedAtRef.current = Date.now();
-    warnRef.current = false; setMicWarn(false); setMicLevel(0);
-    try {
-      if (!grantedRef.current) { const p = await ExpoSpeechRecognitionModule.requestPermissionsAsync(); grantedRef.current = !!p.granted; }
-      if (grantedRef.current) ExpoSpeechRecognitionModule.start(SR_OPTS);
-    } catch { /* 미지원/거부 → 수동 '다음'으로 */ }
-    startMonitor();
+  const startMyTimer = (sec: number) => {
+    const t = Math.max(1, sec); setTotal(t); setRemain(t);
+    const startedAt = Date.now();
+    clearTick();
+    tickRef.current = setInterval(() => {
+      const rem = Math.max(0, t - (Date.now() - startedAt) / 1000);
+      setRemain(rem);
+      if (rem <= 0) advance();
+    }, 100);
   };
 
   const playPartner = (t: SceneTurn) => {
@@ -103,26 +80,26 @@ export function ScenePartnerScreen() {
     if (!runRef.current) return;
     const i = idxRef.current;
     const list = result || [];
-    if (i >= list.length) { runRef.current = false; setRunning(false); setPhase('done'); setCursor(-1); setMicLevel(0); return; }
+    if (i >= list.length) { runRef.current = false; setRunning(false); setPhase('done'); setCursor(-1); setRemain(0); setTotal(0); return; }
     setCursor(i);
     const t = list[i];
-    if (t.speaker === '나') { setPhase('listening'); startListen(); }
-    else { setPhase('partner'); playPartner(t); }
+    if (t.speaker === '나') { setPhase('mine'); startMyTimer(secListRef.current[i] || autoSec(t.text)); }
+    else { setPhase('partner'); setRemain(0); setTotal(0); playPartner(t); }
   };
 
   const advance = () => {
-    clearMonitor(); listenRef.current = false; setMicLevel(0); setMicWarn(false); warnRef.current = false;
-    try { ExpoSpeechRecognitionModule.abort(); } catch {}
+    clearTick();
     try { Speech.stop(); } catch {}
     if (playerRef.current) { try { playerRef.current.remove(); } catch {} playerRef.current = null; }
     idxRef.current += 1; step();
   };
 
   const startPractice = () => { stopAll(); idxRef.current = 0; runRef.current = true; setRunning(true); setReveal(false); step(); };
-  const stopPractice = () => { stopAll(); setRunning(false); setPhase('idle'); setCursor(-1); setMicLevel(0); setMicWarn(false); };
+  const stopPractice = () => { stopAll(); setRunning(false); setPhase('idle'); setCursor(-1); setRemain(0); setTotal(0); };
 
   const setText = (key: string, text: string) => setTurns((ts) => ts.map((t) => (t.key === key ? { ...t, text } : t)));
   const setHint = (key: string, hint: string) => setTurns((ts) => ts.map((t) => (t.key === key ? { ...t, hint } : t)));
+  const bumpSec = (key: string, d: number) => setTurns((ts) => ts.map((t) => (t.key === key ? { ...t, sec: clampSec((t.sec ?? autoSec(t.text)) + d) } : t)));
   const removeTurn = (key: string) => setTurns((ts) => ts.filter((t) => t.key !== key));
 
   const generate = useCallback(async () => {
@@ -134,6 +111,8 @@ export function ScenePartnerScreen() {
     try {
       const r = await aiApi.scenePartner(payload, partner.trim());
       if (!r.ok) { setErr(r.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.'); return; }
+      // 내 대사 시간(초)을 result 순서에 맞춰 저장 (payload=turns=result 동일 순서)
+      secListRef.current = turns.map((t) => (t.speaker === '나' ? clampSec(t.sec ?? autoSec(t.text)) : 0));
       setResult(r.turns); setReveal(false); setPhase('idle'); setCursor(-1); setRunning(false); setMode('practice');
     } catch (e: any) {
       setErr(e?.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
@@ -146,7 +125,7 @@ export function ScenePartnerScreen() {
     <View style={{ paddingHorizontal: space.screenX, gap: 12, marginTop: 8 }}>
       <Card style={{ padding: 14, backgroundColor: color.blueBg }}>
         <Text style={{ fontFamily: font.m, fontSize: 13, lineHeight: 20, color: color.infoInk }}>
-          독백은 원래 상대가 있던 장면이에요. 내 대사를 쓰고 상대가 말하는 지점에 <Text style={{ fontFamily: font.b }}>🎭 상대 등장</Text>을 넣으면 AI가 상대 대사를 채워 <Text style={{ fontFamily: font.b }}>목소리로</Text> 만들어줘요. 연습 땐 내가 대사를 하면 <Text style={{ fontFamily: font.b }}>끝나는 걸 감지해 상대가 자동으로 응답</Text>해요.
+          내 대사를 쓰고 상대가 말하는 지점에 <Text style={{ fontFamily: font.b }}>🎭 상대 등장</Text>을 넣으면 AI가 상대 대사를 채워 <Text style={{ fontFamily: font.b }}>목소리로</Text> 만들어줘요. 각 내 대사에 <Text style={{ fontFamily: font.b }}>연기할 시간(초)</Text>을 정해두면, 그 시간이 지날 때 상대가 자동으로 응답해요.
         </Text>
       </Card>
       <View>
@@ -159,7 +138,15 @@ export function ScenePartnerScreen() {
           {t.speaker === '나' ? (
             <>
               <View style={{ width: 40, paddingTop: 12 }}><Text style={{ fontFamily: font.b, fontSize: 13, color: color.ink }}>나</Text></View>
-              <TextInput value={t.text} onChangeText={(v) => setText(t.key, v)} placeholder="내 대사" placeholderTextColor={color.faint} style={[input, { flex: 1 }]} multiline />
+              <View style={{ flex: 1, gap: 6 }}>
+                <TextInput value={t.text} onChangeText={(v) => setText(t.key, v)} placeholder="내 대사" placeholderTextColor={color.faint} style={input} multiline />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2 }}>⏱ 연기 시간</Text>
+                  <Pressable onPress={() => bumpSec(t.key, -1)} hitSlop={6} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: color.inputLine, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 16, color: color.ink }}>–</Text></Pressable>
+                  <Text style={{ fontFamily: font.b, fontSize: 14, color: color.blue, minWidth: 42, textAlign: 'center' }}>{t.sec ?? autoSec(t.text)}초</Text>
+                  <Pressable onPress={() => bumpSec(t.key, 1)} hitSlop={6} style={{ width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: color.inputLine, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 16, color: color.ink }}>+</Text></Pressable>
+                </View>
+              </View>
             </>
           ) : (
             <>
@@ -185,36 +172,17 @@ export function ScenePartnerScreen() {
     </View>
   );
 
-  const MicMeter = () => (
-    <Card style={{ padding: 14, backgroundColor: micWarn ? color.dangerBg : color.blueBg }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Text style={{ fontSize: 18 }}>{micWarn ? '🔇' : '🎙️'}</Text>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 22, flex: 1 }}>
-          {Array.from({ length: 14 }).map((_, i) => {
-            const on = micLevel * 14 > i;
-            return <View key={i} style={{ width: 5, borderRadius: 2, height: 6 + i * 1.1, backgroundColor: on ? (micWarn ? color.danger : color.blue) : color.inputLine }} />;
-          })}
-        </View>
-      </View>
-      <Text style={{ fontFamily: font.b, fontSize: 12.5, color: micWarn ? color.danger : color.infoInk, marginTop: 8 }}>
-        {micWarn ? '소리가 잘 안 잡혀요 — 더 크게 말하거나 마이크를 확인하고, 안 넘어가면 다음 ▶' : micLevel > 0.08 ? '잘 들리고 있어요 — 대사를 마치면 상대가 응답해요' : '내 대사를 소리 내어 말해보세요…'}
-      </Text>
-    </Card>
-  );
-
   const renderPractice = () => (
     <View style={{ paddingHorizontal: space.screenX, gap: 10, marginTop: 8 }}>
       <Card style={{ padding: 14, backgroundColor: color.blueBg }}>
         <Text style={{ fontFamily: font.m, fontSize: 13, lineHeight: 20, color: color.infoInk }}>
-          <Text style={{ fontFamily: font.b }}>▶ 연습 시작</Text>을 누르고 내 대사를 소리 내어 하세요. 말이 끝나면 <Text style={{ fontFamily: font.b }}>상대가 자동으로 응답</Text>해요. 잘 안 넘어가면 <Text style={{ fontFamily: font.b }}>다음 ▶</Text>을 누르면 돼요.
+          <Text style={{ fontFamily: font.b }}>▶ 연습 시작</Text>을 누르면 내 대사 차례에 <Text style={{ fontFamily: font.b }}>정해둔 시간만큼</Text> 연기할 시간이 주어지고, 시간이 지나면 <Text style={{ fontFamily: font.b }}>상대가 자동으로 응답</Text>해요. 일찍 끝냈으면 <Text style={{ fontFamily: font.b }}>다음 ▶</Text>으로 바로 넘겨도 돼요.
         </Text>
       </Card>
 
-      {running && phase === 'listening' && <MicMeter />}
-
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Text style={{ fontFamily: font.b, fontSize: 13, color: phase === 'done' ? color.success : phase === 'partner' ? color.warn : color.sub2 }}>
-          {phase === 'done' ? '장면 끝! 수고했어요 👏' : phase === 'partner' ? '🎭 상대가 말하는 중…' : phase === 'listening' ? '🎤 내 차례' : '준비됨'}
+        <Text style={{ fontFamily: font.b, fontSize: 13, color: phase === 'done' ? color.success : phase === 'partner' ? color.warn : phase === 'mine' ? color.blue : color.sub2 }}>
+          {phase === 'done' ? '장면 끝! 수고했어요 👏' : phase === 'partner' ? '🎭 상대가 말하는 중…' : phase === 'mine' ? `🎤 내 대사 · ${remain.toFixed(1)}초` : '준비됨'}
         </Text>
         <Pressable onPress={() => setReveal((v) => !v)} hitSlop={6}><Text style={{ fontFamily: font.b, fontSize: 13, color: color.blue }}>{reveal ? '상대 대사 숨기기' : '상대 대사 보기'}</Text></Pressable>
       </View>
@@ -222,9 +190,14 @@ export function ScenePartnerScreen() {
       {(result || []).map((t, i) => {
         const active = i === cursor;
         if (t.speaker === '나') return (
-          <View key={i} style={{ backgroundColor: color.white, borderWidth: active ? 2 : 1, borderColor: active ? color.blue : color.line, borderRadius: radius.card, padding: 14 }}>
-            <Text style={{ fontFamily: font.b, fontSize: 11.5, color: active ? color.blue : color.sub2, marginBottom: 4 }}>나 {active && phase === 'listening' ? '· 🎤 말하는 중' : ''}</Text>
+          <View key={i} style={{ backgroundColor: color.white, borderWidth: active ? 2 : 1, borderColor: active ? color.blue : color.line, borderRadius: radius.card, padding: 14, overflow: 'hidden' }}>
+            <Text style={{ fontFamily: font.b, fontSize: 11.5, color: active ? color.blue : color.sub2, marginBottom: 4 }}>나 {active && phase === 'mine' ? `· ${remain.toFixed(1)}초 남음` : ''}</Text>
             <Text style={{ fontFamily: font.m, fontSize: 15.5, lineHeight: 24, color: color.ink }}>{t.text}</Text>
+            {active && phase === 'mine' && total > 0 && (
+              <View style={{ height: 4, backgroundColor: color.inputLine, borderRadius: 2, marginTop: 10, overflow: 'hidden' }}>
+                <View style={{ height: 4, width: `${Math.max(0, Math.min(100, (remain / total) * 100))}%`, backgroundColor: color.blue }} />
+              </View>
+            )}
           </View>
         );
         return (
