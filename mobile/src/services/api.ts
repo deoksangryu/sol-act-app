@@ -547,9 +547,18 @@ export const routinesApi = {
 
 // === AI 면접 질의응답 첨삭 — v3 ===
 export interface AiReviseResult { ok: boolean; revised: string; feedback: string[]; summary: string }
+
+// === AI 상대역 대사 생성 ===
+// 학생 대사(고정) 사이의 '상대 등장' 자리를 AI가 채운다.
+export interface SceneTurn { speaker: '나' | '상대'; text?: string; hint?: string }
+export interface ScenePartnerResult { ok: boolean; turns: SceneTurn[]; message?: string }
+
 export const aiApi = {
   interviewRevise(question: string, answer: string): Promise<AiReviseResult> {
     return apiRequest('/api/ai/interview-revise', { method: 'POST', body: jsonBody({ question, answer }) });
+  },
+  scenePartner(turns: SceneTurn[], partner = ''): Promise<ScenePartnerResult> {
+    return apiRequest('/api/ai/scene-partner', { method: 'POST', body: jsonBody({ turns, partner }) });
   },
 };
 

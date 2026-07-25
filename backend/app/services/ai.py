@@ -114,3 +114,120 @@ def revise_interview_answer(question: str, answer: str) -> dict:
             return dict(_FALLBACK)
 
     return dict(_FALLBACK)
+
+
+# ── AI 상대역 대사 생성 ────────────────────────────────────────────────────
+# 입시 독백은 원래 상대 대사가 있던 장면을 혼자 하는 것. 학생이 자기 대사(고정)를 쓰고
+# 사이사이 '상대 등장' 자리만 표시하면, AI가 '부재하는 상대'의 대사를 흐름에 맞게 채운다.
+# - 상대는 처음부터 끝까지 한 인물(일관성)로, 전체를 1회 호출로 생성.
+# - 각 상대 대사는 앞 학생 대사에 반응 + 뒤 학생 대사로 이어지는 '다리'.
+# - 매 호출마다 다르게(temperature 높음) → 학생이 매번 새롭게 듣고 반응하는 연습.
+_SCENE_SYSTEM = (
+    "너는 연기 입시(연극영화과) 장면의 '상대역' 대사를 쓰는 극작 보조다. "
+    "학생의 대사(고정, 절대 수정 금지) 사이에 등장하는 '부재하는 상대'의 대사를 채운다. "
+    "규칙: (1) 상대는 처음부터 끝까지 '한 인물'로 일관되게 유지한다. "
+    "(2) 각 상대 대사는 바로 앞 학생 대사에 자연스럽게 반응하고, 바로 뒤 학생 대사가 매끄럽게 이어지도록 '다리'를 놓는다. "
+    "(3) 짧게 — 보통 1~2문장. 장면을 늘어뜨리지 않는다. "
+    "(4) 자연스러운 한국어 구어체. 10~20대 인물에 어울리게. "
+    "(5) 100% 창작 — 기존 희곡·영화·드라마의 실제 대사를 복제하지 않는다. "
+    "(6) 입시장에 적절하게 — 과도한 욕설·성적·폭력 표현 금지."
+)
+
+
+def _scene_user_prompt(turns, partner_hint: str) -> str:
+    lines, slot = [], 0
+    for t in turns:
+        if t.get("speaker") == "상대":
+            slot += 1
+            h = (t.get("hint") or "").strip()
+            lines.append(f"[상대 대사 #{slot}]" + (f" (힌트: {h})" if h else ""))
+        else:
+            lines.append(f"나: {(t.get('text') or '').strip()}")
+    seq = "\n".join(lines)
+    who = f"\n상대 인물 설정: {partner_hint.strip()}\n" if (partner_hint or "").strip() else "\n"
+    return (
+        "아래는 학생이 혼자 연기할 장면이다. '나:'는 학생의 고정 대사이고, "
+        "[상대 대사 #n]은 네가 채워야 할 '부재하는 상대'의 자리다." + who + "\n"
+        f"{seq}\n\n"
+        "[상대 대사 #1]부터 순서대로 각 자리를 채워라. 반드시 아래 JSON만 출력하라:\n"
+        '{"partner": ["#1 자리 상대 대사", "#2 자리 상대 대사", ...]}\n'
+        "배열 길이는 상대 자리 개수와 정확히 같아야 한다."
+    )
+
+
+def _scene_fallback(turns) -> dict:
+    return {"ok": False, "turns": turns, "message": "AI 상대역 생성이 아직 준비 중이에요. 잠시 후 다시 시도해주세요."}
+
+
+def generate_scene_partner(turns, partner_hint: str = "") -> dict:
+    """학생 대사(고정) 사이의 '상대 등장' 자리를 AI가 채운다.
+    turns: [{"speaker": "나"|"상대", "text": str, "hint": str}] — '상대' 자리는 text 비어있음.
+    반환: {ok, turns:[{speaker,text}]} — '상대' 자리가 채워진 전체 시퀀스. 실패 시 ok=False + message.
+    OpenAI 우선, 없으면 Gemini, 둘 다 없으면 폴백."""
+    from app.config import settings
+    import logging, json
+    log = logging.getLogger(__name__)
+    slots = [i for i, t in enumerate(turns) if t.get("speaker") == "상대"]
+    if not slots:
+        return {"ok": True, "turns": [{"speaker": "나", "text": (t.get("text") or "").strip()} for t in turns]}
+
+    def _apply(partner_list) -> list:
+        pl = [str(x).strip() for x in (partner_list or [])]
+        out = []
+        si = 0
+        for t in turns:
+            if t.get("speaker") == "상대":
+                txt = pl[si] if si < len(pl) and pl[si] else "…"
+                out.append({"speaker": "상대", "text": txt})
+                si += 1
+            else:
+                out.append({"speaker": "나", "text": (t.get("text") or "").strip()})
+        return out
+
+    openai_key = (getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+    gemini_key = (getattr(settings, "GEMINI_API_KEY", "") or "").strip()
+    user = _scene_user_prompt(turns, partner_hint)
+
+    if openai_key:
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=openai_key)
+            resp = client.chat.completions.create(
+                model=(getattr(settings, "OPENAI_MODEL", "") or "gpt-4o-mini"),
+                messages=[{"role": "system", "content": _SCENE_SYSTEM}, {"role": "user", "content": user}],
+                response_format={"type": "json_object"},
+                temperature=0.9,
+                max_tokens=800,
+            )
+            data = json.loads(resp.choices[0].message.content or "{}")
+            partner = data.get("partner") or data.get("lines") or []
+            if isinstance(partner, str):
+                partner = [partner]
+            if not partner:
+                return _scene_fallback(turns)
+            return {"ok": True, "turns": _apply(partner)}
+        except Exception as e:
+            log.warning(f"generate_scene_partner(openai) failed: {e}")
+            return _scene_fallback(turns)
+
+    if gemini_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_key)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+            resp = model.generate_content(
+                _SCENE_SYSTEM + "\n\n" + user,
+                generation_config={"response_mime_type": "application/json", "temperature": 0.9, "max_output_tokens": 800},
+            )
+            data = json.loads(resp.text)
+            partner = data.get("partner") or []
+            if isinstance(partner, str):
+                partner = [partner]
+            if not partner:
+                return _scene_fallback(turns)
+            return {"ok": True, "turns": _apply(partner)}
+        except Exception as e:
+            log.warning(f"generate_scene_partner(gemini) failed: {e}")
+            return _scene_fallback(turns)
+
+    return _scene_fallback(turns)

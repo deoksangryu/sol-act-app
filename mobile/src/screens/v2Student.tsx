@@ -117,7 +117,6 @@ export function LearnScreen() {
   const { data: quiz, isLoading: quizLoading } = useQuery({ queryKey: ['content', 'quiz'], queryFn: () => contentApi.quizToday(), retry: false, staleTime: 30000 });
   const { data: readingData } = useQuery({ queryKey: ['content', 'reading'], queryFn: () => contentApi.reading(), retry: false, staleTime: 30000 });
   const { data: mediaData } = useQuery({ queryKey: ['content', 'media'], queryFn: () => contentApi.media(), retry: false, staleTime: 30000 });
-  const { data: interviewData } = useQuery({ queryKey: ['content', 'interview'], queryFn: () => contentApi.interviewRandom(), retry: false, staleTime: 30000 });
 
   // 이미 오늘 푼 경우 → answered 상태 반영
   useEffect(() => {
@@ -157,7 +156,6 @@ export function LearnScreen() {
   const media = mediaData ?? [];
 
   // 실제 배정된 면접 질문만. 없으면 특정 질문을 지어내지 않고 자유 주제로 안내.
-  const interview = interviewData?.question?.question ?? null;
 
   const watch = (id: string) => {
     contentApi.watchMedia(id).then(() => qc.invalidateQueries({ queryKey: ['gamification'] })).catch(() => {});
@@ -205,20 +203,11 @@ export function LearnScreen() {
           </Card>
         </Section>
 
-        <Section title="질의응답 준비">
+        <Section title="AI 상대역 연습">
           <Card style={{ padding: 20 }}>
-            {interview ? (
-              <>
-                <Text style={{ fontFamily: font.b, fontSize: 12, color: color.sub2 }}>랜덤 질문</Text>
-                <Text style={{ fontFamily: font.b, fontSize: 15.5, lineHeight: 24, color: color.ink, marginTop: 8, marginBottom: 16 }}>"{interview}"</Text>
-              </>
-            ) : (
-              <Text style={{ fontFamily: font.m, fontSize: 13.5, lineHeight: 22, color: color.sub, marginBottom: 16 }}>오늘의 면접 질문이 아직 없어요 · 자유 주제로 답변을 녹음해볼 수 있어요</Text>
-            )}
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <Pressable onPress={() => nav.navigate('record')} style={{ flex: 1, backgroundColor: color.blue, borderRadius: radius.button, paddingVertical: 13, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.white }}>🎙️ 답변 녹음</Text></Pressable>
-              <Pressable onPress={() => nav.navigate('aiRevise', { question: interview ?? '' })} style={{ flex: 1, backgroundColor: color.blueBg, borderRadius: radius.button, paddingVertical: 13, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.blue }}>✨ AI 첨삭</Text></Pressable>
-            </View>
+            <Text style={{ fontFamily: font.b, fontSize: 15.5, lineHeight: 24, color: color.ink, marginBottom: 6 }}>🎭 보이지 않는 상대와 연습해요</Text>
+            <Text style={{ fontFamily: font.m, fontSize: 13.5, lineHeight: 22, color: color.sub, marginBottom: 16 }}>내 대사를 쓰고 상대가 등장하는 지점만 표시하면, AI가 상대 대사를 채워 목소리로 들려줘요. 무슨 말이 나올지 모른 채 듣고 반응하는 연습이에요.</Text>
+            <Pressable onPress={() => nav.navigate('scenePartner')} style={{ backgroundColor: color.blue, borderRadius: radius.button, paddingVertical: 14, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14.5, color: color.white }}>✨ 상대역과 연습하기</Text></Pressable>
           </Card>
         </Section>
 
