@@ -549,9 +549,9 @@ export const routinesApi = {
 export interface AiReviseResult { ok: boolean; revised: string; feedback: string[]; summary: string }
 
 // === AI 상대역 대사 생성 ===
-// 학생 대사(고정) 사이의 '상대 등장' 자리를 AI가 채운다.
-export interface SceneTurn { speaker: '나' | '상대'; text?: string; hint?: string }
-export interface ScenePartnerResult { ok: boolean; turns: SceneTurn[]; message?: string }
+// 학생 대사(고정) 사이의 '상대 등장' 자리를 AI가 채운다. 상대 대사는 성별맞춤 TTS 오디오(audioUrl)로 미리 합성됨.
+export interface SceneTurn { speaker: '나' | '상대'; text?: string; hint?: string; audioUrl?: string }
+export interface ScenePartnerResult { ok: boolean; turns: SceneTurn[]; voice?: string; message?: string }
 
 export const aiApi = {
   interviewRevise(question: string, answer: string): Promise<AiReviseResult> {
