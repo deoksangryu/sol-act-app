@@ -135,12 +135,16 @@ _SCENE_SYSTEM = (
 
 
 def _scene_user_prompt(turns, partner_hint: str, situation: str = "") -> str:
-    lines, slot = [], 0
+    lines, empty = [], 0
     for t in turns:
         if t.get("speaker") == "상대":
-            slot += 1
-            h = (t.get("hint") or "").strip()
-            lines.append(f"[상대 대사 #{slot}]" + (f" (힌트: {h})" if h else ""))
+            txt = (t.get("text") or "").strip()
+            if txt:
+                lines.append(f"상대: {txt}")   # 학생이 직접 쓴 대사(고정 — 바꾸지 말 것)
+            else:
+                empty += 1
+                h = (t.get("hint") or "").strip()
+                lines.append(f"[상대 대사 #{empty}] ← 이 빈 자리를 채워라" + (f" (힌트: {h})" if h else ""))
         else:
             lines.append(f"나: {(t.get('text') or '').strip()}")
     seq = "\n".join(lines)
@@ -150,18 +154,22 @@ def _scene_user_prompt(turns, partner_hint: str, situation: str = "") -> str:
     if (partner_hint or "").strip():
         ctx += f"\n■ 상대 인물 설정: {partner_hint.strip()}"
     who = (ctx + "\n") if ctx else "\n"
+    if empty == 0:
+        fill_instr = '채울 빈 자리는 없다. partner는 빈 배열 []로 두고, 상대 인물에 맞는 voice_id·gender·age만 반환하라.'
+        json_fmt = '{"partner": [], "gender": "남|여|중성", "age": "young|middle|old", "voice_id": "위 목록의 id"}'
+    else:
+        fill_instr = ('[상대 대사 #1]부터 순서대로 그 빈 자리들만 채워라. 이미 "상대: ..."로 적힌 대사는 학생이 직접 쓴 것이니 '
+                      '절대 바꾸지 말고 맥락으로만 활용하라. partner 배열 길이 = 빈 자리 개수와 정확히 일치.')
+        json_fmt = '{"partner": ["#1 자리 대사", ...], "gender": "남|여|중성", "age": "young|middle|old", "voice_id": "위 목록의 id"}'
     return (
-        "아래는 학생이 혼자 연기할 장면이다. '나:'는 학생의 고정 대사이고, "
-        "[상대 대사 #n]은 네가 채워야 할 '부재하는 상대'의 자리다. "
-        "장면 전체를 먼저 읽고 상황·관계·감정 흐름을 파악한 뒤, 각 상대 대사를 앞뒤 대사와 전체 맥락에 맞게 써라." + who + "\n"
+        "아래는 학생이 연기할 장면이다. '나:'=학생 고정 대사, '상대: ...'=학생이 직접 쓴 상대 대사(고정), "
+        "[상대 대사 #n]=네가 채워야 할 빈 자리다. 장면 전체 맥락(상황·관계·감정 흐름)을 파악해, "
+        "각 빈 자리를 바로 앞뒤 대사 및 이미 쓰인 상대 대사와 일관되게 채워라." + who + "\n"
         f"{seq}\n\n"
-        "아래 보이스 목록에서 상대 인물에 가장 어울리는 목소리 하나를 골라 그 voice_id를 반환하라(성별·나이·성격 특성 고려):\n"
+        f"상대 인물에 가장 어울리는 목소리를 아래 목록에서 하나 골라 voice_id로 반환하라(성별·나이·성격 특성 고려):\n"
         f"{catalog_prompt()}\n\n"
-        "[상대 대사 #1]부터 순서대로 각 자리를 채워라. 반드시 아래 JSON만 출력하라:\n"
-        '{"partner": ["#1 자리 상대 대사", ...], "gender": "남|여|중성", "age": "young|middle|old", "voice_id": "위 목록의 id 중 하나"}\n'
-        "partner 배열 길이는 상대 자리 개수와 정확히 같아야 한다. "
-        "gender=상대 성별(남/여/중성). age=상대 나이대(young=10~30대 / middle=40~50대 / old=60대 이상). "
-        "voice_id는 반드시 위 목록에 있는 id여야 하고 상대 인물 설정(예: 늙은 왕→인자한/괴팍한 노인 남성)에 맞춰라."
+        f"{fill_instr} 반드시 아래 JSON만 출력하라:\n{json_fmt}\n"
+        "gender=상대 성별(남/여/중성). age=나이대(young=10~30대 / middle=40~50대 / old=60대 이상). voice_id는 반드시 목록의 id."
     )
 
 
@@ -183,13 +191,15 @@ def generate_scene_partner(turns, partner_hint: str = "", situation: str = "") -
 
     def _apply(partner_list) -> list:
         pl = [str(x).strip() for x in (partner_list or [])]
-        out = []
-        si = 0
+        out, si = [], 0
         for t in turns:
             if t.get("speaker") == "상대":
-                txt = pl[si] if si < len(pl) and pl[si] else "…"
-                out.append({"speaker": "상대", "text": txt})
-                si += 1
+                given = (t.get("text") or "").strip()
+                if given:
+                    out.append({"speaker": "상대", "text": given})       # 학생이 직접 쓴 대사 유지
+                else:
+                    out.append({"speaker": "상대", "text": pl[si] if si < len(pl) and pl[si] else "…"})
+                    si += 1
             else:
                 out.append({"speaker": "나", "text": (t.get("text") or "").strip()})
         return out

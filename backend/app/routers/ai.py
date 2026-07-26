@@ -74,16 +74,26 @@ def _save_scene(db: Session, uid: str, input_turns: List[Dict[str, Any]], result
 
 
 def _build_scene(turns: List[Dict[str, Any]], partner_hint: str, situation: str = "", voice_override: str = "") -> Dict[str, Any]:
-    """상대 대사 생성(상황 맥락 반영) + 성별맞춤/선택 보이스로 TTS 합성·저장 → audioUrl 부착.
-    (블로킹 — run_in_threadpool로 호출.) TTS 실패 시 audioUrl 없이 반환(클라가 온디바이스 TTS 폴백)."""
-    result = ai.generate_scene_partner(turns, partner_hint, situation)
-    if not result.get("ok"):
-        return result
-    gender = result.get("voice_gender", "중성")
-    age = result.get("voice_age", "middle")
-    vid = ai.pick_voice(gender, age, voice_override or result.get("voice_id", ""))  # 학생 선택 우선, 없으면 GPT
+    """하이브리드: 상대 자리가 비어 있으면 AI가 맥락에 맞게 채우고, 학생이 직접 쓴 상대 대사는 그대로 활용.
+    그다음 모든 상대 대사를 선택/추론 보이스로 TTS 합성. 블로킹 → run_in_threadpool.
+    TTS 실패 시 audioUrl 없이 반환(클라가 온디바이스 TTS 폴백)."""
+    has_empty = any(t.get("speaker") == "상대" and not (t.get("text") or "").strip() for t in turns)
+    gender, age, ai_voice = "중성", "middle", ""
+    out_turns = [{"speaker": t.get("speaker"), "text": (t.get("text") or "").strip()} for t in turns]
+    # 빈 자리가 있거나(대사 생성 필요) 보이스가 자동(추론 필요)이면 LLM 호출
+    if has_empty or not voice_override:
+        result = ai.generate_scene_partner(turns, partner_hint, situation)
+        if result.get("ok"):
+            out_turns = result["turns"]  # 빈 자리 채워짐, 학생 대사는 유지됨
+            gender = result.get("voice_gender", "중성")
+            age = result.get("voice_age", "middle")
+            ai_voice = result.get("voice_id", "")
+        elif has_empty:
+            return result  # 빈 자리를 채워야 하는데 생성 실패 → 에러 반환
+        # (빈 자리 없음 + 실패 → out_turns 그대로 두고, 보이스만 override/폴백)
+    vid = ai.pick_voice(gender, age, voice_override or ai_voice)  # 학생 선택 우선, 없으면 AI 추천
     tts_dir = UPLOAD_DIR / "tts"
-    for t in result.get("turns", []):
+    for t in out_turns:
         if t.get("speaker") == "상대" and (t.get("text") or "").strip():
             audio = ai.synthesize_tts(t["text"], vid, gender)
             if audio:
@@ -94,35 +104,7 @@ def _build_scene(turns: List[Dict[str, Any]], partner_hint: str, situation: str 
                     t["audioUrl"] = f"/uploads/tts/{fname}"
                 except Exception:
                     pass
-    result["voice"] = vid
-    return result
-
-
-def _build_custom_scene(turns: List[Dict[str, Any]], gender: str, age: str, voice_override: str = "") -> Dict[str, Any]:
-    """커스텀 모드: 학생이 직접 쓴 상대 대사를 학생이 고른 보이스(또는 성별×나이 매칭 랜덤)로 TTS만 합성.
-    (LLM 생성 없음 — 진짜 대본 그대로 연습.) 블로킹 → run_in_threadpool."""
-    g, a = ai._norm_gender(gender), ai._norm_age(age)
-    vid = ai.pick_voice(g, a, voice_override)  # 학생이 보이스 직접 고르면 그것, 아니면 매칭 랜덤
-    tts_dir = UPLOAD_DIR / "tts"
-    out: List[Dict[str, Any]] = []
-    for t in turns:
-        if t.get("speaker") == "상대":
-            text = (t.get("text") or "").strip()
-            row: Dict[str, Any] = {"speaker": "상대", "text": text}
-            if text:
-                audio = ai.synthesize_tts(text, vid, g)
-                if audio:
-                    try:
-                        tts_dir.mkdir(parents=True, exist_ok=True)
-                        fname = f"{_uuid.uuid4().hex}.mp3"
-                        (tts_dir / fname).write_bytes(audio)
-                        row["audioUrl"] = f"/uploads/tts/{fname}"
-                    except Exception:
-                        pass
-            out.append(row)
-        else:
-            out.append({"speaker": "나", "text": (t.get("text") or "").strip()})
-    return {"ok": True, "turns": out, "voice": vid}
+    return {"ok": True, "turns": out_turns, "voice": vid}
 
 
 class ReviseReq(BaseModel):
@@ -132,12 +114,10 @@ class ReviseReq(BaseModel):
 
 class ScenePartnerReq(BaseModel):
     turns: List[Dict[str, Any]]   # [{speaker:"나"|"상대", text?:str, hint?:str}]
+                                  # 상대 자리: text 비우면 AI가 채우고, 쓰면 그대로 사용(하이브리드)
     partner: str = ""             # (선택) 상대 인물 설정 힌트
     situation: str = ""           # (선택) 장면 상황·맥락 설명 → 대사 정확도↑
-    mode: str = "ai"              # "ai"=AI가 상대 대사 생성 / "custom"=학생이 직접 작성
-    gender: str = ""              # custom 모드: 학생이 고른 성별(남/여/중성)
-    age: str = ""                 # custom 모드: 학생이 고른 나이(young/middle/old)
-    voiceId: str = ""             # (선택) 학생이 직접 고른 보이스 id → GPT 자동선택 대신 사용
+    voiceId: str = ""             # (선택) 학생이 직접 고른 보이스 id → AI 자동선택 대신 사용
 
 
 @router.post("/interview-revise")
@@ -165,23 +145,18 @@ async def scene_partner(data: ScenePartnerReq, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=400, detail="내 대사를 한 줄 이상 입력해주세요.")
     if len(slots) < 1:
         raise HTTPException(status_code=400, detail="상대가 등장하는 지점을 한 곳 이상 표시해주세요.")
-    is_custom = (data.mode or "ai") == "custom"
-    if is_custom and any(not (t.get("text") or "").strip() for t in slots):
-        raise HTTPException(status_code=400, detail="커스텀 모드에선 상대 대사를 직접 입력해주세요.")
     total = sum(len((t.get("text") or "")) for t in turns)
     if total > 4000:
         raise HTTPException(status_code=400, detail="장면이 너무 길어요(전체 4000자 이내).")
 
-    # 하루 생성 제한 (저장된 장면 불러오기는 무제한 — 여긴 '새 생성'만 카운트. 커스텀도 TTS 비용이라 포함)
+    # 하루 생성 제한 (저장된 장면 불러오기는 무제한 — 여긴 '새 생성'만 카운트)
     limit = _daily_limit(db)
     used = _today_count(db, current_user.id)
     if used >= limit:
         raise HTTPException(status_code=429, detail=f"오늘 새 상대역 생성 한도({limit}회)를 다 썼어요. 저장된 장면을 불러와 연습하거나 내일 다시 시도해주세요.")
 
-    if is_custom:
-        result = await run_in_threadpool(_build_custom_scene, turns, data.gender, data.age, (data.voiceId or "").strip())
-    else:
-        result = await run_in_threadpool(_build_scene, turns, (data.partner or "")[:100], (data.situation or "")[:500], (data.voiceId or "").strip())
+    # 하이브리드: 빈 상대 자리는 AI가 채우고, 학생이 쓴 상대 대사는 그대로 사용
+    result = await run_in_threadpool(_build_scene, turns, (data.partner or "")[:100], (data.situation or "")[:500], (data.voiceId or "").strip())
     if result.get("ok"):
         try:
             result["sceneId"] = _save_scene(db, current_user.id, turns, result, (data.partner or "")[:100])

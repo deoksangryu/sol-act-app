@@ -24,13 +24,9 @@ export function ScenePartnerScreen() {
   const [mode, setMode] = useState<'edit' | 'practice'>('edit');
   const [turns, setTurns] = useState<EditTurn[]>(STARTER);
   const [partner, setPartner] = useState('');
-  const [sceneMode, setSceneMode] = useState<'ai' | 'custom'>('ai');
-  const [custGender, setCustGender] = useState<'남' | '여' | '중성'>('남');
-  const [custAge, setCustAge] = useState<'young' | 'middle' | 'old'>('middle');
   const [situation, setSituation] = useState('');
   const [voices, setVoices] = useState<SceneVoice[]>([]);
   const [selVoice, setSelVoice] = useState('');          // '' = AI 자동/랜덤
-  const [voiceOpen, setVoiceOpen] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const previewRef = useRef<AudioPlayer | null>(null);
   const [step, setStep] = useState(1);          // 작성 위저드 1·2·3
@@ -150,19 +146,16 @@ export function ScenePartnerScreen() {
 
   const generate = useCallback(async () => {
     stopAll();
-    const custom = sceneMode === 'custom';
+    // 하이브리드: 상대 자리에 대사를 쓰면 그대로 사용, 비우면 AI가 채움(느낌 힌트 선택).
     const payload: SceneTurn[] = turns.map((t) => {
-      if (t.speaker === '상대') return custom ? { speaker: '상대', text: t.text.trim() } : { speaker: '상대', hint: t.hint.trim() || undefined };
+      if (t.speaker === '상대') return { speaker: '상대', text: t.text.trim() || undefined, hint: t.hint.trim() || undefined };
       return { speaker: '나', text: t.text.trim() };
     });
     if (payload.filter((t) => t.speaker === '나' && (t.text || '').length).length < 1) { setErr('내 대사를 한 줄 이상 입력해주세요.'); return; }
     if (payload.filter((t) => t.speaker === '상대').length < 1) { setErr('상대가 등장하는 지점을 한 곳 이상 추가해주세요.'); return; }
-    if (custom && payload.some((t) => t.speaker === '상대' && !(t.text || '').trim())) { setErr('상대 대사를 직접 입력해주세요.'); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await aiApi.scenePartner(payload, partner.trim(), custom
-        ? { mode: 'custom', gender: custGender, age: custAge, voiceId: selVoice }
-        : { mode: 'ai', situation: situation.trim(), voiceId: selVoice });
+      const r = await aiApi.scenePartner(payload, partner.trim(), { situation: situation.trim(), voiceId: selVoice });
       if (!r.ok) { setErr(r.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.'); return; }
       // 내 대사 시간(초)을 result 순서에 맞춰 저장 (payload=turns=result 동일 순서)
       secListRef.current = turns.map((t) => (t.speaker === '나' ? clampSec(t.sec ?? autoSec(t.text)) : 0));
@@ -172,7 +165,7 @@ export function ScenePartnerScreen() {
     } catch (e: any) {
       setErr(e?.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally { setBusy(false); }
-  }, [turns, partner, sceneMode, custGender, custAge, situation, selVoice, refreshLib]);
+  }, [turns, partner, situation, selVoice, refreshLib]);
 
   const input = { borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: color.ink, fontFamily: font.m, backgroundColor: color.white } as const;
 
@@ -180,8 +173,10 @@ export function ScenePartnerScreen() {
 
   const scriptBlock = (
     <View style={{ gap: 10 }}>
-      <Text style={{ fontFamily: font.m, fontSize: 12.5, lineHeight: 19, color: color.sub }}>{sceneMode === 'custom' ? '내 대사와 상대 대사를 직접 쓰고, 각 내 대사에 연기 시간(초)을 정하세요.' : '내 대사를 쓰고, 상대가 말하는 지점에 🎭 상대 등장을 넣으세요. 각 내 대사엔 연기 시간(초)을.'}</Text>
-      {turns.map((t) => (
+      <Text style={{ fontFamily: font.m, fontSize: 12.5, lineHeight: 19, color: color.sub }}>내 대사를 쓰고, 상대가 말하는 지점에 🎭 상대 자리를 넣으세요. 상대 대사를 <Text style={{ fontFamily: font.b, color: color.ink }}>직접 쓰면 그대로</Text>, <Text style={{ fontFamily: font.b, color: color.ink }}>비우면 AI가</Text> 장면 맥락에 맞게 채워줘요. 각 내 대사엔 연기 시간(초)을.</Text>
+      {turns.map((t) => {
+        const filled = t.speaker === '상대' && !!(t.text || '').trim();
+        return (
         <View key={t.key} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
           {t.speaker === '나' ? (
             <>
@@ -199,17 +194,19 @@ export function ScenePartnerScreen() {
           ) : (
             <>
               <View style={{ width: 34, paddingTop: 12 }}><Text style={{ fontFamily: font.b, fontSize: 15 }}>🎭</Text></View>
-              <View style={{ flex: 1, borderWidth: 1, borderColor: color.requestLine, borderRadius: radius.card, backgroundColor: color.amberBg, paddingHorizontal: 12, paddingVertical: 10 }}>
-                <Text style={{ fontFamily: font.b, fontSize: 13, color: color.warn, marginBottom: 6 }}>{sceneMode === 'custom' ? '상대 대사 (직접 입력)' : '상대 등장 (AI가 채움)'}</Text>
-                {sceneMode === 'custom'
-                  ? <TextInput value={t.text} onChangeText={(v) => setText(t.key, v)} placeholder="상대의 실제 대사를 입력" placeholderTextColor={color.faint} style={{ fontFamily: font.m, fontSize: 14, color: color.ink, padding: 0 }} multiline />
-                  : <TextInput value={t.hint} onChangeText={(v) => setHint(t.key, v)} placeholder="느낌 힌트(선택) 예: 다그치듯" placeholderTextColor={color.faint} style={{ fontFamily: font.m, fontSize: 13.5, color: color.ink, padding: 0 }} />}
+              <View style={{ flex: 1, borderWidth: 1, borderColor: color.requestLine, borderRadius: radius.card, backgroundColor: color.amberBg, paddingHorizontal: 12, paddingVertical: 10, gap: 7 }}>
+                <Text style={{ fontFamily: font.b, fontSize: 12.5, color: color.warn }}>상대 대사 · {filled ? '직접 씀 ✍️' : '비움 → AI가 채워요 🤖'}</Text>
+                <TextInput value={t.text} onChangeText={(v) => setText(t.key, v)} placeholder="상대 대사를 직접 쓰거나, 비워두면 AI가 채워요" placeholderTextColor={color.faint} style={{ fontFamily: font.m, fontSize: 14, color: color.ink, padding: 0 }} multiline />
+                {!filled && (
+                  <TextInput value={t.hint} onChangeText={(v) => setHint(t.key, v)} placeholder="AI 힌트(선택) 예: 다그치듯, 애원하며" placeholderTextColor={color.faint} style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub, padding: 0, borderTopWidth: 1, borderTopColor: color.requestLine, paddingTop: 7 }} />
+                )}
               </View>
             </>
           )}
           <Pressable onPress={() => removeTurn(t.key)} hitSlop={8} style={{ paddingTop: 12 }}><Text style={{ fontFamily: font.b, fontSize: 16, color: color.faint }}>✕</Text></Pressable>
         </View>
-      ))}
+      );
+      })}
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
         <Pressable onPress={() => setTurns((ts) => [...ts, mk('나')])} style={{ flex: 1, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, paddingVertical: 12, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.ink }}>+ 내 대사</Text></Pressable>
         <Pressable onPress={() => setTurns((ts) => [...ts, mk('상대')])} style={{ flex: 1, borderWidth: 1, borderColor: color.requestLine, borderRadius: radius.button, paddingVertical: 12, alignItems: 'center', backgroundColor: color.amberBg }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.warn }}>+ 🎭 상대 등장</Text></Pressable>
@@ -233,23 +230,10 @@ export function ScenePartnerScreen() {
 
   const voiceBlock = (
     <View style={{ gap: 10 }}>
-      {sceneMode === 'custom' && (
-        <View style={{ gap: 8, backgroundColor: color.surf, borderRadius: radius.card, padding: 12 }}>
-          <Text style={{ fontFamily: font.b, fontSize: 12.5, color: color.sub }}>상대 목소리 성별·나이</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, width: 34 }}>성별</Text>
-            {(['남', '여', '중성'] as const).map((g) => { const on = custGender === g; return <Pressable key={g} onPress={() => { setCustGender(g); setSelVoice(''); }} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.white : color.ink }}>{g}</Text></Pressable>; })}
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, width: 34 }}>나이</Text>
-            {([['young', '젊음'], ['middle', '중년'], ['old', '노년']] as const).map(([a, label]) => { const on = custAge === a; return <Pressable key={a} onPress={() => { setCustAge(a); setSelVoice(''); }} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.white : color.ink }}>{label}</Text></Pressable>; })}
-          </View>
-        </View>
-      )}
-      <Text style={{ fontFamily: font.m, fontSize: 12.5, lineHeight: 19, color: color.sub }}>{sceneMode === 'ai' ? 'AI가 인물에 맞게 골라줘요. 마음에 안 들면 ▶로 들어보고 직접 고르세요 (미리듣기 무료).' : '기본은 위 성별·나이로 자동 선택돼요. 특정 목소리를 원하면 ▶로 들어보고 고르세요.'}</Text>
+      <Text style={{ fontFamily: font.m, fontSize: 12.5, lineHeight: 19, color: color.sub }}>AI가 상대 인물에 맞게 목소리를 골라줘요. 마음에 안 들면 ▶로 들어보고 직접 고르세요 (미리듣기 무료).</Text>
       <View style={{ gap: 5 }}>
         <Pressable onPress={() => setSelVoice('')} style={{ borderWidth: 1, borderColor: selVoice === '' ? color.blue : color.inputLine, backgroundColor: selVoice === '' ? color.blueBg : color.white, borderRadius: radius.card, paddingVertical: 11, paddingHorizontal: 12 }}>
-          <Text style={{ fontFamily: font.b, fontSize: 13, color: selVoice === '' ? color.blue : color.ink }}>{sceneMode === 'ai' ? '🤖 AI 자동 추천' : '🎲 성별·나이로 자동'}{selVoice === '' ? ' · 선택됨 ✓' : ''}</Text>
+          <Text style={{ fontFamily: font.b, fontSize: 13, color: selVoice === '' ? color.blue : color.ink }}>🤖 AI 자동 추천{selVoice === '' ? ' · 선택됨 ✓' : ''}</Text>
         </Pressable>
         {voices.map((v) => {
           const on = selVoice === v.id;
@@ -269,14 +253,13 @@ export function ScenePartnerScreen() {
   );
 
   const renderEdit = () => {
-    const custom = sceneMode === 'custom';
-    const steps = custom ? ['장면 대본', '상대 목소리'] : ['상대·상황', '장면 대본', '상대 목소리'];
-    const key: 'setup' | 'script' | 'voice' = custom ? (step === 1 ? 'script' : 'voice') : (step === 1 ? 'setup' : step === 2 ? 'script' : 'voice');
+    const steps = ['상대·상황', '장면 대본', '상대 목소리'];
+    const key: 'setup' | 'script' | 'voice' = step === 1 ? 'setup' : step === 2 ? 'script' : 'voice';
     const isLast = step >= steps.length;
     const over = !!quota && quota.remaining <= 0;
     const naOk = turns.some((t) => t.speaker === '나' && (t.text || '').trim());
-    const slotOk = turns.some((t) => t.speaker === '상대') && (!custom || turns.filter((t) => t.speaker === '상대').every((t) => (t.text || '').trim()));
-    const next = () => { setErr(null); if (key === 'script' && !(naOk && slotOk)) { setErr(custom ? '내 대사와 상대 대사를 채워주세요.' : '내 대사와 상대 등장 지점을 넣어주세요.'); return; } setStep((s) => Math.min(steps.length, s + 1)); };
+    const slotOk = turns.some((t) => t.speaker === '상대');
+    const next = () => { setErr(null); if (key === 'script' && !(naOk && slotOk)) { setErr('내 대사와 상대 등장 지점을 넣어주세요.'); return; } setStep((s) => Math.min(steps.length, s + 1)); };
     const prev = () => { setErr(null); stopPreview(); setStep((s) => Math.max(1, s - 1)); };
 
     return (
@@ -296,15 +279,6 @@ export function ScenePartnerScreen() {
           </View>
           <Pressable onPress={() => { stopPreview(); setLibOpen(true); }} hitSlop={6} style={{ borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, paddingHorizontal: 11, paddingVertical: 7 }}><Text style={{ fontFamily: font.b, fontSize: 12, color: color.ink }}>📂 불러오기{savedScenes.length ? ` ${savedScenes.length}` : ''}</Text></Pressable>
         </View>
-
-        {step === 1 && (
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            {([['ai', '🤖 AI 생성'], ['custom', '✍️ 직접 쓰기']] as const).map(([m, label]) => {
-              const on = sceneMode === m;
-              return <Pressable key={m} onPress={() => { setSceneMode(m); setStep(1); }} style={{ flex: 1, borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.button, paddingVertical: 11, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.blue : color.sub }}>{label}</Text></Pressable>;
-            })}
-          </View>
-        )}
 
         {key === 'setup' && setupBlock}
         {key === 'script' && scriptBlock}
