@@ -546,7 +546,8 @@ export const routinesApi = {
 };
 
 // === AI 면접 질의응답 첨삭 — v3 ===
-export interface AiReviseResult { ok: boolean; revised: string; feedback: string[]; summary: string }
+export interface AiReviseResult { ok: boolean; revised: string; feedback: string[]; summary: string; revisionId?: string }
+export interface SavedRevision { id: string; question?: string | null; answer: string; revised?: string | null; feedback: string[]; summary?: string | null; createdAt?: string | null }
 
 // === AI 상대역 대사 생성 ===
 // 학생 대사(고정) 사이의 '상대 등장' 자리를 AI가 채운다. 상대 대사는 성별×나이 맞춤 TTS 오디오(audioUrl)로 미리 합성됨.
@@ -559,6 +560,12 @@ export interface SceneQuota { limit: number; used: number; remaining: number }
 export const aiApi = {
   interviewRevise(question: string, answer: string): Promise<AiReviseResult> {
     return apiRequest('/api/ai/interview-revise', { method: 'POST', body: jsonBody({ question, answer }) });
+  },
+  interviewRevisions(): Promise<SavedRevision[]> {
+    return apiRequest('/api/ai/interview-revisions');
+  },
+  deleteInterviewRevision(id: string): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/ai/interview-revisions/${id}`, { method: 'DELETE' });
   },
   scenePartner(turns: SceneTurn[], partner = '', opts?: { situation?: string; voiceId?: string }): Promise<ScenePartnerResult> {
     return apiRequest('/api/ai/scene-partner', { method: 'POST', body: jsonBody({ turns, partner, ...(opts || {}) }) });

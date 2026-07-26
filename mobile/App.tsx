@@ -1,9 +1,10 @@
 import React from 'react';
+import { AppState } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, focusManager } from '@tanstack/react-query';
 import { AuthProvider } from './src/AuthContext';
 import { UploadProvider } from './src/services/UploadContext';
 import { UploadIndicator } from './src/components/UploadIndicator';
@@ -11,7 +12,15 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { DevRoleProvider, DevRoleSwitcher } from './src/DevRole';
 
 const queryClient = new QueryClient({
-  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
+  // refetchOnWindowFocus: RN에선 focusManager+AppState로 '포그라운드 복귀'가 곧 focus.
+  // 앱을 다시 열면 활성 쿼리를 재조회 → 백그라운드 사이 완료된 업로드·도착 알림·상대 제출이 자동 반영.
+  defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: true } },
+});
+
+// 포그라운드 복귀를 react-query의 focus 이벤트로 연결(앱 전체 1회 등록).
+focusManager.setEventListener((handleFocus) => {
+  const sub = AppState.addEventListener('change', (state) => handleFocus(state === 'active'));
+  return () => sub.remove();
 });
 
 export default function App() {

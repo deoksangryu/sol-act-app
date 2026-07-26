@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, ScrollView } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { Screen, Scroll, BackHeader } from '../components/kit';
 import { Card } from '../components/gamify';
 import { color, font, radius, space } from '../theme/tokens';
-import { aiApi, AiReviseResult } from '../services/api';
+import { aiApi, AiReviseResult, SavedRevision } from '../services/api';
 
 // 면접 질의응답 AI 첨삭 — 질문 + 내 답변을 입력하면 더 나은 답변·개선점·총평을 받는다.
 // (백엔드가 GEMINI_API_KEY 없으면 ok=false 안내를 반환 → 화면은 친절히 표시)
@@ -17,8 +17,16 @@ export function AIReviseScreen() {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<AiReviseResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [saved, setSaved] = useState<SavedRevision[]>([]);
+  const [libOpen, setLibOpen] = useState(false);
 
   const canSubmit = answer.trim().length >= 5 && !busy;
+
+  // 지난 첨삭 목록(서버 저장) — 화면 이탈 후에도 재열람
+  const refreshSaved = useCallback(async () => {
+    try { setSaved(await aiApi.interviewRevisions()); } catch { /* 목록 없어도 첨삭은 동작 */ }
+  }, []);
+  useEffect(() => { refreshSaved(); }, [refreshSaved]);
 
   const submit = async () => {
     if (!canSubmit) return;
@@ -26,12 +34,21 @@ export function AIReviseScreen() {
     try {
       const r = await aiApi.interviewRevise(question.trim() || '자유 주제', answer.trim());
       setResult(r);
+      if (r.ok) refreshSaved();
     } catch (e: any) {
       setErr(e?.message || '첨삭을 받지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally {
       setBusy(false);
     }
   };
+
+  const openSaved = (r: SavedRevision) => {
+    setLibOpen(false); setErr(null);
+    setQuestion(r.question || '');
+    setAnswer(r.answer || '');
+    setResult({ ok: true, revised: r.revised || '', feedback: r.feedback || [], summary: r.summary || '' });
+  };
+  const removeSaved = async (id: string) => { try { await aiApi.deleteInterviewRevision(id); refreshSaved(); } catch {} };
 
   const input = {
     borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card,
@@ -45,6 +62,11 @@ export function AIReviseScreen() {
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={8}>
       <Scroll contentStyle={{ paddingBottom: 40 }}>
         <View style={{ paddingHorizontal: space.screenX, gap: 12, marginTop: 8 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+            <Pressable onPress={() => { refreshSaved(); setLibOpen(true); }} hitSlop={6} style={{ borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, paddingHorizontal: 12, paddingVertical: 7 }}>
+              <Text style={{ fontFamily: font.b, fontSize: 12.5, color: color.ink }}>📂 지난 첨삭{saved.length ? ` ${saved.length}` : ''}</Text>
+            </Pressable>
+          </View>
           <View>
             <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>면접 질문</Text>
             <TextInput
@@ -113,6 +135,33 @@ export function AIReviseScreen() {
               )}
             </View>
           )}
+
+          <Modal visible={libOpen} transparent animationType="fade" onRequestClose={() => setLibOpen(false)}>
+            <Pressable onPress={() => setLibOpen(false)} style={{ flex: 1, backgroundColor: color.scrim, justifyContent: 'flex-end' }}>
+              <Pressable onPress={() => {}} style={{ backgroundColor: color.white, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 16, paddingBottom: 28, maxHeight: '75%' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
+                  <Text style={{ fontFamily: font.xb, fontSize: 17, color: color.ink }}>지난 첨삭</Text>
+                  <Pressable onPress={() => setLibOpen(false)} hitSlop={8}><Text style={{ fontFamily: font.b, fontSize: 15, color: color.sub }}>닫기</Text></Pressable>
+                </View>
+                {saved.length === 0 ? (
+                  <Text style={{ fontFamily: font.m, fontSize: 14, color: color.sub2, textAlign: 'center', paddingVertical: 30 }}>아직 저장된 첨삭이 없어요.</Text>
+                ) : (
+                  <ScrollView style={{ paddingHorizontal: 20 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
+                    {saved.map((s) => (
+                      <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: color.surf, borderRadius: radius.card, paddingLeft: 14, paddingRight: 8, paddingVertical: 12 }}>
+                        <Pressable onPress={() => openSaved(s)} style={{ flex: 1 }}>
+                          <Text style={{ fontFamily: font.b, fontSize: 14, color: color.ink }} numberOfLines={1}>{s.question || '자유 주제'}</Text>
+                          <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, marginTop: 2 }} numberOfLines={1}>{s.answer}{s.createdAt ? ` · ${s.createdAt.slice(5, 10)}` : ''}</Text>
+                        </Pressable>
+                        <Pressable onPress={() => openSaved(s)} style={{ backgroundColor: color.blue, borderRadius: radius.button, paddingHorizontal: 14, paddingVertical: 9 }}><Text style={{ fontFamily: font.b, fontSize: 13, color: color.white }}>열기</Text></Pressable>
+                        <Pressable onPress={() => removeSaved(s.id)} hitSlop={6} style={{ paddingHorizontal: 6 }}><Text style={{ fontFamily: font.b, fontSize: 16, color: color.faint }}>✕</Text></Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </Pressable>
+            </Pressable>
+          </Modal>
         </View>
       </Scroll>
       </KeyboardAvoidingView>

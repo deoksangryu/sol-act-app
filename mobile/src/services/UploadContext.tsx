@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { Alert } from 'react-native';
 import { uploadFileUri } from './upload';
 import type { UploadResult, UploadOpts, PickedMedia } from './upload';
 import { uploadMedia, backgroundUploadAvailable, addProgressListener, addCompleteListener } from './nativeUpload';
@@ -44,6 +45,11 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
             setUploads((u) => u.filter((x) => x.id !== id));
             progSub.remove();
             doneSub.remove();
+            // 실패면 조용히 사라지지 않게 사용자에게 알림(앱이 포그라운드일 때). 앱이 닫힌 사이
+            // 실패는 백엔드 stuck-upload 통지가 벨로 커버한다.
+            if (e.ok === false) {
+              Alert.alert('업로드 실패', `'${label}' 업로드를 완료하지 못했어요. 네트워크 확인 후 다시 시도해주세요.${e.error ? `\n(${e.error})` : ''}`);
+            }
           }
         });
         return { url: '', filename: media.filename, isVideo: true };
