@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
@@ -33,6 +33,8 @@ export function ScenePartnerScreen() {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
   const previewRef = useRef<AudioPlayer | null>(null);
+  const [step, setStep] = useState(1);          // 작성 위저드 1·2·3
+  const [libOpen, setLibOpen] = useState(false); // 저장 장면 다이얼로그
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<SceneTurn[] | null>(null);
@@ -64,7 +66,7 @@ export function ScenePartnerScreen() {
   useEffect(() => { refreshLib(); }, [refreshLib]);
 
   const loadScene = async (id: string) => {
-    stopAll(); setErr(null);
+    stopAll(); setErr(null); setLibOpen(false);
     try {
       const sc = await sceneApi.get(id);
       secListRef.current = sc.turns.map((t) => (t.speaker === '나' ? clampSec(t.sec ?? autoSec(t.text)) : 0));
@@ -120,7 +122,7 @@ export function ScenePartnerScreen() {
     Speech.speak(t.text || '', { language: 'ko-KR', onDone: () => advance(), onError: () => advance() });
   };
 
-  const step = () => {
+  const runStep = () => {
     if (!runRef.current) return;
     const i = idxRef.current;
     const list = result || [];
@@ -135,10 +137,10 @@ export function ScenePartnerScreen() {
     clearTick();
     try { Speech.stop(); } catch {}
     if (playerRef.current) { try { playerRef.current.remove(); } catch {} playerRef.current = null; }
-    idxRef.current += 1; step();
+    idxRef.current += 1; runStep();
   };
 
-  const startPractice = () => { stopAll(); idxRef.current = 0; runRef.current = true; setRunning(true); setReveal(false); step(); };
+  const startPractice = () => { stopAll(); idxRef.current = 0; runRef.current = true; setRunning(true); setReveal(false); runStep(); };
   const stopPractice = () => { stopAll(); setRunning(false); setPhase('idle'); setCursor(-1); setRemain(0); setTotal(0); };
 
   const setText = (key: string, text: string) => setTurns((ts) => ts.map((t) => (t.key === key ? { ...t, text } : t)));
@@ -174,113 +176,16 @@ export function ScenePartnerScreen() {
 
   const input = { borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: color.ink, fontFamily: font.m, backgroundColor: color.white } as const;
 
-  const renderEdit = () => (
-    <View style={{ paddingHorizontal: space.screenX, gap: 12, marginTop: 8 }}>
-      <Card style={{ padding: 14, backgroundColor: color.blueBg }}>
-        <Text style={{ fontFamily: font.m, fontSize: 13, lineHeight: 20, color: color.infoInk }}>
-          내 대사를 쓰고 상대가 말하는 지점을 넣으면, <Text style={{ fontFamily: font.b }}>AI가 상대 대사를 만들거나</Text> 원하는 <Text style={{ fontFamily: font.b }}>상대 대사를 직접 써서</Text> 목소리로 연습할 수 있어요. 각 내 대사에 <Text style={{ fontFamily: font.b }}>연기 시간(초)</Text>을 정하면 그 뒤 상대가 응답해요.
-        </Text>
-      </Card>
+  const ageK = (a: string) => (a === 'young' ? '젊음' : a === 'old' ? '노년' : '중년');
 
-      {/* 모드 토글 */}
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        {([['ai', '🤖 AI가 상대 대사 생성'], ['custom', '✍️ 내가 직접 쓰기']] as const).map(([m, label]) => {
-          const on = sceneMode === m;
-          return (
-            <Pressable key={m} onPress={() => setSceneMode(m)} style={{ flex: 1, borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.button, paddingVertical: 11, alignItems: 'center' }}>
-              <Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.blue : color.sub }}>{label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      {sceneMode === 'custom' && (
-        <View style={{ gap: 8, backgroundColor: color.surf, borderRadius: radius.card, padding: 12 }}>
-          <Text style={{ fontFamily: font.b, fontSize: 12.5, color: color.sub }}>상대 목소리 (직접 선택 — AI가 추론하지 않아요)</Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, width: 34 }}>성별</Text>
-            {(['남', '여', '중성'] as const).map((g) => {
-              const on = custGender === g;
-              return <Pressable key={g} onPress={() => setCustGender(g)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.white : color.ink }}>{g}</Text></Pressable>;
-            })}
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-            <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, width: 34 }}>나이</Text>
-            {([['young', '젊음'], ['middle', '중년'], ['old', '노년']] as const).map(([a, label]) => {
-              const on = custAge === a;
-              return <Pressable key={a} onPress={() => setCustAge(a)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.white : color.ink }}>{label}</Text></Pressable>;
-            })}
-          </View>
-        </View>
-      )}
-
-      {/* 상대 목소리 미리듣기·선택 (미리듣기는 무료) */}
-      <View style={{ backgroundColor: color.surf, borderRadius: radius.card, padding: 12, gap: 8 }}>
-        <Pressable onPress={() => setVoiceOpen((o) => { const n = !o; if (!n) stopPreview(); return n; })} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub }}>🔊 상대 목소리 {selVoice ? '· 직접 고름' : sceneMode === 'ai' ? '· AI 자동 추천' : '· 자동'}</Text>
-          <Text style={{ fontFamily: font.b, fontSize: 13, color: color.blue }}>{voiceOpen ? '닫기' : '미리듣고 고르기'}</Text>
-        </Pressable>
-        {voiceOpen && (
-          <View style={{ gap: 5 }}>
-            {sceneMode === 'ai' && (
-              <Pressable onPress={() => setSelVoice('')} style={{ borderWidth: 1, borderColor: selVoice === '' ? color.blue : color.inputLine, backgroundColor: selVoice === '' ? color.blueBg : color.white, borderRadius: radius.card, paddingVertical: 10, paddingHorizontal: 12 }}>
-                <Text style={{ fontFamily: font.b, fontSize: 13, color: selVoice === '' ? color.blue : color.ink }}>🤖 AI 자동 추천 (상황·인물에 맞게){selVoice === '' ? ' · 선택됨 ✓' : ''}</Text>
-              </Pressable>
-            )}
-            {voices.map((v) => {
-              const on = selVoice === v.id;
-              const ageK = v.age === 'young' ? '젊음' : v.age === 'old' ? '노년' : '중년';
-              return (
-                <View key={v.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.card, paddingVertical: 8, paddingLeft: 8, paddingRight: 12 }}>
-                  <Pressable onPress={() => playPreview(v)} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: previewId === v.id ? color.blue : color.surf, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 14, color: previewId === v.id ? color.white : color.ink }}>{previewId === v.id ? '■' : '▶'}</Text></Pressable>
-                  <Pressable onPress={() => setSelVoice(v.id)} style={{ flex: 1 }}>
-                    <Text style={{ fontFamily: font.b, fontSize: 13.5, color: color.ink }}>{v.traits}</Text>
-                    <Text style={{ fontFamily: font.r, fontSize: 11.5, color: color.sub2, marginTop: 1 }}>{v.gender} · {ageK}</Text>
-                  </Pressable>
-                  {on && <Text style={{ fontFamily: font.b, fontSize: 12, color: color.blue }}>선택됨 ✓</Text>}
-                </View>
-              );
-            })}
-          </View>
-        )}
-      </View>
-
-      {savedScenes.length > 0 && (
-        <View>
-          <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>저장된 장면 불러오기 (재연습은 무제한)</Text>
-          <View style={{ gap: 6 }}>
-            {savedScenes.map((s) => (
-              <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: color.white, borderWidth: 1, borderColor: color.line, borderRadius: radius.card, paddingLeft: 14, paddingRight: 8, paddingVertical: 10 }}>
-                <Pressable onPress={() => loadScene(s.id)} style={{ flex: 1 }}>
-                  <Text style={{ fontFamily: font.b, fontSize: 14, color: color.ink }} numberOfLines={1}>{s.title}</Text>
-                  <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, marginTop: 2 }}>{s.lineCount}줄{s.createdAt ? ` · ${s.createdAt.slice(5, 10)}` : ''}</Text>
-                </Pressable>
-                <Pressable onPress={() => loadScene(s.id)} hitSlop={6} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><Text style={{ fontFamily: font.b, fontSize: 13, color: color.blue }}>▶ 열기</Text></Pressable>
-                <Pressable onPress={() => deleteScene(s.id)} hitSlop={6} style={{ paddingHorizontal: 6 }}><Text style={{ fontFamily: font.b, fontSize: 15, color: color.faint }}>✕</Text></Pressable>
-              </View>
-            ))}
-          </View>
-        </View>
-      )}
-
-      {sceneMode === 'ai' && (
-        <>
-          <View>
-            <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (구체적일수록 좋아요)</Text>
-            <TextInput value={partner} onChangeText={setPartner} placeholder="예: 병들어 힘없지만 위엄 있는 노년의 왕" placeholderTextColor={color.faint} style={input} maxLength={80} />
-          </View>
-          <View>
-            <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>이 장면은 어떤 상황인가요? ⭐ (대사 정확도를 크게 높여요)</Text>
-            <TextInput value={situation} onChangeText={setSituation} placeholder="관계·무슨 일이 벌어지는지·감정의 흐름. 예: 유학을 반대하던 병든 엄마가 끝내 딸을 위해 보내주기로 하는 장면" placeholderTextColor={color.faint} style={[input, { minHeight: 76, textAlignVertical: 'top' }]} multiline maxLength={500} />
-          </View>
-        </>
-      )}
-      <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginTop: 2 }}>장면 대본</Text>
+  const scriptBlock = (
+    <View style={{ gap: 10 }}>
+      <Text style={{ fontFamily: font.m, fontSize: 12.5, lineHeight: 19, color: color.sub }}>{sceneMode === 'custom' ? '내 대사와 상대 대사를 직접 쓰고, 각 내 대사에 연기 시간(초)을 정하세요.' : '내 대사를 쓰고, 상대가 말하는 지점에 🎭 상대 등장을 넣으세요. 각 내 대사엔 연기 시간(초)을.'}</Text>
       {turns.map((t) => (
         <View key={t.key} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
           {t.speaker === '나' ? (
             <>
-              <View style={{ width: 40, paddingTop: 12 }}><Text style={{ fontFamily: font.b, fontSize: 13, color: color.ink }}>나</Text></View>
+              <View style={{ width: 34, paddingTop: 12 }}><Text style={{ fontFamily: font.b, fontSize: 13, color: color.ink }}>나</Text></View>
               <View style={{ flex: 1, gap: 6 }}>
                 <TextInput value={t.text} onChangeText={(v) => setText(t.key, v)} placeholder="내 대사" placeholderTextColor={color.faint} style={input} multiline />
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -293,7 +198,7 @@ export function ScenePartnerScreen() {
             </>
           ) : (
             <>
-              <View style={{ width: 40, paddingTop: 12 }}><Text style={{ fontFamily: font.b, fontSize: 15 }}>🎭</Text></View>
+              <View style={{ width: 34, paddingTop: 12 }}><Text style={{ fontFamily: font.b, fontSize: 15 }}>🎭</Text></View>
               <View style={{ flex: 1, borderWidth: 1, borderColor: color.requestLine, borderRadius: radius.card, backgroundColor: color.amberBg, paddingHorizontal: 12, paddingVertical: 10 }}>
                 <Text style={{ fontFamily: font.b, fontSize: 13, color: color.warn, marginBottom: 6 }}>{sceneMode === 'custom' ? '상대 대사 (직접 입력)' : '상대 등장 (AI가 채움)'}</Text>
                 {sceneMode === 'custom'
@@ -309,26 +214,152 @@ export function ScenePartnerScreen() {
         <Pressable onPress={() => setTurns((ts) => [...ts, mk('나')])} style={{ flex: 1, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, paddingVertical: 12, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.ink }}>+ 내 대사</Text></Pressable>
         <Pressable onPress={() => setTurns((ts) => [...ts, mk('상대')])} style={{ flex: 1, borderWidth: 1, borderColor: color.requestLine, borderRadius: radius.button, paddingVertical: 12, alignItems: 'center', backgroundColor: color.amberBg }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.warn }}>+ 🎭 상대 등장</Text></Pressable>
       </View>
-      {err && <Text style={{ fontFamily: font.m, fontSize: 13, color: color.danger, textAlign: 'center' }}>{err}</Text>}
-      {(() => {
-        const over = !!quota && quota.remaining <= 0;
-        return (
-          <>
-            <Pressable onPress={generate} disabled={busy || over} style={{ backgroundColor: (busy || over) ? color.inputLine : color.blue, borderRadius: radius.button, paddingVertical: 15, alignItems: 'center', marginTop: 4 }}>
-              {busy ? <ActivityIndicator color={color.white} /> : <Text style={{ fontFamily: font.b, fontSize: 15, color: over ? color.sub2 : color.white }}>{over ? '오늘 새 생성 한도를 다 썼어요' : '✨ AI 상대역 만들기'}</Text>}
-            </Pressable>
-            {busy ? (
-              <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, textAlign: 'center' }}>상대 대사 생성 + 목소리 합성 중… (몇 초 걸려요)</Text>
-            ) : quota ? (
-              <Text style={{ fontFamily: font.m, fontSize: 12, color: over ? color.danger : color.sub2, textAlign: 'center' }}>
-                {over ? '저장된 장면을 불러와 연습하거나 내일 다시 만들어요' : `오늘 새 생성 ${quota.remaining}/${quota.limit}회 남음 · 저장한 장면 불러오기는 무제한`}
-              </Text>
-            ) : null}
-          </>
-        );
-      })()}
     </View>
   );
+
+  const setupBlock = (
+    <View style={{ gap: 12 }}>
+      <View>
+        <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (구체적일수록 좋아요)</Text>
+        <TextInput value={partner} onChangeText={setPartner} placeholder="예: 병들어 힘없지만 위엄 있는 노년의 왕" placeholderTextColor={color.faint} style={input} maxLength={80} />
+      </View>
+      <View>
+        <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>이 장면은 어떤 상황인가요? ⭐</Text>
+        <Text style={{ fontFamily: font.r, fontSize: 12, lineHeight: 18, color: color.sub2, marginBottom: 6 }}>관계·무슨 일이 벌어지는지·감정의 흐름을 적을수록 대사가 정확해져요.</Text>
+        <TextInput value={situation} onChangeText={setSituation} placeholder="예: 유학을 반대하던 병든 엄마가 끝내 딸을 위해 보내주기로 하는 장면" placeholderTextColor={color.faint} style={[input, { minHeight: 100, textAlignVertical: 'top' }]} multiline maxLength={500} />
+      </View>
+    </View>
+  );
+
+  const voiceBlock = (
+    <View style={{ gap: 10 }}>
+      {sceneMode === 'custom' && (
+        <View style={{ gap: 8, backgroundColor: color.surf, borderRadius: radius.card, padding: 12 }}>
+          <Text style={{ fontFamily: font.b, fontSize: 12.5, color: color.sub }}>상대 목소리 성별·나이</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, width: 34 }}>성별</Text>
+            {(['남', '여', '중성'] as const).map((g) => { const on = custGender === g; return <Pressable key={g} onPress={() => { setCustGender(g); setSelVoice(''); }} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.white : color.ink }}>{g}</Text></Pressable>; })}
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, width: 34 }}>나이</Text>
+            {([['young', '젊음'], ['middle', '중년'], ['old', '노년']] as const).map(([a, label]) => { const on = custAge === a; return <Pressable key={a} onPress={() => { setCustAge(a); setSelVoice(''); }} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.white : color.ink }}>{label}</Text></Pressable>; })}
+          </View>
+        </View>
+      )}
+      <Text style={{ fontFamily: font.m, fontSize: 12.5, lineHeight: 19, color: color.sub }}>{sceneMode === 'ai' ? 'AI가 인물에 맞게 골라줘요. 마음에 안 들면 ▶로 들어보고 직접 고르세요 (미리듣기 무료).' : '기본은 위 성별·나이로 자동 선택돼요. 특정 목소리를 원하면 ▶로 들어보고 고르세요.'}</Text>
+      <View style={{ gap: 5 }}>
+        <Pressable onPress={() => setSelVoice('')} style={{ borderWidth: 1, borderColor: selVoice === '' ? color.blue : color.inputLine, backgroundColor: selVoice === '' ? color.blueBg : color.white, borderRadius: radius.card, paddingVertical: 11, paddingHorizontal: 12 }}>
+          <Text style={{ fontFamily: font.b, fontSize: 13, color: selVoice === '' ? color.blue : color.ink }}>{sceneMode === 'ai' ? '🤖 AI 자동 추천' : '🎲 성별·나이로 자동'}{selVoice === '' ? ' · 선택됨 ✓' : ''}</Text>
+        </Pressable>
+        {voices.map((v) => {
+          const on = selVoice === v.id;
+          return (
+            <View key={v.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.card, paddingVertical: 8, paddingLeft: 8, paddingRight: 12 }}>
+              <Pressable onPress={() => playPreview(v)} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: previewId === v.id ? color.blue : color.surf, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 14, color: previewId === v.id ? color.white : color.ink }}>{previewId === v.id ? '■' : '▶'}</Text></Pressable>
+              <Pressable onPress={() => setSelVoice(v.id)} style={{ flex: 1 }}>
+                <Text style={{ fontFamily: font.b, fontSize: 13.5, color: color.ink }}>{v.traits}</Text>
+                <Text style={{ fontFamily: font.r, fontSize: 11.5, color: color.sub2, marginTop: 1 }}>{v.gender} · {ageK(v.age)}</Text>
+              </Pressable>
+              {on && <Text style={{ fontFamily: font.b, fontSize: 12, color: color.blue }}>선택됨 ✓</Text>}
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+
+  const renderEdit = () => {
+    const custom = sceneMode === 'custom';
+    const steps = custom ? ['장면 대본', '상대 목소리'] : ['상대·상황', '장면 대본', '상대 목소리'];
+    const key: 'setup' | 'script' | 'voice' = custom ? (step === 1 ? 'script' : 'voice') : (step === 1 ? 'setup' : step === 2 ? 'script' : 'voice');
+    const isLast = step >= steps.length;
+    const over = !!quota && quota.remaining <= 0;
+    const naOk = turns.some((t) => t.speaker === '나' && (t.text || '').trim());
+    const slotOk = turns.some((t) => t.speaker === '상대') && (!custom || turns.filter((t) => t.speaker === '상대').every((t) => (t.text || '').trim()));
+    const next = () => { setErr(null); if (key === 'script' && !(naOk && slotOk)) { setErr(custom ? '내 대사와 상대 대사를 채워주세요.' : '내 대사와 상대 등장 지점을 넣어주세요.'); return; } setStep((s) => Math.min(steps.length, s + 1)); };
+    const prev = () => { setErr(null); stopPreview(); setStep((s) => Math.max(1, s - 1)); };
+
+    return (
+      <View style={{ paddingHorizontal: space.screenX, gap: 12, marginTop: 8 }}>
+        {/* 상단: 스텝 인디케이터 + 불러오기 */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <View style={{ flexDirection: 'row', gap: 8, flex: 1, flexWrap: 'wrap' }}>
+            {steps.map((label, i) => {
+              const n = i + 1; const on = n === step; const done = n < step;
+              return (
+                <Pressable key={label} onPress={() => done && setStep(n)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <View style={{ width: 20, height: 20, borderRadius: 10, backgroundColor: on ? color.blue : done ? color.blueBg : color.inputLine, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 11, color: on ? color.white : done ? color.blue : color.sub2 }}>{done ? '✓' : n}</Text></View>
+                  <Text style={{ fontFamily: on ? font.b : font.m, fontSize: 12, color: on ? color.ink : color.sub2 }}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          <Pressable onPress={() => { stopPreview(); setLibOpen(true); }} hitSlop={6} style={{ borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, paddingHorizontal: 11, paddingVertical: 7 }}><Text style={{ fontFamily: font.b, fontSize: 12, color: color.ink }}>📂 불러오기{savedScenes.length ? ` ${savedScenes.length}` : ''}</Text></Pressable>
+        </View>
+
+        {step === 1 && (
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {([['ai', '🤖 AI 생성'], ['custom', '✍️ 직접 쓰기']] as const).map(([m, label]) => {
+              const on = sceneMode === m;
+              return <Pressable key={m} onPress={() => { setSceneMode(m); setStep(1); }} style={{ flex: 1, borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.button, paddingVertical: 11, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.blue : color.sub }}>{label}</Text></Pressable>;
+            })}
+          </View>
+        )}
+
+        {key === 'setup' && setupBlock}
+        {key === 'script' && scriptBlock}
+        {key === 'voice' && voiceBlock}
+
+        {err && <Text style={{ fontFamily: font.m, fontSize: 13, color: color.danger, textAlign: 'center' }}>{err}</Text>}
+
+        {/* 네비 / 만들기 */}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 2 }}>
+          {step > 1 && <Pressable onPress={prev} style={{ paddingHorizontal: 20, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, justifyContent: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14, color: color.ink }}>← 이전</Text></Pressable>}
+          {!isLast ? (
+            <Pressable onPress={next} style={{ flex: 1, backgroundColor: color.blue, borderRadius: radius.button, paddingVertical: 15, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 15, color: color.white }}>다음 →</Text></Pressable>
+          ) : (
+            <Pressable onPress={generate} disabled={busy || over} style={{ flex: 1, backgroundColor: (busy || over) ? color.inputLine : color.blue, borderRadius: radius.button, paddingVertical: 15, alignItems: 'center' }}>
+              {busy ? <ActivityIndicator color={color.white} /> : <Text style={{ fontFamily: font.b, fontSize: 15, color: over ? color.sub2 : color.white }}>{over ? '오늘 한도 소진' : '✨ 상대역 만들기'}</Text>}
+            </Pressable>
+          )}
+        </View>
+        {isLast && (busy ? (
+          <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, textAlign: 'center' }}>상대 대사 생성 + 목소리 합성 중… (몇 초 걸려요)</Text>
+        ) : quota ? (
+          <Text style={{ fontFamily: font.m, fontSize: 12, color: over ? color.danger : color.sub2, textAlign: 'center' }}>{over ? '저장된 장면을 불러와 연습하거나 내일 다시' : `오늘 새 생성 ${quota.remaining}/${quota.limit}회 남음 · 불러오기는 무제한`}</Text>
+        ) : null)}
+
+        {/* 저장 장면 다이얼로그 */}
+        <Modal visible={libOpen} transparent animationType="fade" onRequestClose={() => setLibOpen(false)}>
+          <Pressable onPress={() => setLibOpen(false)} style={{ flex: 1, backgroundColor: color.scrim, justifyContent: 'flex-end' }}>
+            <Pressable onPress={() => {}} style={{ backgroundColor: color.white, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingTop: 16, paddingBottom: 28, maxHeight: '75%' }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 10 }}>
+                <Text style={{ fontFamily: font.xb, fontSize: 17, color: color.ink }}>저장된 장면</Text>
+                <Pressable onPress={() => setLibOpen(false)} hitSlop={8}><Text style={{ fontFamily: font.b, fontSize: 15, color: color.sub }}>닫기</Text></Pressable>
+              </View>
+              <Text style={{ fontFamily: font.r, fontSize: 12.5, color: color.sub2, paddingHorizontal: 20, marginBottom: 10 }}>불러오면 다시 만들지 않고 무제한 재연습해요(비용 0).</Text>
+              {savedScenes.length === 0 ? (
+                <Text style={{ fontFamily: font.m, fontSize: 14, color: color.sub2, textAlign: 'center', paddingVertical: 30 }}>아직 저장된 장면이 없어요.</Text>
+              ) : (
+                <ScrollView style={{ paddingHorizontal: 20 }} contentContainerStyle={{ gap: 8, paddingBottom: 8 }}>
+                  {savedScenes.map((s) => (
+                    <View key={s.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: color.surf, borderRadius: radius.card, paddingLeft: 14, paddingRight: 8, paddingVertical: 12 }}>
+                      <Pressable onPress={() => loadScene(s.id)} style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: font.b, fontSize: 14.5, color: color.ink }} numberOfLines={1}>{s.title}</Text>
+                        <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, marginTop: 2 }}>{s.lineCount}줄{s.createdAt ? ` · ${s.createdAt.slice(5, 10)}` : ''}</Text>
+                      </Pressable>
+                      <Pressable onPress={() => loadScene(s.id)} style={{ backgroundColor: color.blue, borderRadius: radius.button, paddingHorizontal: 14, paddingVertical: 9 }}><Text style={{ fontFamily: font.b, fontSize: 13, color: color.white }}>▶ 열기</Text></Pressable>
+                      <Pressable onPress={() => deleteScene(s.id)} hitSlop={6} style={{ paddingHorizontal: 6 }}><Text style={{ fontFamily: font.b, fontSize: 16, color: color.faint }}>✕</Text></Pressable>
+                    </View>
+                  ))}
+                </ScrollView>
+              )}
+            </Pressable>
+          </Pressable>
+        </Modal>
+      </View>
+    );
+  };
 
   const renderPractice = () => (
     <View style={{ paddingHorizontal: space.screenX, gap: 10, marginTop: 8 }}>
@@ -379,7 +410,7 @@ export function ScenePartnerScreen() {
       )}
 
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 4 }}>
-        <Pressable onPress={() => { stopAll(); setMode('edit'); }} style={{ flex: 1, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, paddingVertical: 12, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 13.5, color: color.ink }}>✏️ 다시 쓰기</Text></Pressable>
+        <Pressable onPress={() => { stopAll(); setStep(1); setMode('edit'); }} style={{ flex: 1, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, paddingVertical: 12, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 13.5, color: color.ink }}>✏️ 다시 쓰기</Text></Pressable>
         <Pressable onPress={generate} disabled={busy} style={{ flex: 1, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.button, paddingVertical: 12, alignItems: 'center' }}>{busy ? <ActivityIndicator color={color.blue} /> : <Text style={{ fontFamily: font.b, fontSize: 13.5, color: color.blue }}>🔄 다르게 다시</Text>}</Pressable>
       </View>
       <Text style={{ fontFamily: font.r, fontSize: 12, lineHeight: 18, color: color.sub2, textAlign: 'center', marginTop: 2 }}>실전 입시장엔 상대가 없어요. 익숙해지면 상대 없이 혼자 해보는 것도 잊지 마세요.</Text>
