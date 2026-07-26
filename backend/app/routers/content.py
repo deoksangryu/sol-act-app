@@ -126,6 +126,7 @@ def media(db: Session = Depends(get_db), current_user: User = Depends(get_curren
 def watch_media(media_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """시청 완료 → +5👏 (하루 상한은 서버가 강제)."""
     today0 = kst_day_start_utc()  # 한국 자정 기준
+    db.query(User).filter(User.id == current_user.id).with_for_update().first()  # 행 잠금: 동시 탭 중복 지급 방지
     # 같은 영상은 오늘 이미 시청 보상을 받았으면 재지급 금지(중복 방지)
     dup = db.query(PointLedger).filter(
         PointLedger.student_id == current_user.id, PointLedger.reason == "watch",

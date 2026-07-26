@@ -51,6 +51,34 @@ def _cleanup_expired_uploads():
             logger.info(f"Cleaned up expired upload session: {uid}")
 
 
+def sweep_orphan_chunk_dirs() -> int:
+    """디스크 스윕: UPLOAD_DIR 하위의 `.chunks_*` 스크래치 디렉토리 중 TTL(2h) 지난 것을 삭제.
+    인메모리 세션(_chunked_uploads)은 서버 재시작 시 소멸하므로, 재시작 시점에 진행 중이던
+    업로드의 청크 디렉토리가 SSD에 영구 고아로 남는다(_cleanup_expired_uploads는 메모리에 남은
+    세션만 정리 가능). 이 함수가 그 고아를 회수한다. `.chunks_*`(부분 업로드 스크래치)만 만지고
+    최종 미디어 파일은 절대 건드리지 않는다. 동기 함수 — startup에서 threadpool로 호출.
+    dir mtime을 기준으로 하므로 최근 청크가 쌓인 활성 세션은 TTL 안이라 보존된다."""
+    import time
+    import shutil
+    now = time.time()
+    reclaimed = 0
+    try:
+        for chunks_dir in Path(UPLOAD_DIR).glob("**/.chunks_*"):
+            try:
+                if not chunks_dir.is_dir():
+                    continue
+                if now - chunks_dir.stat().st_mtime > _UPLOAD_SESSION_TTL:
+                    shutil.rmtree(chunks_dir, ignore_errors=True)
+                    reclaimed += 1
+            except OSError:
+                continue
+    except Exception as e:  # SSD 미마운트 등 — 조용히 스킵
+        logger.warning(f"orphan chunk sweep skipped: {e}")
+    if reclaimed:
+        logger.info(f"Swept {reclaimed} orphan chunk dir(s) from {UPLOAD_DIR}")
+    return reclaimed
+
+
 @router.post("/upload")
 async def upload_file(
     request: Request,

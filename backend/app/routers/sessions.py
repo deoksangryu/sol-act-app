@@ -45,6 +45,7 @@ def log_session(data: LogSession, db: Session = Depends(get_db), current_user: U
     reward = (secs // 1800) * TIMER_REWARD_PER_30MIN
     granted = 0
     if reward > 0:
+        db.query(User).filter(User.id == sid).with_for_update().first()  # 행 잠금: 동시 요청 캡 초과·이중지급 방지
         granted, _ = gamify.record_action(db, sid, "timer", reward, ref=data.ref)
     else:
         gamify.touch_activity(db, sid)

@@ -86,7 +86,7 @@ def revise_interview_answer(question: str, answer: str) -> dict:
     if openai_key:
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=openai_key)
+            client = OpenAI(api_key=openai_key, timeout=20.0, max_retries=1)
             resp = client.chat.completions.create(
                 model=(getattr(settings, "OPENAI_MODEL", "") or "gpt-4o-mini"),
                 messages=[{"role": "system", "content": _SYSTEM}, {"role": "user", "content": user}],
@@ -211,7 +211,7 @@ def generate_scene_partner(turns, partner_hint: str = "", situation: str = "") -
     if openai_key:
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=openai_key)
+            client = OpenAI(api_key=openai_key, timeout=20.0, max_retries=1)
             resp = client.chat.completions.create(
                 model=(getattr(settings, "OPENAI_MODEL", "") or "gpt-4o-mini"),
                 messages=[{"role": "system", "content": _SCENE_SYSTEM}, {"role": "user", "content": user}],
@@ -346,7 +346,7 @@ def synthesize_tts(text: str, voice_id: str = "", gender: str = "중성"):
     if openai_key:
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=openai_key)
+            client = OpenAI(api_key=openai_key, timeout=20.0, max_retries=1)
             resp = client.audio.speech.create(
                 model="gpt-4o-mini-tts", voice=_OPENAI_VOICE.get(_norm_gender(gender), "alloy"),
                 input=text[:600], response_format="mp3",
