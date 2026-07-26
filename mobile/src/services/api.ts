@@ -560,9 +560,14 @@ export const aiApi = {
   interviewRevise(question: string, answer: string): Promise<AiReviseResult> {
     return apiRequest('/api/ai/interview-revise', { method: 'POST', body: jsonBody({ question, answer }) });
   },
-  scenePartner(turns: SceneTurn[], partner = '', opts?: { mode?: 'ai' | 'custom'; gender?: string; age?: string }): Promise<ScenePartnerResult> {
+  scenePartner(turns: SceneTurn[], partner = '', opts?: { mode?: 'ai' | 'custom'; gender?: string; age?: string; situation?: string; voiceId?: string }): Promise<ScenePartnerResult> {
     return apiRequest('/api/ai/scene-partner', { method: 'POST', body: jsonBody({ turns, partner, ...(opts || {}) }) });
   },
+};
+
+export interface SceneVoice { id: string; gender: '남' | '여' | '중성'; age: 'young' | 'middle' | 'old'; traits: string; sampleUrl: string }
+export const voicesApi = {
+  list(): Promise<SceneVoice[]> { return apiRequest('/api/ai/voices'); },
 };
 
 // 저장된 장면 라이브러리(불러오기=크레딧 0) + 하루 생성 제한

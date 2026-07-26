@@ -134,7 +134,7 @@ _SCENE_SYSTEM = (
 )
 
 
-def _scene_user_prompt(turns, partner_hint: str) -> str:
+def _scene_user_prompt(turns, partner_hint: str, situation: str = "") -> str:
     lines, slot = [], 0
     for t in turns:
         if t.get("speaker") == "상대":
@@ -144,7 +144,12 @@ def _scene_user_prompt(turns, partner_hint: str) -> str:
         else:
             lines.append(f"나: {(t.get('text') or '').strip()}")
     seq = "\n".join(lines)
-    who = f"\n상대 인물 설정: {partner_hint.strip()}\n" if (partner_hint or "").strip() else "\n"
+    ctx = ""
+    if (situation or "").strip():
+        ctx += f"\n■ 장면 상황(가장 중요 — 이 맥락에 반드시 맞춰라): {situation.strip()}"
+    if (partner_hint or "").strip():
+        ctx += f"\n■ 상대 인물 설정: {partner_hint.strip()}"
+    who = (ctx + "\n") if ctx else "\n"
     return (
         "아래는 학생이 혼자 연기할 장면이다. '나:'는 학생의 고정 대사이고, "
         "[상대 대사 #n]은 네가 채워야 할 '부재하는 상대'의 자리다. "
@@ -164,7 +169,7 @@ def _scene_fallback(turns) -> dict:
     return {"ok": False, "turns": turns, "message": "AI 상대역 생성이 아직 준비 중이에요. 잠시 후 다시 시도해주세요."}
 
 
-def generate_scene_partner(turns, partner_hint: str = "") -> dict:
+def generate_scene_partner(turns, partner_hint: str = "", situation: str = "") -> dict:
     """학생 대사(고정) 사이의 '상대 등장' 자리를 AI가 채운다.
     turns: [{"speaker": "나"|"상대", "text": str, "hint": str}] — '상대' 자리는 text 비어있음.
     반환: {ok, turns:[{speaker,text}]} — '상대' 자리가 채워진 전체 시퀀스. 실패 시 ok=False + message.
@@ -191,7 +196,7 @@ def generate_scene_partner(turns, partner_hint: str = "") -> dict:
 
     openai_key = (getattr(settings, "OPENAI_API_KEY", "") or "").strip()
     gemini_key = (getattr(settings, "GEMINI_API_KEY", "") or "").strip()
-    user = _scene_user_prompt(turns, partner_hint)
+    user = _scene_user_prompt(turns, partner_hint, situation)
 
     if openai_key:
         try:

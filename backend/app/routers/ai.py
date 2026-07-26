@@ -73,15 +73,15 @@ def _save_scene(db: Session, uid: str, input_turns: List[Dict[str, Any]], result
     return sid
 
 
-def _build_scene(turns: List[Dict[str, Any]], partner_hint: str) -> Dict[str, Any]:
-    """상대 대사 생성 + 각 상대 대사를 성별맞춤 OpenAI TTS로 합성·저장 → audioUrl 부착.
+def _build_scene(turns: List[Dict[str, Any]], partner_hint: str, situation: str = "", voice_override: str = "") -> Dict[str, Any]:
+    """상대 대사 생성(상황 맥락 반영) + 성별맞춤/선택 보이스로 TTS 합성·저장 → audioUrl 부착.
     (블로킹 — run_in_threadpool로 호출.) TTS 실패 시 audioUrl 없이 반환(클라가 온디바이스 TTS 폴백)."""
-    result = ai.generate_scene_partner(turns, partner_hint)
+    result = ai.generate_scene_partner(turns, partner_hint, situation)
     if not result.get("ok"):
         return result
     gender = result.get("voice_gender", "중성")
     age = result.get("voice_age", "middle")
-    vid = ai.pick_voice(gender, age, result.get("voice_id", ""))  # GPT가 고른 보이스(카탈로그 검증)
+    vid = ai.pick_voice(gender, age, voice_override or result.get("voice_id", ""))  # 학생 선택 우선, 없으면 GPT
     tts_dir = UPLOAD_DIR / "tts"
     for t in result.get("turns", []):
         if t.get("speaker") == "상대" and (t.get("text") or "").strip():
@@ -98,11 +98,11 @@ def _build_scene(turns: List[Dict[str, Any]], partner_hint: str) -> Dict[str, An
     return result
 
 
-def _build_custom_scene(turns: List[Dict[str, Any]], gender: str, age: str) -> Dict[str, Any]:
-    """커스텀 모드: 학생이 직접 쓴 상대 대사를 학생이 고른 성별×나이 보이스로 TTS만 합성.
+def _build_custom_scene(turns: List[Dict[str, Any]], gender: str, age: str, voice_override: str = "") -> Dict[str, Any]:
+    """커스텀 모드: 학생이 직접 쓴 상대 대사를 학생이 고른 보이스(또는 성별×나이 매칭 랜덤)로 TTS만 합성.
     (LLM 생성 없음 — 진짜 대본 그대로 연습.) 블로킹 → run_in_threadpool."""
     g, a = ai._norm_gender(gender), ai._norm_age(age)
-    vid = ai.pick_voice(g, a)  # 커스텀: 학생이 고른 성별×나이 매칭 중 랜덤(GPT 미사용)
+    vid = ai.pick_voice(g, a, voice_override)  # 학생이 보이스 직접 고르면 그것, 아니면 매칭 랜덤
     tts_dir = UPLOAD_DIR / "tts"
     out: List[Dict[str, Any]] = []
     for t in turns:
@@ -133,9 +133,11 @@ class ReviseReq(BaseModel):
 class ScenePartnerReq(BaseModel):
     turns: List[Dict[str, Any]]   # [{speaker:"나"|"상대", text?:str, hint?:str}]
     partner: str = ""             # (선택) 상대 인물 설정 힌트
+    situation: str = ""           # (선택) 장면 상황·맥락 설명 → 대사 정확도↑
     mode: str = "ai"              # "ai"=AI가 상대 대사 생성 / "custom"=학생이 직접 작성
     gender: str = ""              # custom 모드: 학생이 고른 성별(남/여/중성)
     age: str = ""                 # custom 모드: 학생이 고른 나이(young/middle/old)
+    voiceId: str = ""             # (선택) 학생이 직접 고른 보이스 id → GPT 자동선택 대신 사용
 
 
 @router.post("/interview-revise")
@@ -177,9 +179,9 @@ async def scene_partner(data: ScenePartnerReq, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=429, detail=f"오늘 새 상대역 생성 한도({limit}회)를 다 썼어요. 저장된 장면을 불러와 연습하거나 내일 다시 시도해주세요.")
 
     if is_custom:
-        result = await run_in_threadpool(_build_custom_scene, turns, data.gender, data.age)
+        result = await run_in_threadpool(_build_custom_scene, turns, data.gender, data.age, (data.voiceId or "").strip())
     else:
-        result = await run_in_threadpool(_build_scene, turns, (data.partner or "")[:100])
+        result = await run_in_threadpool(_build_scene, turns, (data.partner or "")[:100], (data.situation or "")[:500], (data.voiceId or "").strip())
     if result.get("ok"):
         try:
             result["sceneId"] = _save_scene(db, current_user.id, turns, result, (data.partner or "")[:100])
@@ -235,6 +237,15 @@ def delete_scene(scene_id: str, db: Session = Depends(get_db), current_user: Use
     db.delete(r)
     db.commit()
     return {"ok": True}
+
+
+@router.get("/voices")
+def list_voices(current_user: User = Depends(get_current_user)):
+    """상대 보이스 카탈로그 + 미리듣기 샘플 URL(사전 생성 = 무료). 학생이 듣고 고른다."""
+    return [{
+        "id": v["id"], "gender": v["gender"], "age": v["age"], "traits": v["traits"],
+        "sampleUrl": f"/uploads/voice-samples/{v['id']}.mp3",
+    } for v in ai._VOICE_CATALOG]
 
 
 @router.get("/scene-quota")

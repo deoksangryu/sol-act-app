@@ -6,7 +6,7 @@ import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-aud
 import { Screen, Scroll, BackHeader } from '../components/kit';
 import { Card } from '../components/gamify';
 import { color, font, radius, space } from '../theme/tokens';
-import { aiApi, SceneTurn, API_URL, sceneApi, SavedSceneSummary } from '../services/api';
+import { aiApi, SceneTurn, API_URL, sceneApi, SavedSceneSummary, voicesApi, SceneVoice } from '../services/api';
 
 // AI 상대역 연습 — 학생이 자기 대사 + '상대 등장' 자리 표시 → AI가 상대 대사 생성 + 성별×나이 맞춤 TTS.
 // 연습(타이머식): 내 대사마다 정해둔 시간이 지나면 상대 대사 자동 재생 → 상대 대사 끝나면 다음 내 대사 타이머 시작.
@@ -27,6 +27,12 @@ export function ScenePartnerScreen() {
   const [sceneMode, setSceneMode] = useState<'ai' | 'custom'>('ai');
   const [custGender, setCustGender] = useState<'남' | '여' | '중성'>('남');
   const [custAge, setCustAge] = useState<'young' | 'middle' | 'old'>('middle');
+  const [situation, setSituation] = useState('');
+  const [voices, setVoices] = useState<SceneVoice[]>([]);
+  const [selVoice, setSelVoice] = useState('');          // '' = AI 자동/랜덤
+  const [voiceOpen, setVoiceOpen] = useState(false);
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const previewRef = useRef<AudioPlayer | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<SceneTurn[] | null>(null);
@@ -67,11 +73,26 @@ export function ScenePartnerScreen() {
   };
   const deleteScene = async (id: string) => { try { await sceneApi.remove(id); refreshLib(); } catch {} };
 
+  useEffect(() => { voicesApi.list().then(setVoices).catch(() => {}); }, []);
+  const stopPreview = () => { if (previewRef.current) { try { previewRef.current.remove(); } catch {} previewRef.current = null; } setPreviewId(null); };
+  const playPreview = (v: SceneVoice) => {
+    stopPreview();
+    if (previewId === v.id) return;
+    try {
+      const p = createAudioPlayer({ uri: absUrl(v.sampleUrl), headers: { 'ngrok-skip-browser-warning': 'true' } });
+      previewRef.current = p; setPreviewId(v.id);
+      const sub = p.addListener('playbackStatusUpdate', (s: any) => { if (s?.didJustFinish) { try { sub.remove(); } catch {} stopPreview(); } });
+      p.play();
+    } catch { stopPreview(); }
+  };
+
   const clearTick = () => { if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; } };
   const stopAll = () => {
     runRef.current = false; clearTick();
     try { Speech.stop(); } catch {}
     if (playerRef.current) { try { playerRef.current.remove(); } catch {} playerRef.current = null; }
+    if (previewRef.current) { try { previewRef.current.remove(); } catch {} previewRef.current = null; }
+    setPreviewId(null);
   };
 
   const startMyTimer = (sec: number) => {
@@ -137,7 +158,9 @@ export function ScenePartnerScreen() {
     if (custom && payload.some((t) => t.speaker === '상대' && !(t.text || '').trim())) { setErr('상대 대사를 직접 입력해주세요.'); return; }
     setBusy(true); setErr(null);
     try {
-      const r = await aiApi.scenePartner(payload, partner.trim(), custom ? { mode: 'custom', gender: custGender, age: custAge } : { mode: 'ai' });
+      const r = await aiApi.scenePartner(payload, partner.trim(), custom
+        ? { mode: 'custom', gender: custGender, age: custAge, voiceId: selVoice }
+        : { mode: 'ai', situation: situation.trim(), voiceId: selVoice });
       if (!r.ok) { setErr(r.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.'); return; }
       // 내 대사 시간(초)을 result 순서에 맞춰 저장 (payload=turns=result 동일 순서)
       secListRef.current = turns.map((t) => (t.speaker === '나' ? clampSec(t.sec ?? autoSec(t.text)) : 0));
@@ -147,7 +170,7 @@ export function ScenePartnerScreen() {
     } catch (e: any) {
       setErr(e?.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally { setBusy(false); }
-  }, [turns, partner, sceneMode, custGender, custAge, refreshLib]);
+  }, [turns, partner, sceneMode, custGender, custAge, situation, selVoice, refreshLib]);
 
   const input = { borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: color.ink, fontFamily: font.m, backgroundColor: color.white } as const;
 
@@ -191,6 +214,37 @@ export function ScenePartnerScreen() {
         </View>
       )}
 
+      {/* 상대 목소리 미리듣기·선택 (미리듣기는 무료) */}
+      <View style={{ backgroundColor: color.surf, borderRadius: radius.card, padding: 12, gap: 8 }}>
+        <Pressable onPress={() => setVoiceOpen((o) => { const n = !o; if (!n) stopPreview(); return n; })} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub }}>🔊 상대 목소리 {selVoice ? '· 직접 고름' : sceneMode === 'ai' ? '· AI 자동 추천' : '· 자동'}</Text>
+          <Text style={{ fontFamily: font.b, fontSize: 13, color: color.blue }}>{voiceOpen ? '닫기' : '미리듣고 고르기'}</Text>
+        </Pressable>
+        {voiceOpen && (
+          <View style={{ gap: 5 }}>
+            {sceneMode === 'ai' && (
+              <Pressable onPress={() => setSelVoice('')} style={{ borderWidth: 1, borderColor: selVoice === '' ? color.blue : color.inputLine, backgroundColor: selVoice === '' ? color.blueBg : color.white, borderRadius: radius.card, paddingVertical: 10, paddingHorizontal: 12 }}>
+                <Text style={{ fontFamily: font.b, fontSize: 13, color: selVoice === '' ? color.blue : color.ink }}>🤖 AI 자동 추천 (상황·인물에 맞게){selVoice === '' ? ' · 선택됨 ✓' : ''}</Text>
+              </Pressable>
+            )}
+            {voices.map((v) => {
+              const on = selVoice === v.id;
+              const ageK = v.age === 'young' ? '젊음' : v.age === 'old' ? '노년' : '중년';
+              return (
+                <View key={v.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.card, paddingVertical: 8, paddingLeft: 8, paddingRight: 12 }}>
+                  <Pressable onPress={() => playPreview(v)} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: previewId === v.id ? color.blue : color.surf, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 14, color: previewId === v.id ? color.white : color.ink }}>{previewId === v.id ? '■' : '▶'}</Text></Pressable>
+                  <Pressable onPress={() => setSelVoice(v.id)} style={{ flex: 1 }}>
+                    <Text style={{ fontFamily: font.b, fontSize: 13.5, color: color.ink }}>{v.traits}</Text>
+                    <Text style={{ fontFamily: font.r, fontSize: 11.5, color: color.sub2, marginTop: 1 }}>{v.gender} · {ageK}</Text>
+                  </Pressable>
+                  {on && <Text style={{ fontFamily: font.b, fontSize: 12, color: color.blue }}>선택됨 ✓</Text>}
+                </View>
+              );
+            })}
+          </View>
+        )}
+      </View>
+
       {savedScenes.length > 0 && (
         <View>
           <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>저장된 장면 불러오기 (재연습은 무제한)</Text>
@@ -210,10 +264,16 @@ export function ScenePartnerScreen() {
       )}
 
       {sceneMode === 'ai' && (
-        <View>
-          <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (선택 — 성별·나이에 맞는 보이스가 나와요)</Text>
-          <TextInput value={partner} onChangeText={setPartner} placeholder="예: 늙고 병든 왕 / 어린 딸 / 헤어진 연인" placeholderTextColor={color.faint} style={input} maxLength={60} />
-        </View>
+        <>
+          <View>
+            <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (구체적일수록 좋아요)</Text>
+            <TextInput value={partner} onChangeText={setPartner} placeholder="예: 병들어 힘없지만 위엄 있는 노년의 왕" placeholderTextColor={color.faint} style={input} maxLength={80} />
+          </View>
+          <View>
+            <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>이 장면은 어떤 상황인가요? ⭐ (대사 정확도를 크게 높여요)</Text>
+            <TextInput value={situation} onChangeText={setSituation} placeholder="관계·무슨 일이 벌어지는지·감정의 흐름. 예: 유학을 반대하던 병든 엄마가 끝내 딸을 위해 보내주기로 하는 장면" placeholderTextColor={color.faint} style={[input, { minHeight: 76, textAlignVertical: 'top' }]} multiline maxLength={500} />
+          </View>
+        </>
       )}
       <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginTop: 2 }}>장면 대본</Text>
       {turns.map((t) => (
