@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Linking, AppState } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen } from '../components/kit';
@@ -8,7 +8,7 @@ import { VideoUploadForm } from '../components/VideoUploadForm';
 import { DietUploadForm } from '../components/DietUploadForm';
 import { Icon } from '../components/Icon';
 import { color, font, radius, space, shadow } from '../theme/tokens';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../AuthContext';
 import { sessionsApi, contentApi, achievementsApi, dietApi, practiceJournalApi, gamificationApi, SubmissionKind } from '../services/api';
 import { pickMedia } from '../services/upload';
@@ -42,14 +42,12 @@ export function PracticeV2Screen() {
       baseRef.current = todayData.todaySeconds;
     }
   }, [todayData]);
+  const runningRef = useRef(false);
+  useEffect(() => { runningRef.current = running; }, [running]);
   useEffect(() => { if (!running) return; const t = setInterval(() => setSec((s) => s + 1), 1000); return () => clearInterval(t); }, [running]);
-  // 실행→정지 전환 시, baseline 이후 늘어난 만큼만 로깅(최신 secRef 참조 → 이중집계/레이스 방지).
-  useEffect(() => {
-    if (running) {
-      startedRef.current = true;
-      baseRef.current = secRef.current; // 시작 시점 baseline 확정
-      return;
-    }
+
+  // baseline 이후 늘어난 연습초를 서버에 기록(중복/레이스 방지). running 여부와 무관하게 호출 가능.
+  const flushElapsed = useRef(() => {
     const base = baseRef.current ?? secRef.current;
     const elapsed = secRef.current - base;
     if (elapsed <= 0) return;
@@ -57,8 +55,20 @@ export function PracticeV2Screen() {
     sessionsApi.log(elapsed, 'timer')
       .then(() => { qc.invalidateQueries({ queryKey: ['sessions'] }); qc.invalidateQueries({ queryKey: ['gamification'] }); })
       .catch(() => {});
+  });
+
+  // 시작 시 baseline 확정 / 일시정지 시 flush
+  useEffect(() => {
+    if (running) { startedRef.current = true; baseRef.current = secRef.current; return; }
+    flushElapsed.current();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [running]);
+
+  // 앱 백그라운드 전환·화면 언마운트(탭 이동·종료) 시에도 진행분 flush → '정지 안 하고 닫으면 0' 유실 방지
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (st) => { if (st !== 'active' && runningRef.current) flushElapsed.current(); });
+    return () => { sub.remove(); flushElapsed.current(); };
+  }, []);
   const mm = String(Math.floor(sec / 60)).padStart(2, '0'), ss = String(sec % 60).padStart(2, '0');
   const off = RING_C * (1 - Math.min(sec / 3600, 1));
   return (
@@ -131,16 +141,18 @@ export function LearnScreen() {
   const q = quiz?.question ?? null;
   const options = q?.options ?? [];
 
+  const [answering, setAnswering] = useState(false);
   const onPick = (i: number) => {
-    if (ans !== null || !q) return;
-    setAns(i);
+    if (ans !== null || !q || answering) return;
+    setAns(i); setAnswering(true);
     contentApi.quizAnswer(q.id, i)
       .then((r) => {
         setAnswerIdx(r.answerIndex);
         setExplain(r.explanation ?? null);
         qc.invalidateQueries({ queryKey: ['gamification'] });
       })
-      .catch(() => {});
+      .catch(() => { setAns(null); Alert.alert('채점 실패', '잠시 후 다시 시도해주세요.'); })  // 실패 시 되돌려 재시도 가능
+      .finally(() => setAnswering(false));
   };
 
   const answered = ans !== null;
@@ -156,9 +168,15 @@ export function LearnScreen() {
   const media = mediaData ?? [];
 
   // 실제 배정된 면접 질문만. 없으면 특정 질문을 지어내지 않고 자유 주제로 안내.
+  const [watched, setWatched] = useState<Set<string>>(new Set());
 
-  const watch = (id: string) => {
-    contentApi.watchMedia(id).then(() => qc.invalidateQueries({ queryKey: ['gamification'] })).catch(() => {});
+  // 시청각 자료 탭: 재생 URL이 있어야만 실제로 재생 + 점수. URL이 없으면(아직 미등록) '준비 중' 안내만.
+  const watch = (m: { id: string; url?: string | null }) => {
+    if (!m.url) { Alert.alert('준비 중', '아직 볼 수 있는 자료가 아니에요. 곧 제공될 예정이에요.'); return; }
+    Linking.openURL(m.url).catch(() => Alert.alert('열기 실패', '자료를 열지 못했어요.'));
+    contentApi.watchMedia(m.id)
+      .then((r) => { if ((r?.granted ?? 0) > 0) setWatched((s) => new Set(s).add(m.id)); qc.invalidateQueries({ queryKey: ['gamification'] }); })
+      .catch(() => {});
   };
 
   return (
@@ -182,6 +200,7 @@ export function LearnScreen() {
                     </Pressable>
                   );
                 })}
+                {answering && <Text style={{ fontFamily: font.m, fontSize: 12.5, color: color.sub2, marginTop: 2 }}>채점 중…</Text>}
                 {answered && answerIdx >= 0 && <Text style={{ fontFamily: font.m, fontSize: 12.5, color: isCorrect ? color.success : color.danger, marginTop: 2 }}>{isCorrect ? '정답! +5 👏' : `아쉬워요 — 정답은 ${options[answerIdx] ?? ''}`}{explain ? ` · ${explain}` : ''}</Text>}
               </>
             ) : (
@@ -195,7 +214,7 @@ export function LearnScreen() {
             {reading.length > 0 ? reading.map((r, i) => {
               const c = readingColors[i % readingColors.length];
               return (
-                <V2Row key={r.id} first={i === 0} icon="book" iconBg={c.iconBg} iconColor={c.iconColor} title={r.title} sub={r.sub ?? `${r.minutes}분`} right={<Icon name="chevron-right" size={18} color={color.faint} />} />
+                <V2Row key={r.id} first={i === 0} icon="book" iconBg={c.iconBg} iconColor={c.iconColor} title={r.title} sub={r.sub ?? `${r.minutes}분`} onPress={() => nav.navigate('readingDetail', { id: r.id, title: r.title, sub: r.sub })} right={<Icon name="chevron-right" size={18} color={color.faint} />} />
               );
             }) : (
               <View style={{ padding: 20, alignItems: 'center' }}><Text style={{ fontFamily: font.m, fontSize: 13, color: color.sub2 }}>배정된 읽을거리가 없어요</Text></View>
@@ -219,9 +238,14 @@ export function LearnScreen() {
 
         <Section title="시청각 자료" right="이번 주 배정">
           <Card>
-            {media.length > 0 ? media.map((m, i) => (
-              <V2Row key={m.id} first={i === 0} icon="player-play" iconBg={color.dangerBg} iconColor={color.danger} title={m.title} sub={m.sub ?? m.duration ?? ''} onPress={() => watch(m.id)} right={<Text style={{ fontFamily: font.b, fontSize: 13.5, color: color.amber }}>+5 👏</Text>} />
-            )) : (
+            {media.length > 0 ? media.map((m, i) => {
+              const done = watched.has(m.id);
+              return (
+              <V2Row key={m.id} first={i === 0} icon="player-play" iconBg={done ? color.successBg : color.dangerBg} iconColor={done ? color.success : color.danger} title={m.title} sub={m.sub ?? m.duration ?? ''} onPress={() => watch(m)} right={
+                <Text style={{ fontFamily: font.b, fontSize: 13, color: done ? color.success : m.url ? color.amber : color.sub2 }}>{done ? '시청 완료 ✓' : m.url ? '+5 👏' : '준비 중'}</Text>
+              } />
+              );
+            }) : (
               <View style={{ padding: 20, alignItems: 'center' }}><Text style={{ fontFamily: font.m, fontSize: 13, color: color.sub2 }}>이번 주 배정된 자료가 없어요</Text></View>
             )}
           </Card>
@@ -237,13 +261,22 @@ const SUBMIT_KIND: Record<string, SubmissionKind> = {
   '연습 일지': 'journal',
   '식단 기록': 'diet',
 };
+const SUBMIT_TYPES = [
+  { label: '연기 영상', sub: '자유연기 · 지정연기 · 무용', icon: 'video', bg: color.dangerBg, fg: color.danger },
+  { label: '연습 일지', sub: '기록 작성 · 파일 첨부', icon: 'notebook', bg: color.successBg, fg: color.success },
+  { label: '식단 기록', sub: '사진 + 메모', icon: 'salad', bg: color.amberBg, fg: color.amber },
+];
+// 홈/딥링크에서 navigate('submit', { preset }) 로 초기 제출 유형 지정
+const PRESET_TO_TYPE: Record<string, string> = { video: '연기 영상', journal: '연습 일지', diet: '식단 기록' };
 
 export function SubmitScreen() {
   const qc = useQueryClient();
   const nav = useNavigation<any>();
+  const route = useRoute<any>();
   const { user } = useAuth();
   const { upload } = useUploads();
-  const [type, setType] = useState<{ label: string; sub: string; icon: string; bg: string; fg: string }>({ label: '연기 영상', sub: '자유연기 · 지정연기 · 무용', icon: 'video', bg: color.dangerBg, fg: color.danger });
+  const _preset = route.params?.preset as string | undefined;
+  const [type, setType] = useState(SUBMIT_TYPES.find((t) => t.label === PRESET_TO_TYPE[_preset ?? '']) ?? SUBMIT_TYPES[0]);
   const [note, setNote] = useState('');
   const [attachUrl, setAttachUrl] = useState<string | null>(null);
   const [attaching, setAttaching] = useState(false);
@@ -256,11 +289,7 @@ export function SubmitScreen() {
   const kind = SUBMIT_KIND[type.label] ?? 'video';
   const isVideo = kind === 'video';
   const isDiet = kind === 'diet';
-  const TYPES = [
-    { label: '연기 영상', sub: '자유연기 · 지정연기 · 무용', icon: 'video', bg: color.dangerBg, fg: color.danger },
-    { label: '연습 일지', sub: '기록 작성 · 파일 첨부', icon: 'notebook', bg: color.successBg, fg: color.success },
-    { label: '식단 기록', sub: '사진 + 메모', icon: 'salad', bg: color.amberBg, fg: color.amber },
-  ];
+  const TYPES = SUBMIT_TYPES;
 
   // 연습 일지 저장(학생 연습일지 + 선생님 알림). 영상은 인라인 VideoUploadForm, 식단은 식단화면.
   const saveJournal = async () => {

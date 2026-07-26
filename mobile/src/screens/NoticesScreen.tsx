@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Pressable, TextInput, Alert, KeyboardAvoidingView, Platform } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen, Scroll, BackHeader, ListRow, Tag, Empty, Cta, FlowTitle } from '../components/kit';
 import { Icon } from '../components/Icon';
@@ -16,6 +16,7 @@ const fmtDate = (s: string) => (s || '').slice(0, 10).replace(/-/g, '.');
 
 export function NoticesScreen() {
   const nav = useNavigation<any>();
+  const route = useRoute<any>();
   const { user } = useAuth();
   const canWrite = user?.role === UserRole.DIRECTOR;
   const { classes } = useAppData();
@@ -24,7 +25,7 @@ export function NoticesScreen() {
   const { data: notices = [], isLoading } = useQuery({ queryKey: ['notices'], queryFn: () => noticeApi.list() });
   useDataRefresh(['notices'], () => qc.invalidateQueries({ queryKey: ['notices'] }));
 
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(route.params?.focusId ?? null);  // 홈에서 특정 공지 탭 → 바로 열기
   const [editing, setEditing] = useState<Notice | 'new' | null>(null);
 
   const targetLabel = (n: Notice) => {

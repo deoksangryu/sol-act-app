@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, ScrollView, Pressable } from 'react-native';
+import { View, Text, ScrollView, Pressable, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen } from '../components/kit';
@@ -85,6 +85,15 @@ export function HomeScreen() {
     qc.invalidateQueries({ queryKey: ['achievements'] });
   });
 
+  // 서버/네트워크 장애 감지 — 이 앱은 로컬 서버+ngrok이라 꺼지면 전 섹션이 '빈 데이터'처럼 보인다.
+  // 빈 상태와 장애를 구별해 배너로 명시하고, 당겨서 새로고침으로 복구 수단을 제공.
+  const anyError = g.isError || routinesQ.isError || summaryQ.isError || examsQ.isError;
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try { await qc.invalidateQueries(); } finally { setRefreshing(false); }
+  };
+
   const gData = g.data;
   const clapsStr = gData ? comma(gData.clapsBalance) : (g.isLoading ? '—' : '0');
   const streakStr = gData ? `${gData.streakDays}일째` : (g.isLoading ? '—' : '0일째');
@@ -151,7 +160,13 @@ export function HomeScreen() {
     <Screen bg={color.bg} edges={['top']}>
       <PageHeader eyebrow={kstTodayLabel()} title={`${nm}님,\n오늘 연습 시작해볼까요?`} right={ddayChip} bell />
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={color.blue} />}>
+        {anyError && (
+          <Pressable onPress={onRefresh} style={{ marginHorizontal: space.screenX, marginTop: 12, backgroundColor: color.dangerBg, borderRadius: radius.card, paddingVertical: 13, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+            <Text style={{ fontFamily: font.sb, fontSize: 13, color: color.danger }}>연결에 문제가 있어요 · 탭하여 다시 시도</Text>
+          </Pressable>
+        )}
         {fbSub && showFb && (
           <FeedbackBanner
             title="선생님의 피드백이 도착했어요"
@@ -173,7 +188,7 @@ export function HomeScreen() {
                   title={n.title}
                   sub={(n.date || '').slice(0, 10)}
                   right={n.important ? <Text style={{ fontFamily: font.b, fontSize: 11.5, color: color.danger }}>중요</Text> : undefined}
-                  onPress={() => nav.navigate('notices')}
+                  onPress={() => nav.navigate('notices', { focusId: n.id })}
                 />
               ))}
             </Card>
@@ -219,9 +234,9 @@ export function HomeScreen() {
 
         <Section title="오늘의 미션">
           <Card>
-            <V2Row first icon="video" iconBg={color.dangerBg} iconColor={color.danger} title="연기 영상 1개 제출" sub="오늘 연습을 영상으로 남겨요" right={vidDone ? doneTag : <Text style={rewardTxt}>+15 👏</Text>} onPress={() => nav.navigate('submit')} />
+            <V2Row first icon="video" iconBg={color.dangerBg} iconColor={color.danger} title="연기 영상 1개 제출" sub="오늘 연습을 영상으로 남겨요" right={vidDone ? doneTag : <Text style={rewardTxt}>+15 👏</Text>} onPress={() => nav.navigate('submit', { preset: 'video' })} />
             <V2Row icon="book" iconBg={color.blueBg} iconColor={color.blue} title="오늘의 상식 퀴즈" sub="연극사 · 1문제" right={quizDone ? doneTag : <Text style={rewardTxt}>+5 👏</Text>} onPress={() => nav.navigate('learn')} />
-            <V2Row icon="notebook" iconBg={color.successBg} iconColor={color.success} title="연습 일지 쓰기" sub="오늘 잘된 점 한 줄이면 충분해요" right={jrnDone ? doneTag : <Text style={rewardTxt}>+5 👏</Text>} onPress={() => nav.navigate('submit')} />
+            <V2Row icon="notebook" iconBg={color.successBg} iconColor={color.success} title="연습 일지 쓰기" sub="오늘 잘된 점 한 줄이면 충분해요" right={jrnDone ? doneTag : <Text style={rewardTxt}>+5 👏</Text>} onPress={() => nav.navigate('submit', { preset: 'journal' })} />
           </Card>
         </Section>
 

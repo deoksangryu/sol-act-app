@@ -13,6 +13,7 @@ import { ExchangeScreen } from '../screens/ExchangeScreen';
 import { AdminStudentDetail } from '../screens/AdminStudentDetail';
 import { AIReviseScreen } from '../screens/AIReviseScreen';
 import { ScenePartnerScreen } from '../screens/ScenePartnerScreen';
+import { ReadingDetailScreen } from '../screens/ReadingDetailScreen';
 import { MockTestScreen } from '../screens/MockTestScreen';
 import { MockTestVideosScreen } from '../screens/MockTestVideosScreen';
 import { MockTestAdminScreen } from '../screens/MockTestAdminScreen';
@@ -46,6 +47,8 @@ export function MainStack() {
       <Stack.Screen name="aiRevise" component={AIReviseScreen} />
       {/* AI 상대역 연습(학생): 내 대사+상대 등장 표시 → AI가 상대 대사 채움, 숨긴 채 TTS로 듣고 반응 */}
       <Stack.Screen name="scenePartner" component={ScenePartnerScreen} />
+      {/* 작품 읽을거리 상세(학생): 배움 탭 읽을거리 카드 → 본문 열람 */}
+      <Stack.Screen name="readingDetail" component={ReadingDetailScreen} />
       {/* 모의테스트 — 학생: 내 목록+음원 업로드 / 원장: 생성·순번·음원수집·영상배포·공지 */}
       <Stack.Screen name="mockTest" component={MockTestScreen} />
       <Stack.Screen name="mockTestVideos" component={MockTestVideosScreen} />

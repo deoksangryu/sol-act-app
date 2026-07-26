@@ -521,7 +521,8 @@ export const examsApi = {
 // === Learn Content (배움) — v2 ===
 export interface QuizView { id: string; category: string; question: string; options: string[] }
 export interface QuizToday { question: QuizView | null; answered: boolean; chosenIndex?: number; correct?: boolean; answerIndex?: number; explanation?: string | null }
-export interface ReadingView { id: string; title: string; sub?: string | null; minutes: number }
+export interface ReadingView { id: string; title: string; sub?: string | null; minutes: number; hasBody?: boolean }
+export interface ReadingDetail { id: string; title: string; sub?: string | null; minutes: number; body?: string | null }
 export interface MediaView { id: string; title: string; sub?: string | null; url?: string | null; duration?: string | null }
 export interface InterviewView { id: string; question: string; category?: string | null }
 export const contentApi = {
@@ -530,6 +531,7 @@ export const contentApi = {
     return apiRequest('/api/content/quiz/answer', { method: 'POST', body: jsonBody({ questionId, chosenIndex }) });
   },
   reading(): Promise<ReadingView[]> { return apiRequest<ReadingView[]>('/api/content/reading'); },
+  readingDetail(id: string): Promise<ReadingDetail> { return apiRequest<ReadingDetail>(`/api/content/reading/${id}`); },
   media(): Promise<MediaView[]> { return apiRequest<MediaView[]>('/api/content/media'); },
   watchMedia(id: string): Promise<{ granted: number }> { return apiRequest(`/api/content/media/${id}/watch`, { method: 'POST' }); },
   interviewRandom(): Promise<{ question: InterviewView | null }> { return apiRequest('/api/content/interview/random'); },

@@ -113,6 +113,9 @@ export function AIReviseScreen() {
 
           {result && result.ok && (
             <View style={{ gap: 12, marginTop: 4 }}>
+              {!!result.revisionId && (
+                <Text style={{ fontFamily: font.m, fontSize: 12, color: color.success, textAlign: 'center' }}>✓ 지난 첨삭에 저장됐어요 · 나가도 '📂 지난 첨삭'에서 다시 볼 수 있어요</Text>
+              )}
               {!!result.summary && (
                 <View style={{ backgroundColor: color.blueBg, borderRadius: radius.card, padding: 14 }}>
                   <Text style={{ fontFamily: font.b, fontSize: 14, lineHeight: 21, color: color.blue }}>💡 {result.summary}</Text>

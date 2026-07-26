@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, ScrollView } from 'react-native';
+import { View, Text, TextInput, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform, Modal, ScrollView, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import * as Speech from 'expo-speech';
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
@@ -28,6 +28,7 @@ export function ScenePartnerScreen() {
   const [voices, setVoices] = useState<SceneVoice[]>([]);
   const [selVoice, setSelVoice] = useState('');          // '' = AI 자동/랜덤
   const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null);
   const previewRef = useRef<AudioPlayer | null>(null);
   const [step, setStep] = useState(1);          // 작성 위저드 1·2·3
   const [libOpen, setLibOpen] = useState(false); // 저장 장면 다이얼로그
@@ -71,17 +72,34 @@ export function ScenePartnerScreen() {
   };
   const deleteScene = async (id: string) => { try { await sceneApi.remove(id); refreshLib(); } catch {} };
 
+  const handleBack = () => {
+    // 작성 중 초안(상대/상황 입력)이 있으면 확인 후 나가기 — 뒤로가기로 공들인 초안 유실 방지
+    if (mode === 'edit' && (partner.trim() !== '' || situation.trim() !== '')) {
+      Alert.alert('나가시겠어요?', '작성 중인 내용은 저장되지 않아요.', [
+        { text: '계속 작성', style: 'cancel' },
+        { text: '나가기', style: 'destructive', onPress: () => { stopAll(); nav.goBack(); } },
+      ]);
+      return;
+    }
+    stopAll(); nav.goBack();
+  };
+
   useEffect(() => { voicesApi.list().then(setVoices).catch(() => {}); }, []);
-  const stopPreview = () => { if (previewRef.current) { try { previewRef.current.remove(); } catch {} previewRef.current = null; } setPreviewId(null); };
+  const stopPreview = () => { if (previewRef.current) { try { previewRef.current.remove(); } catch {} previewRef.current = null; } setPreviewId(null); setPreviewLoading(null); };
   const playPreview = (v: SceneVoice) => {
+    const wasPlaying = previewId === v.id;
     stopPreview();
-    if (previewId === v.id) return;
+    if (wasPlaying) return;
     try {
+      setPreviewLoading(v.id);   // 원격 오디오 로딩 중 표시(몇 초 걸릴 수 있음)
       const p = createAudioPlayer({ uri: absUrl(v.sampleUrl), headers: { 'ngrok-skip-browser-warning': 'true' } });
       previewRef.current = p; setPreviewId(v.id);
-      const sub = p.addListener('playbackStatusUpdate', (s: any) => { if (s?.didJustFinish) { try { sub.remove(); } catch {} stopPreview(); } });
+      const sub = p.addListener('playbackStatusUpdate', (s: any) => {
+        if (s?.playing) setPreviewLoading(null);
+        if (s?.didJustFinish) { try { sub.remove(); } catch {} stopPreview(); }
+      });
       p.play();
-    } catch { stopPreview(); }
+    } catch { setPreviewLoading(null); stopPreview(); Alert.alert('미리듣기 실패', '샘플을 재생하지 못했어요.'); }
   };
 
   const clearTick = () => { if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; } };
@@ -239,7 +257,7 @@ export function ScenePartnerScreen() {
           const on = selVoice === v.id;
           return (
             <View key={v.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.card, paddingVertical: 8, paddingLeft: 8, paddingRight: 12 }}>
-              <Pressable onPress={() => playPreview(v)} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: previewId === v.id ? color.blue : color.surf, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 14, color: previewId === v.id ? color.white : color.ink }}>{previewId === v.id ? '■' : '▶'}</Text></Pressable>
+              <Pressable onPress={() => playPreview(v)} hitSlop={6} style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: previewId === v.id ? color.blue : color.surf, alignItems: 'center', justifyContent: 'center' }}>{previewLoading === v.id ? <ActivityIndicator size="small" color={color.blue} /> : <Text style={{ fontSize: 14, color: previewId === v.id ? color.white : color.ink }}>{previewId === v.id ? '■' : '▶'}</Text>}</Pressable>
               <Pressable onPress={() => setSelVoice(v.id)} style={{ flex: 1 }}>
                 <Text style={{ fontFamily: font.b, fontSize: 13.5, color: color.ink }}>{v.traits}</Text>
                 <Text style={{ fontFamily: font.r, fontSize: 11.5, color: color.sub2, marginTop: 1 }}>{v.gender} · {ageK(v.age)}</Text>
@@ -393,7 +411,7 @@ export function ScenePartnerScreen() {
 
   return (
     <Screen edges={['top']}>
-      <BackHeader title="AI 상대역 연습" onBack={() => { stopAll(); nav.goBack(); }} />
+      <BackHeader title="AI 상대역 연습" onBack={handleBack} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }} keyboardVerticalOffset={8}>
         <Scroll contentStyle={{ paddingBottom: 48 }}>{mode === 'edit' ? renderEdit() : renderPractice()}</Scroll>
       </KeyboardAvoidingView>

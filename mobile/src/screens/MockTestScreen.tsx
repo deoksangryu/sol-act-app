@@ -6,28 +6,43 @@ import { Screen, Scroll, BackHeader } from '../components/kit';
 import { Card } from '../components/gamify';
 import { color, font, radius, space } from '../theme/tokens';
 import { mockTestApi, MyMockTest } from '../services/api';
-import { pickAudioFile, uploadFileUri } from '../services/upload';
+import { pickAudioFile } from '../services/upload';
+import { useUploads } from '../services/UploadContext';
 
 // 학생 모의테스트: 내가 참여하는 모의테스트 목록 → 순번 확인 + 음원(파일) 업로드 + 내 영상 보기.
 export function MockTestScreen() {
   const nav = useNavigation<any>();
   const qc = useQueryClient();
   const [uploadingId, setUploadingId] = useState<string | null>(null);
+  const { upload } = useUploads();
   const { data, isLoading } = useQuery({ queryKey: ['mockTests', 'mine'], queryFn: () => mockTestApi.mine(), staleTime: 20000 });
   const items = data ?? [];
 
-  const uploadAudio = async (mt: MyMockTest) => {
+  const doUploadAudio = async (mt: MyMockTest) => {
     try {
       const media = await pickAudioFile();
       if (!media) return;
       setUploadingId(mt.id);
-      await uploadFileUri(media, { subfolder: 'mock_tests', targetType: 'mock_test_audio', targetId: mt.id });
+      // 전역 업로드 HUD 경유(원장 영상 업로드와 동일 경로) — 진행 표시 + 실패 안내 통일
+      await upload(`${mt.title} 음원`, media, { subfolder: 'mock_tests', targetType: 'mock_test_audio', targetId: mt.id });
       await qc.invalidateQueries({ queryKey: ['mockTests', 'mine'] });
       Alert.alert('완료', '음원을 제출했어요.');
     } catch (e: any) {
       Alert.alert('실패', e?.message || '음원을 올리지 못했어요');
     } finally {
       setUploadingId(null);
+    }
+  };
+
+  const uploadAudio = (mt: MyMockTest) => {
+    // 이미 제출한 경우엔 교체 전 확인(다른 파괴적 동작과 일관 — 실수 덮어쓰기 방지)
+    if (mt.myStatus === 'submitted') {
+      Alert.alert('음원 다시 올리기', '기존 제출 음원을 새 파일로 교체할까요?', [
+        { text: '취소', style: 'cancel' },
+        { text: '교체', style: 'destructive', onPress: () => doUploadAudio(mt) },
+      ]);
+    } else {
+      doUploadAudio(mt);
     }
   };
 
