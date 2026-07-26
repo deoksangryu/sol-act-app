@@ -523,7 +523,13 @@ export interface QuizView { id: string; category: string; question: string; opti
 export interface QuizToday { question: QuizView | null; answered: boolean; chosenIndex?: number; correct?: boolean; answerIndex?: number; explanation?: string | null }
 export interface ReadingView { id: string; title: string; sub?: string | null; minutes: number; hasBody?: boolean }
 export interface ReadingDetail { id: string; title: string; sub?: string | null; minutes: number; body?: string | null }
-export interface MediaView { id: string; title: string; sub?: string | null; url?: string | null; duration?: string | null }
+export interface MediaView { id: string; title: string; sub?: string | null; url?: string | null; kind?: 'youtube' | 'video'; duration?: string | null }
+export interface QuoteView { id: string; text: string; source?: string | null }
+// 원장 콘텐츠 관리용
+export interface QuizAdmin { id: string; category: string; question: string; options: string[]; answerIndex: number; explanation?: string | null; active?: boolean }
+export interface ReadingAdmin { id: string; title: string; sub?: string | null; minutes: number; body?: string | null }
+export interface MediaAdmin { id: string; title: string; sub?: string | null; url?: string | null; kind: 'youtube' | 'video'; duration?: string | null }
+export interface QuoteAdmin { id: string; text: string; source?: string | null; active?: boolean }
 export interface InterviewView { id: string; question: string; category?: string | null }
 export const contentApi = {
   quizToday(): Promise<QuizToday> { return apiRequest<QuizToday>('/api/content/quiz/today'); },
@@ -535,6 +541,31 @@ export const contentApi = {
   media(): Promise<MediaView[]> { return apiRequest<MediaView[]>('/api/content/media'); },
   watchMedia(id: string): Promise<{ granted: number }> { return apiRequest(`/api/content/media/${id}/watch`, { method: 'POST' }); },
   interviewRandom(): Promise<{ question: InterviewView | null }> { return apiRequest('/api/content/interview/random'); },
+  quoteToday(): Promise<{ quote: QuoteView | null }> { return apiRequest('/api/content/quote/today'); },
+};
+
+// 원장 콘텐츠 관리 — 상식퀴즈·읽을거리·시청각·명대사 CRUD(전부 원장 전용)
+export const contentAdminApi = {
+  // 상식 퀴즈
+  quizList(): Promise<QuizAdmin[]> { return apiRequest('/api/content/admin/quiz'); },
+  quizCreate(b: Omit<QuizAdmin, 'id' | 'active'>): Promise<{ id: string }> { return apiRequest('/api/content/admin/quiz', { method: 'POST', body: jsonBody({ category: b.category, question: b.question, options: b.options, answer_index: b.answerIndex, explanation: b.explanation ?? '' }) }); },
+  quizUpdate(id: string, b: Omit<QuizAdmin, 'id' | 'active'>): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/quiz/${id}`, { method: 'PUT', body: jsonBody({ category: b.category, question: b.question, options: b.options, answer_index: b.answerIndex, explanation: b.explanation ?? '' }) }); },
+  quizDelete(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/quiz/${id}`, { method: 'DELETE' }); },
+  // 작품 읽을거리
+  readingList(): Promise<ReadingAdmin[]> { return apiRequest('/api/content/admin/reading'); },
+  readingCreate(b: Omit<ReadingAdmin, 'id'>): Promise<{ id: string }> { return apiRequest('/api/content/admin/reading', { method: 'POST', body: jsonBody(b) }); },
+  readingUpdate(id: string, b: Omit<ReadingAdmin, 'id'>): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/reading/${id}`, { method: 'PUT', body: jsonBody(b) }); },
+  readingDelete(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/reading/${id}`, { method: 'DELETE' }); },
+  // 시청각 자료
+  mediaList(): Promise<MediaAdmin[]> { return apiRequest('/api/content/admin/media'); },
+  mediaCreate(b: Omit<MediaAdmin, 'id'>): Promise<{ id: string }> { return apiRequest('/api/content/admin/media', { method: 'POST', body: jsonBody(b) }); },
+  mediaUpdate(id: string, b: Omit<MediaAdmin, 'id'>): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/media/${id}`, { method: 'PUT', body: jsonBody(b) }); },
+  mediaDelete(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/media/${id}`, { method: 'DELETE' }); },
+  // 오늘의 한 줄
+  quoteList(): Promise<QuoteAdmin[]> { return apiRequest('/api/content/admin/quote'); },
+  quoteCreate(b: { text: string; source?: string }): Promise<{ id: string }> { return apiRequest('/api/content/admin/quote', { method: 'POST', body: jsonBody(b) }); },
+  quoteUpdate(id: string, b: { text: string; source?: string }): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/quote/${id}`, { method: 'PUT', body: jsonBody(b) }); },
+  quoteDelete(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/quote/${id}`, { method: 'DELETE' }); },
 };
 
 // === Routines (오늘의 루틴) — v2 ===

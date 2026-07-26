@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, Linking, AppState } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, Alert, KeyboardAvoidingView, Platform, AppState } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Screen } from '../components/kit';
@@ -33,6 +33,8 @@ export function PracticeV2Screen() {
   const startedRef = useRef(false);            // 한 번이라도 시작했으면 재시딩 금지(레이스 방지)
   useEffect(() => { secRef.current = sec; }, [sec]);
   const { data: todayData } = useQuery({ queryKey: ['sessions', 'today'], queryFn: () => sessionsApi.today(), staleTime: 60000 });
+  const { data: quoteData } = useQuery({ queryKey: ['content', 'quote'], queryFn: () => contentApi.quoteToday(), retry: false, staleTime: 60000 });
+  const quote = quoteData?.quote ?? null;
   // 오늘(한국 달력) 실제 누적 연습초로 1회만 초기화 — 사용자가 타이머를 시작한 뒤엔 절대 재시딩 안 함
   // (todayData 지연 도착이 진행/정지 상태를 덮어써 과다·과소집계하던 레이스 제거). running과 무관하게 todayData에만 반응.
   useEffect(() => {
@@ -103,12 +105,14 @@ export function PracticeV2Screen() {
           </Pressable>
         </Section>
 
-        <Section title="오늘의 한 줄" right="『갈매기』">
-          <Card style={{ padding: 20 }}>
-            <Text style={{ fontFamily: font.b, fontSize: 15.5, lineHeight: 26, color: color.ink }}>"난 갈매기… 아니, 그게 아니야.{'\n'}난 배우야."</Text>
-            <Text style={{ fontFamily: font.r, fontSize: 12.5, color: color.sub2, marginTop: 8 }}>니나 · 4막</Text>
-          </Card>
-        </Section>
+        {quote && (
+          <Section title="오늘의 한 줄" right={quote.source ?? undefined}>
+            <Card style={{ padding: 20 }}>
+              <Text style={{ fontFamily: font.b, fontSize: 15.5, lineHeight: 26, color: color.ink }}>{quote.text}</Text>
+              {!!quote.source && <Text style={{ fontFamily: font.r, fontSize: 12.5, color: color.sub2, marginTop: 8 }}>{quote.source}</Text>}
+            </Card>
+          </Section>
+        )}
       </ScrollView>
     </Screen>
   );
@@ -168,15 +172,11 @@ export function LearnScreen() {
   const media = mediaData ?? [];
 
   // 실제 배정된 면접 질문만. 없으면 특정 질문을 지어내지 않고 자유 주제로 안내.
-  const [watched, setWatched] = useState<Set<string>>(new Set());
 
-  // 시청각 자료 탭: 재생 URL이 있어야만 실제로 재생 + 점수. URL이 없으면(아직 미등록) '준비 중' 안내만.
-  const watch = (m: { id: string; url?: string | null }) => {
+  // 시청각 자료 탭: URL 있으면 인앱 재생화면(유튜브 임베드/업로드영상)으로, 없으면 '준비 중' 안내만.
+  const watch = (m: { id: string; title: string; url?: string | null; kind?: string }) => {
     if (!m.url) { Alert.alert('준비 중', '아직 볼 수 있는 자료가 아니에요. 곧 제공될 예정이에요.'); return; }
-    Linking.openURL(m.url).catch(() => Alert.alert('열기 실패', '자료를 열지 못했어요.'));
-    contentApi.watchMedia(m.id)
-      .then((r) => { if ((r?.granted ?? 0) > 0) setWatched((s) => new Set(s).add(m.id)); qc.invalidateQueries({ queryKey: ['gamification'] }); })
-      .catch(() => {});
+    nav.navigate('mediaPlayer', { id: m.id, title: m.title, url: m.url, kind: m.kind });
   };
 
   return (
@@ -238,14 +238,11 @@ export function LearnScreen() {
 
         <Section title="시청각 자료" right="이번 주 배정">
           <Card>
-            {media.length > 0 ? media.map((m, i) => {
-              const done = watched.has(m.id);
-              return (
-              <V2Row key={m.id} first={i === 0} icon="player-play" iconBg={done ? color.successBg : color.dangerBg} iconColor={done ? color.success : color.danger} title={m.title} sub={m.sub ?? m.duration ?? ''} onPress={() => watch(m)} right={
-                <Text style={{ fontFamily: font.b, fontSize: 13, color: done ? color.success : m.url ? color.amber : color.sub2 }}>{done ? '시청 완료 ✓' : m.url ? '+5 👏' : '준비 중'}</Text>
+            {media.length > 0 ? media.map((m, i) => (
+              <V2Row key={m.id} first={i === 0} icon="player-play" iconBg={color.dangerBg} iconColor={color.danger} title={m.title} sub={m.sub ?? m.duration ?? ''} onPress={() => watch(m)} right={
+                <Text style={{ fontFamily: font.b, fontSize: 13, color: m.url ? color.blue : color.sub2 }}>{m.url ? (m.kind === 'youtube' ? '📺 재생' : '▶ 재생') : '준비 중'}</Text>
               } />
-              );
-            }) : (
+            )) : (
               <View style={{ padding: 20, alignItems: 'center' }}><Text style={{ fontFamily: font.m, fontSize: 13, color: color.sub2 }}>이번 주 배정된 자료가 없어요</Text></View>
             )}
           </Card>

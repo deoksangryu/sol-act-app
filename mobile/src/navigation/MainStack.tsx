@@ -14,6 +14,8 @@ import { AdminStudentDetail } from '../screens/AdminStudentDetail';
 import { AIReviseScreen } from '../screens/AIReviseScreen';
 import { ScenePartnerScreen } from '../screens/ScenePartnerScreen';
 import { ReadingDetailScreen } from '../screens/ReadingDetailScreen';
+import { ContentAdminScreen } from '../screens/ContentAdminScreen';
+import { MediaPlayerScreen } from '../screens/MediaPlayerScreen';
 import { MockTestScreen } from '../screens/MockTestScreen';
 import { MockTestVideosScreen } from '../screens/MockTestVideosScreen';
 import { MockTestAdminScreen } from '../screens/MockTestAdminScreen';
@@ -49,6 +51,10 @@ export function MainStack() {
       <Stack.Screen name="scenePartner" component={ScenePartnerScreen} />
       {/* 작품 읽을거리 상세(학생): 배움 탭 읽을거리 카드 → 본문 열람 */}
       <Stack.Screen name="readingDetail" component={ReadingDetailScreen} />
+      {/* 원장 콘텐츠 관리: 상식퀴즈·읽을거리·시청각·명대사 등록/수정/삭제 */}
+      <Stack.Screen name="contentAdmin" component={ContentAdminScreen} />
+      {/* 시청각 자료 재생(학생): 유튜브 임베드 or 업로드 영상 */}
+      <Stack.Screen name="mediaPlayer" component={MediaPlayerScreen} />
       {/* 모의테스트 — 학생: 내 목록+음원 업로드 / 원장: 생성·순번·음원수집·영상배포·공지 */}
       <Stack.Screen name="mockTest" component={MockTestScreen} />
       <Stack.Screen name="mockTestVideos" component={MockTestVideosScreen} />

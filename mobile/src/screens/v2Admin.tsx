@@ -72,6 +72,7 @@ export function AdminDashScreen() {
             <V2Row first icon="notebook" iconBg={color.purpleBg} iconColor={color.purple} title="수업일지·출결 열람" sub="선생님 수업일지 확인·코멘트, 학생 일지 열람" right={<Icon name="chevron-right" size={18} color={color.faint} />} onPress={() => nav.navigate('classes')} />
             <V2Row icon="video" iconBg={color.dangerBg} iconColor={color.danger} title="학생 영상 리뷰" sub="전체 학생 영상 재생·피드백" right={<Icon name="chevron-right" size={18} color={color.faint} />} onPress={() => nav.navigate('videos')} />
             <V2Row icon="speakerphone" iconBg={color.blueBg} iconColor={color.blue} title="공지 관리" sub="학원 공지 작성·수정" right={<Icon name="chevron-right" size={18} color={color.faint} />} onPress={() => nav.navigate('notices')} />
+            <V2Row icon="book" iconBg={color.successBg} iconColor={color.success} title="콘텐츠 관리" sub="상식퀴즈·읽을거리·시청각(영상/유튜브)·오늘의 한 줄" right={<Icon name="chevron-right" size={18} color={color.faint} />} onPress={() => nav.navigate('contentAdmin')} />
           </Card>
         </Section>
 
