@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User, UserRole
-from app.models.scene import SceneRehearsal, AppSetting
+from app.models.scene import SceneRehearsal, AppSetting, InterviewRevision
 from app.utils.auth import get_current_user
 from app.utils.timezone import kst_day_start_utc
 from app.services import ai
@@ -121,7 +121,7 @@ class ScenePartnerReq(BaseModel):
 
 
 @router.post("/interview-revise")
-async def interview_revise(data: ReviseReq, current_user: User = Depends(get_current_user)):
+async def interview_revise(data: ReviseReq, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     q = (data.question or "").strip()[:1000]
     a = (data.answer or "").strip()
     if len(a) < 5:
@@ -129,7 +129,52 @@ async def interview_revise(data: ReviseReq, current_user: User = Depends(get_cur
     if len(a) > 2000:
         raise HTTPException(status_code=400, detail="답변이 너무 길어요(2000자 이내로 줄여주세요).")
     # 블로킹 AI 호출을 스레드풀로 오프로드
-    return await run_in_threadpool(ai.revise_interview_answer, q, a)
+    result = await run_in_threadpool(ai.revise_interview_answer, q, a)
+    # 성공 결과를 서버에 저장(응답 반환 직전) → 화면 이탈해도 유실 없이 '지난 첨삭'으로 재열람
+    if result.get("ok"):
+        try:
+            rid = f"ir{_uuid.uuid4().hex[:12]}"
+            db.add(InterviewRevision(
+                id=rid, student_id=current_user.id, question=q, answer=a,
+                revised=result.get("revised"), feedback=result.get("feedback"), summary=result.get("summary"),
+            ))
+            db.commit()
+            result["revisionId"] = rid
+        except Exception:
+            db.rollback()
+    return result
+
+
+def _revision_to_dict(r: InterviewRevision) -> Dict[str, Any]:
+    return {
+        "id": r.id, "question": r.question, "answer": r.answer,
+        "revised": r.revised, "feedback": r.feedback or [], "summary": r.summary,
+        "createdAt": r.created_at.isoformat() if r.created_at else None,
+    }
+
+
+@router.get("/interview-revisions")
+def list_interview_revisions(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """지난 AI 면접 첨삭 목록(최신순). 화면 이탈 후에도 재열람."""
+    rows = (
+        db.query(InterviewRevision)
+        .filter(InterviewRevision.student_id == current_user.id)
+        .order_by(InterviewRevision.created_at.desc())
+        .limit(50).all()
+    )
+    return [_revision_to_dict(r) for r in rows]
+
+
+@router.delete("/interview-revisions/{revision_id}")
+def delete_interview_revision(revision_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    r = db.query(InterviewRevision).filter(
+        InterviewRevision.id == revision_id, InterviewRevision.student_id == current_user.id,
+    ).first()
+    if r is None:
+        raise HTTPException(status_code=404, detail="첨삭 기록을 찾을 수 없어요.")
+    db.delete(r)
+    db.commit()
+    return {"ok": True}
 
 
 @router.post("/scene-partner")

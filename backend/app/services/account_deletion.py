@@ -66,6 +66,7 @@ _PURGE_SQL = [
     "DELETE FROM mock_test_videos WHERE student_id=:uid",
     "DELETE FROM mock_test_entries WHERE student_id=:uid",
     "DELETE FROM scene_rehearsals WHERE student_id=:uid",
+    "DELETE FROM interview_revisions WHERE student_id=:uid",
     # 학원 공용기록 보존(삭제된 사용자만 떼어냄)
     "UPDATE lessons SET teacher_id=NULL WHERE teacher_id=:uid",
     "UPDATE exam_schedules SET created_by=NULL WHERE created_by=:uid",

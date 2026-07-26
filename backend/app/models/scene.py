@@ -27,3 +27,18 @@ class AppSetting(Base):
 
     key = Column(String, primary_key=True, index=True)
     value = Column(Text, nullable=False)
+
+
+class InterviewRevision(Base):
+    """AI 면접 첨삭 결과 저장 — 생성 성공 시 서버가 커밋해 지속(화면 이탈해도 유실 없음).
+    이후 '지난 첨삭' 목록으로 재열람. (기존엔 화면 state에만 있어 이탈 시 영구 소멸했음.)"""
+    __tablename__ = "interview_revisions"
+
+    id = Column(String, primary_key=True, index=True)
+    student_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    question = Column(Text, nullable=True)     # 면접 질문
+    answer = Column(Text, nullable=False)      # 학생 원본 답변
+    revised = Column(Text, nullable=True)      # 개선 답변
+    feedback = Column(JSON, nullable=True)     # [개선점]
+    summary = Column(Text, nullable=True)      # 한 줄 총평
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

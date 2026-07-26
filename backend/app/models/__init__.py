@@ -28,7 +28,7 @@ from .content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, In
 from .routine import RoutineItem, RoutineCompletion
 from .exchange import ExchangeItem, ExchangeOrder
 from .mock_test import MockTest, MockTestEntry, MockTestVideo
-from .scene import SceneRehearsal, AppSetting
+from .scene import SceneRehearsal, AppSetting, InterviewRevision
 
 __all__ = [
     "User",
@@ -81,4 +81,5 @@ __all__ = [
     "MockTestVideo",
     "SceneRehearsal",
     "AppSetting",
+    "InterviewRevision",
 ]
