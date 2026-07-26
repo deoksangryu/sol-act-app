@@ -4,18 +4,24 @@ from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
 from datetime import datetime, date
+from typing import Optional, List
 import uuid
 import random
 
 from app.database import get_db
-from app.models.user import User
-from app.models.content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, InterviewQuestion
+from app.models.user import User, UserRole
+from app.models.content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, InterviewQuestion, Quote
 from app.models.gamification import PointLedger
 from app.utils.auth import get_current_user
 from app.services import gamify
 from app.utils.timezone import today_kst, kst_day_start_utc
 
 router = APIRouter()
+
+
+def _require_director(user: User) -> None:
+    if user.role != UserRole.DIRECTOR:
+        raise HTTPException(status_code=403, detail="원장만 콘텐츠를 관리할 수 있어요.")
 
 QUIZ_REWARD = 5
 WATCH_REWARD = 5
@@ -69,21 +75,24 @@ _SEED_INTERVIEW = [
 ]
 
 
-_reading_body_ensured = False
+_content_cols_ensured = False
 
 
-def _ensure_reading_body(db: Session):
-    """reading_contents.body(신규 additive 컬럼) 보장 + 시드 본문 backfill.
-    시드 전용 테이블이라 무손실. 프로세스당 1회만 실행."""
-    global _reading_body_ensured
-    if _reading_body_ensured:
+def _ensure_content_columns(db: Session):
+    """신규 additive 컬럼 보장 — reading_contents.body / media_resources.kind + 시드 본문 backfill.
+    기존 시드 테이블에 무손실 추가(ADD COLUMN IF NOT EXISTS). 프로세스당 1회."""
+    global _content_cols_ensured
+    if _content_cols_ensured:
         return
     from sqlalchemy import text
-    try:
-        db.execute(text("ALTER TABLE reading_contents ADD COLUMN IF NOT EXISTS body TEXT"))
-        db.commit()
-    except Exception:
-        db.rollback()
+    for ddl in (
+        "ALTER TABLE reading_contents ADD COLUMN IF NOT EXISTS body TEXT",
+        "ALTER TABLE media_resources ADD COLUMN IF NOT EXISTS kind VARCHAR DEFAULT 'video'",
+    ):
+        try:
+            db.execute(text(ddl)); db.commit()
+        except Exception:
+            db.rollback()
     for rid, body in _READING_BODIES.items():
         try:
             db.execute(
@@ -93,7 +102,11 @@ def _ensure_reading_body(db: Session):
             db.commit()
         except Exception:
             db.rollback()
-    _reading_body_ensured = True
+    _content_cols_ensured = True
+
+
+# 하위호환 별칭(기존 호출부)
+_ensure_reading_body = _ensure_content_columns
 
 
 def _seed_if_empty(db: Session):
@@ -182,11 +195,17 @@ def reading_detail(reading_id: str, db: Session = Depends(get_db), current_user:
     return {"id": r.id, "title": r.title, "sub": r.sub, "minutes": r.minutes, "body": getattr(r, "body", None)}
 
 
+def _media_dict(r: MediaResource) -> dict:
+    return {"id": r.id, "title": r.title, "sub": r.sub, "url": r.url,
+            "kind": getattr(r, "kind", None) or "video", "duration": r.duration}
+
+
 @router.get("/media")
 def media(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _seed_if_empty(db)
+    _ensure_content_columns(db)
     rows = db.query(MediaResource).order_by(MediaResource.sort.asc()).all()
-    return [{"id": r.id, "title": r.title, "sub": r.sub, "url": r.url, "duration": r.duration} for r in rows]
+    return [_media_dict(r) for r in rows]
 
 
 @router.post("/media/{media_id}/watch")
@@ -214,3 +233,260 @@ def interview_random(db: Session = Depends(get_db), current_user: User = Depends
         return {"question": None}
     q = random.choice(rows)
     return {"question": {"id": q.id, "question": q.question, "category": q.category}}
+
+
+# ─────────────────────────────────────────────────────────────
+# 오늘의 한 줄(명대사) — 등록해두면 한국 날짜 기준 매일 순환
+# ─────────────────────────────────────────────────────────────
+@router.get("/quote/today")
+def quote_today(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    rows = db.query(Quote).filter(Quote.active == True).order_by(Quote.sort.asc(), Quote.id.asc()).all()  # noqa: E712
+    if not rows:
+        return {"quote": None}
+    q = rows[today_kst().toordinal() % len(rows)]
+    return {"quote": {"id": q.id, "text": q.text, "source": q.source}}
+
+
+# ═════════════════════════════════════════════════════════════
+# 원장 콘텐츠 관리 (CRUD) — 전부 원장 전용. 시드가 아니라 실데이터로 운영.
+# ═════════════════════════════════════════════════════════════
+
+def _next_sort(db: Session, model) -> int:
+    return int(db.query(model).count())
+
+
+# ── 상식 퀴즈 ──
+class QuizIn(BaseModel):
+    category: str = "상식"
+    question: str
+    options: List[str]
+    answer_index: int
+    explanation: Optional[str] = ""
+
+
+def _apply_quiz(q: QuizQuestion, body: QuizIn):
+    opts = [str(o).strip() for o in (body.options or []) if str(o).strip()]
+    if len(opts) < 2:
+        raise HTTPException(status_code=400, detail="보기를 2개 이상 입력해주세요.")
+    if not (0 <= int(body.answer_index) < len(opts)):
+        raise HTTPException(status_code=400, detail="정답 번호가 보기 범위를 벗어났어요.")
+    if not (body.question or "").strip():
+        raise HTTPException(status_code=400, detail="문제를 입력해주세요.")
+    q.category = (body.category or "상식").strip() or "상식"
+    q.question = body.question.strip()
+    q.options = opts
+    q.answer_index = int(body.answer_index)
+    q.explanation = (body.explanation or "").strip() or None
+
+
+@router.get("/admin/quiz")
+def admin_quiz_list(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    rows = db.query(QuizQuestion).order_by(QuizQuestion.sort.asc(), QuizQuestion.id.asc()).all()
+    return [{"id": r.id, "category": r.category, "question": r.question, "options": r.options,
+             "answerIndex": r.answer_index, "explanation": r.explanation, "active": r.active} for r in rows]
+
+
+@router.post("/admin/quiz")
+def admin_quiz_create(body: QuizIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    q = QuizQuestion(id=f"qz{uuid.uuid4().hex[:10]}", active=True, sort=_next_sort(db, QuizQuestion),
+                     question="", options=[], answer_index=0, category="상식")
+    _apply_quiz(q, body)
+    db.add(q); db.commit()
+    return {"id": q.id}
+
+
+@router.put("/admin/quiz/{qid}")
+def admin_quiz_update(qid: str, body: QuizIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    q = db.query(QuizQuestion).filter(QuizQuestion.id == qid).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="문제를 찾을 수 없어요.")
+    _apply_quiz(q, body); db.commit()
+    return {"ok": True}
+
+
+@router.delete("/admin/quiz/{qid}")
+def admin_quiz_delete(qid: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    q = db.query(QuizQuestion).filter(QuizQuestion.id == qid).first()
+    if q:
+        db.delete(q); db.commit()
+    return {"ok": True}
+
+
+# ── 작품 읽을거리 ──
+class ReadingIn(BaseModel):
+    title: str
+    sub: Optional[str] = ""
+    minutes: int = 5
+    body: Optional[str] = ""
+
+
+def _apply_reading(r: ReadingContent, body: ReadingIn):
+    if not (body.title or "").strip():
+        raise HTTPException(status_code=400, detail="제목을 입력해주세요.")
+    r.title = body.title.strip()
+    r.sub = (body.sub or "").strip() or None
+    r.minutes = max(1, int(body.minutes or 5))
+    r.body = (body.body or "").strip() or None
+
+
+@router.get("/admin/reading")
+def admin_reading_list(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    _ensure_content_columns(db)
+    rows = db.query(ReadingContent).order_by(ReadingContent.sort.asc()).all()
+    return [{"id": r.id, "title": r.title, "sub": r.sub, "minutes": r.minutes,
+             "body": getattr(r, "body", None)} for r in rows]
+
+
+@router.post("/admin/reading")
+def admin_reading_create(body: ReadingIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    _ensure_content_columns(db)
+    r = ReadingContent(id=f"rd{uuid.uuid4().hex[:10]}", title="", minutes=5, sort=_next_sort(db, ReadingContent))
+    _apply_reading(r, body)
+    db.add(r); db.commit()
+    return {"id": r.id}
+
+
+@router.put("/admin/reading/{rid}")
+def admin_reading_update(rid: str, body: ReadingIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    _ensure_content_columns(db)
+    r = db.query(ReadingContent).filter(ReadingContent.id == rid).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="읽을거리를 찾을 수 없어요.")
+    _apply_reading(r, body); db.commit()
+    return {"ok": True}
+
+
+@router.delete("/admin/reading/{rid}")
+def admin_reading_delete(rid: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    r = db.query(ReadingContent).filter(ReadingContent.id == rid).first()
+    if r:
+        db.delete(r); db.commit()
+    return {"ok": True}
+
+
+# ── 시청각 자료 (유튜브 링크 or 업로드 영상) ──
+class MediaIn(BaseModel):
+    title: str
+    sub: Optional[str] = ""
+    kind: str = "youtube"      # youtube | video
+    url: Optional[str] = ""    # youtube면 링크(필수), video면 업로드로 채움(생성 시 빈 값 허용)
+    duration: Optional[str] = ""
+
+
+def _apply_media(m: MediaResource, body: MediaIn):
+    if not (body.title or "").strip():
+        raise HTTPException(status_code=400, detail="제목을 입력해주세요.")
+    kind = (body.kind or "youtube").strip()
+    if kind not in ("youtube", "video"):
+        kind = "youtube"
+    url = (body.url or "").strip()
+    if kind == "youtube" and not url:
+        raise HTTPException(status_code=400, detail="유튜브 링크를 입력해주세요.")
+    m.title = body.title.strip()
+    m.sub = (body.sub or "").strip() or None
+    m.kind = kind
+    m.url = url or None
+    m.duration = (body.duration or "").strip() or None
+
+
+@router.get("/admin/media")
+def admin_media_list(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    _ensure_content_columns(db)
+    rows = db.query(MediaResource).order_by(MediaResource.sort.asc()).all()
+    return [_media_dict(r) for r in rows]
+
+
+@router.post("/admin/media")
+def admin_media_create(body: MediaIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    _ensure_content_columns(db)
+    m = MediaResource(id=f"md{uuid.uuid4().hex[:10]}", title="", kind="youtube", sort=_next_sort(db, MediaResource))
+    _apply_media(m, body)
+    db.add(m); db.commit()
+    return {"id": m.id}
+
+
+@router.put("/admin/media/{mid}")
+def admin_media_update(mid: str, body: MediaIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    _ensure_content_columns(db)
+    m = db.query(MediaResource).filter(MediaResource.id == mid).first()
+    if not m:
+        raise HTTPException(status_code=404, detail="자료를 찾을 수 없어요.")
+    _apply_media(m, body); db.commit()
+    return {"ok": True}
+
+
+@router.delete("/admin/media/{mid}")
+def admin_media_delete(mid: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    m = db.query(MediaResource).filter(MediaResource.id == mid).first()
+    if m:
+        # 업로드 영상이면 SSD 파일도 정리
+        u = (m.url or "")
+        if u.startswith("/uploads/"):
+            try:
+                from app.services.file_upload import UPLOAD_DIR
+                import os
+                p = os.path.join(UPLOAD_DIR, u[len("/uploads/"):])
+                if os.path.isfile(p):
+                    os.remove(p)
+            except Exception:
+                pass
+        db.delete(m); db.commit()
+    return {"ok": True}
+
+
+# ── 오늘의 한 줄(명대사) ──
+class QuoteIn(BaseModel):
+    text: str
+    source: Optional[str] = ""
+
+
+@router.get("/admin/quote")
+def admin_quote_list(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    rows = db.query(Quote).order_by(Quote.sort.asc(), Quote.id.asc()).all()
+    return [{"id": r.id, "text": r.text, "source": r.source, "active": r.active} for r in rows]
+
+
+@router.post("/admin/quote")
+def admin_quote_create(body: QuoteIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    if not (body.text or "").strip():
+        raise HTTPException(status_code=400, detail="대사를 입력해주세요.")
+    q = Quote(id=f"qt{uuid.uuid4().hex[:10]}", text=body.text.strip(), source=(body.source or "").strip() or None,
+              active=True, sort=_next_sort(db, Quote))
+    db.add(q); db.commit()
+    return {"id": q.id}
+
+
+@router.put("/admin/quote/{qid}")
+def admin_quote_update(qid: str, body: QuoteIn, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    q = db.query(Quote).filter(Quote.id == qid).first()
+    if not q:
+        raise HTTPException(status_code=404, detail="대사를 찾을 수 없어요.")
+    if not (body.text or "").strip():
+        raise HTTPException(status_code=400, detail="대사를 입력해주세요.")
+    q.text = body.text.strip(); q.source = (body.source or "").strip() or None
+    db.commit()
+    return {"ok": True}
+
+
+@router.delete("/admin/quote/{qid}")
+def admin_quote_delete(qid: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _require_director(current_user)
+    q = db.query(Quote).filter(Quote.id == qid).first()
+    if q:
+        db.delete(q); db.commit()
+    return {"ok": True}

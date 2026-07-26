@@ -458,6 +458,19 @@ def _patch_target_file(
                 db.add(v)
                 db.commit()
                 return sid  # 배포 대상 학생(알림 대상)
+        elif target_type == "media_resource":
+            # 원장이 시청각 자료 영상을 업로드 → 해당 MediaResource.url 패치(kind=video). target_id=media id
+            from app.models.content import MediaResource
+            from app.models.user import User as _User, UserRole as _Role
+            uploader = db.query(_User).filter(_User.id == user_id).first()
+            if not uploader or uploader.role != _Role.DIRECTOR:
+                return None  # 원장만 시청각 영상 업로드
+            m = db.query(MediaResource).filter(MediaResource.id == target_id).first()
+            if m:
+                m.url = url
+                m.kind = "video"
+                db.commit()
+                return m.id  # non-None(=성공). 소유 학생 없음 → _emit_target_patched에서 알림 생략
         return None
     except Exception as e:
         logger.warning(f"_patch_target_file failed ({target_type}/{target_id}): {e}")
@@ -472,6 +485,9 @@ async def _emit_target_patched(db: Session, target_type: str, owner_id: str) -> 
     video actually landed) instead of at empty-record creation time."""
     try:
         from app.models.user import User, UserRole
+        # 시청각 자료 영상: 소유 학생 없음 → 알림/브로드캐스트 없이 종료(학생은 다음 조회 때 반영)
+        if target_type == "media_resource":
+            return
         # 모의테스트: 음원 제출 → 원장 알림 / 영상 배포 → 대상 학생 알림
         if target_type in ("mock_test_audio", "mock_test_video"):
             student = db.query(User).filter(User.id == owner_id).first()

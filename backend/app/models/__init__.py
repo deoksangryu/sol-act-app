@@ -24,7 +24,7 @@ from .submission import Submission
 from .achievement import UserBadge
 from .practice_session import PracticeSession
 from .exam import ExamSchedule
-from .content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, InterviewQuestion
+from .content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, InterviewQuestion, Quote
 from .routine import RoutineItem, RoutineCompletion
 from .exchange import ExchangeItem, ExchangeOrder
 from .mock_test import MockTest, MockTestEntry, MockTestVideo
@@ -71,6 +71,7 @@ __all__ = [
     "QuizAnswer",
     "ReadingContent",
     "MediaResource",
+    "Quote",
     "InterviewQuestion",
     "RoutineItem",
     "RoutineCompletion",

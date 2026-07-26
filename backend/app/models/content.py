@@ -48,8 +48,20 @@ class MediaResource(Base):
     id = Column(String, primary_key=True, index=True)
     title = Column(String, nullable=False)
     sub = Column(String, nullable=True)
-    url = Column(String, nullable=True)
+    url = Column(String, nullable=True)          # youtube 링크 or 업로드 영상 경로(/uploads/...)
+    kind = Column(String, default="video")       # "youtube" | "video"(업로드/SSD)
     duration = Column(String, nullable=True)
+    sort = Column(Integer, default=0)
+
+
+class Quote(Base):
+    """'오늘의 한 줄' 명대사 — 등록해두면 한국 날짜 기준 매일 순환."""
+    __tablename__ = "quotes"
+
+    id = Column(String, primary_key=True, index=True)
+    text = Column(Text, nullable=False)
+    source = Column(String, nullable=True)       # "니나 · 4막" 같은 출처
+    active = Column(Boolean, default=True, nullable=False)
     sort = Column(Integer, default=0)
 
 
