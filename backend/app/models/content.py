@@ -2,7 +2,7 @@
 
 빈 테이블이면 라우터가 최초 GET 때 기본 시드를 lazy-insert(신규 테이블에만 쓰기).
 """
-from sqlalchemy import Column, String, Integer, Boolean, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, JSON, ForeignKey, Text
 from app.database import Base
 from datetime import datetime
 
@@ -38,6 +38,7 @@ class ReadingContent(Base):
     title = Column(String, nullable=False)
     sub = Column(String, nullable=True)
     minutes = Column(Integer, default=5)
+    body = Column(Text, nullable=True)   # 읽을거리 본문(상세 화면). 비면 상세 진입 시 '준비 중' 안내.
     sort = Column(Integer, default=0)
 
 

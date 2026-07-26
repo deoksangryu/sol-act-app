@@ -26,9 +26,37 @@ _SEED_QUIZ = [
     {"category": "희곡", "question": "『햄릿』에서 '사느냐 죽느냐'의 독백이 등장하는 막은?", "options": ["1막", "2막", "3막", "5막"], "answer_index": 2, "explanation": "3막 1장의 유명한 독백이에요."},
     {"category": "뮤지컬", "question": "뮤지컬에서 극의 감정을 노래로 폭발시키는 넘버를 부르는 말은?", "options": ["리프라이즈", "쇼스토퍼", "언더스코어", "아이 원트 송"], "answer_index": 3, "explanation": "주인공의 욕망을 드러내는 'I want' 송이에요."},
 ]
+_READING_BODIES = {
+    "rd_seed_0": (
+        "니나는 왜, 모든 것을 잃고도 다시 무대로 돌아왔을까.\n\n"
+        "『갈매기』의 마지막 막에서 니나는 트레플레프에게 이렇게 말한다. \"난 갈매기예요… 아니, 그게 아니야. 난 배우예요.\" "
+        "1막의 니나는 트리고린의 소설 속 문장처럼, 호숫가에 우연히 나타나 아무 이유 없이 파괴되는 '갈매기'였다. "
+        "사랑에 실패하고, 아이를 잃고, 배우로서도 초라하게 지방을 떠돈 그녀는 스스로를 그 갈매기와 동일시하려 한다.\n\n"
+        "그러나 대사는 중간에 멈춘다. \"아니, 그게 아니야.\" 이 짧은 자기 정정이 니나라는 인물의 핵심이다. "
+        "그녀는 자신을 피해자(갈매기)로 규정하려다가, 그것을 스스로 거부하고 '배우'라는 능동적 정체성으로 옮겨간다. "
+        "중요한 건 재능이나 성공이 아니라 '견디는 힘'이라는 것을 그녀는 배웠다. \"난 이제 견딜 줄 알아요. 믿음을 가지면 아프지 않아요.\"\n\n"
+        "연기적으로 이 장면의 함정은 니나를 '불쌍하게' 연기하는 것이다. 니나는 동정을 구하지 않는다. "
+        "무너진 사람이 아니라, 무너짐을 통과해 자기 일을 찾은 사람으로 접근할 때 이 대사는 살아난다.\n\n"
+        "질문: 당신이 연기하는 인물도 '스스로를 무엇이라 규정하려다 멈추는' 순간이 있는가? 그 정정(訂正)의 순간이 곧 캐릭터의 변화점이다."
+    ),
+    "rd_seed_1": (
+        "서브텍스트(subtext)란, 대사의 표면 아래 흐르는 '진짜 하고 싶은 말'이다.\n\n"
+        "인물은 좀처럼 자기 속마음을 문자 그대로 말하지 않는다. \"괜찮아\"라는 대사가 실제로는 "
+        "\"제발 나를 붙잡아줘\"일 수 있고, \"늦었네요\"가 \"당신을 기다리는 게 지겨워요\"일 수 있다. "
+        "관객이 배우에게 빠져드는 순간은 대개 이 표면과 이면의 간극에서 발생한다.\n\n"
+        "서브텍스트를 찾는 세 가지 질문:\n"
+        "1) 이 인물은 이 대사로 상대에게서 '무엇을 얻어내려' 하는가? (목적/행동동사)\n"
+        "2) 왜 그것을 '직접' 말하지 않는가? (장애물/관계)\n"
+        "3) 말하지 못한 진짜 문장은 무엇인가? (한 줄로 써보기)\n\n"
+        "연습법: 대본의 각 대사 옆에, 인물이 실제로 원하는 문장을 괄호로 적어보라. "
+        "그다음 그 '괄호 속 문장'을 마음에 두고 표면 대사를 말해보라. 같은 대사가 전혀 다르게 들릴 것이다.\n\n"
+        "주의: 서브텍스트는 '표정으로 티내는 것'이 아니다. 티내면 그건 이미 텍스트다. "
+        "속마음은 감추되, 그 감춤이 몸과 호흡에 긴장으로 남아 있어야 한다."
+    ),
+}
 _SEED_READING = [
-    {"title": "『갈매기』 딥리딩 3화", "sub": "니나는 왜 무대로 돌아왔나 · 5분", "minutes": 5},
-    {"title": "서브텍스트란 무엇인가", "sub": "대사분석 워크북 · 카드 12장", "minutes": 8},
+    {"title": "『갈매기』 딥리딩 3화", "sub": "니나는 왜 무대로 돌아왔나 · 5분", "minutes": 5, "body": _READING_BODIES["rd_seed_0"]},
+    {"title": "서브텍스트란 무엇인가", "sub": "대사분석 워크북 · 카드 12장", "minutes": 8, "body": _READING_BODIES["rd_seed_1"]},
 ]
 _SEED_MEDIA = [
     {"title": "니나 독백 레퍼런스 공연", "sub": "김쏠 선생님 추천", "duration": "4분 12초"},
@@ -39,6 +67,33 @@ _SEED_INTERVIEW = [
     {"question": "당신에게 좋은 배우란 어떤 배우인가요?", "category": "가치관"},
     {"question": "10년 뒤 당신은 어떤 배우가 되어 있을까요?", "category": "비전"},
 ]
+
+
+_reading_body_ensured = False
+
+
+def _ensure_reading_body(db: Session):
+    """reading_contents.body(신규 additive 컬럼) 보장 + 시드 본문 backfill.
+    시드 전용 테이블이라 무손실. 프로세스당 1회만 실행."""
+    global _reading_body_ensured
+    if _reading_body_ensured:
+        return
+    from sqlalchemy import text
+    try:
+        db.execute(text("ALTER TABLE reading_contents ADD COLUMN IF NOT EXISTS body TEXT"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    for rid, body in _READING_BODIES.items():
+        try:
+            db.execute(
+                text("UPDATE reading_contents SET body=:b WHERE id=:id AND (body IS NULL OR body='')"),
+                {"b": body, "id": rid},
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+    _reading_body_ensured = True
 
 
 def _seed_if_empty(db: Session):
@@ -111,8 +166,20 @@ def answer_quiz(body: QuizAnswerBody, db: Session = Depends(get_db), current_use
 @router.get("/reading")
 def reading(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _seed_if_empty(db)
+    _ensure_reading_body(db)
     rows = db.query(ReadingContent).order_by(ReadingContent.sort.asc()).all()
-    return [{"id": r.id, "title": r.title, "sub": r.sub, "minutes": r.minutes} for r in rows]
+    return [{"id": r.id, "title": r.title, "sub": r.sub, "minutes": r.minutes,
+             "hasBody": bool((getattr(r, "body", None) or "").strip())} for r in rows]
+
+
+@router.get("/reading/{reading_id}")
+def reading_detail(reading_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """읽을거리 상세(본문). 본문이 아직 없으면 body=None으로 내려 화면이 '준비 중'을 표시."""
+    _ensure_reading_body(db)
+    r = db.query(ReadingContent).filter(ReadingContent.id == reading_id).first()
+    if r is None:
+        raise HTTPException(status_code=404, detail="읽을거리를 찾을 수 없어요.")
+    return {"id": r.id, "title": r.title, "sub": r.sub, "minutes": r.minutes, "body": getattr(r, "body", None)}
 
 
 @router.get("/media")
