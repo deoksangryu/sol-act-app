@@ -25,6 +25,10 @@ export function ScenePartnerScreen() {
   const [turns, setTurns] = useState<EditTurn[]>(STARTER);
   const [partner, setPartner] = useState('');
   const [situation, setSituation] = useState('');
+  // 상대 묘사 강화용 구조화 힌트(선택) — 품질을 크게 좌우: 관계·말투·속내
+  const [relationship, setRelationship] = useState('');
+  const [speech, setSpeech] = useState('');
+  const [objective, setObjective] = useState('');
   const [voices, setVoices] = useState<SceneVoice[]>([]);
   const [selVoice, setSelVoice] = useState('');          // '' = AI 자동/랜덤
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -74,7 +78,7 @@ export function ScenePartnerScreen() {
 
   const handleBack = () => {
     // 작성 중 초안(상대/상황 입력)이 있으면 확인 후 나가기 — 뒤로가기로 공들인 초안 유실 방지
-    if (mode === 'edit' && (partner.trim() !== '' || situation.trim() !== '')) {
+    if (mode === 'edit' && (partner.trim() !== '' || situation.trim() !== '' || relationship.trim() !== '' || speech.trim() !== '' || objective.trim() !== '')) {
       Alert.alert('나가시겠어요?', '작성 중인 내용은 저장되지 않아요.', [
         { text: '계속 작성', style: 'cancel' },
         { text: '나가기', style: 'destructive', onPress: () => { stopAll(); nav.goBack(); } },
@@ -171,9 +175,16 @@ export function ScenePartnerScreen() {
     });
     if (payload.filter((t) => t.speaker === '나' && (t.text || '').length).length < 1) { setErr('내 대사를 한 줄 이상 입력해주세요.'); return; }
     if (payload.filter((t) => t.speaker === '상대').length < 1) { setErr('상대가 등장하는 지점을 한 곳 이상 추가해주세요.'); return; }
+    // 상대 묘사 + 구조화 힌트(관계·말투·속내)를 라벨 붙여 하나로 합쳐 전달 → AI가 대사·목소리에 반영
+    let partnerFull = partner.trim();
+    const extra: string[] = [];
+    if (relationship.trim()) extra.push(`나와의 관계: ${relationship.trim()}`);
+    if (speech.trim()) extra.push(`말투·화법: ${speech.trim()}`);
+    if (objective.trim()) extra.push(`속내(이 장면에서 원하는 것): ${objective.trim()}`);
+    if (extra.length) partnerFull = (partnerFull ? partnerFull + '\n' : '') + extra.map((e) => `· ${e}`).join('\n');
     setBusy(true); setErr(null);
     try {
-      const r = await aiApi.scenePartner(payload, partner.trim(), { situation: situation.trim(), voiceId: selVoice });
+      const r = await aiApi.scenePartner(payload, partnerFull, { situation: situation.trim(), voiceId: selVoice });
       if (!r.ok) { setErr(r.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.'); return; }
       // 내 대사 시간(초)을 result 순서에 맞춰 저장 (payload=turns=result 동일 순서)
       secListRef.current = turns.map((t) => (t.speaker === '나' ? clampSec(t.sec ?? autoSec(t.text)) : 0));
@@ -183,7 +194,7 @@ export function ScenePartnerScreen() {
     } catch (e: any) {
       setErr(e?.message || 'AI 상대역을 만들지 못했어요. 잠시 후 다시 시도해주세요.');
     } finally { setBusy(false); }
-  }, [turns, partner, situation, selVoice, refreshLib]);
+  }, [turns, partner, situation, relationship, speech, objective, selVoice, refreshLib]);
 
   const input = { borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: color.ink, fontFamily: font.m, backgroundColor: color.white } as const;
 
@@ -235,12 +246,28 @@ export function ScenePartnerScreen() {
   const setupBlock = (
     <View style={{ gap: 12 }}>
       <View>
-        <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (구체적일수록 좋아요)</Text>
-        <TextInput value={partner} onChangeText={setPartner} placeholder="예: 병들어 힘없지만 위엄 있는 노년의 왕" placeholderTextColor={color.faint} style={input} maxLength={80} />
+        <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>상대는 누구인가요? (구체적일수록 대사·목소리가 좋아져요)</Text>
+        <TextInput value={partner} onChangeText={setPartner} placeholder="예: 병들어 힘없지만 위엄을 잃지 않으려는 노년의 왕. 평생 권력만 좇다 마지막에 후회한다." placeholderTextColor={color.faint} style={[input, { minHeight: 76, textAlignVertical: 'top' }]} multiline maxLength={400} />
+      </View>
+      {/* 구조화 힌트 — 대사 품질을 크게 좌우하는 3가지(선택) */}
+      <View style={{ backgroundColor: color.surf, borderRadius: radius.card, padding: 12, gap: 10 }}>
+        <Text style={{ fontFamily: font.b, fontSize: 12.5, color: color.sub }}>상대를 더 살려주는 힌트 (선택 — 채울수록 대사가 정확해져요)</Text>
+        <View>
+          <Text style={{ fontFamily: font.m, fontSize: 12, color: color.sub2, marginBottom: 4 }}>· 나와의 관계</Text>
+          <TextInput value={relationship} onChangeText={setRelationship} placeholder="예: 나를 버렸던 아버지 / 오랜 라이벌 / 짝사랑하는 선배" placeholderTextColor={color.faint} style={input} maxLength={100} />
+        </View>
+        <View>
+          <Text style={{ fontFamily: font.m, fontSize: 12, color: color.sub2, marginBottom: 4 }}>· 말투·화법</Text>
+          <TextInput value={speech} onChangeText={setSpeech} placeholder="예: 느릿하고 격식 있는 반말 / 냉소적이고 짧게 끊는" placeholderTextColor={color.faint} style={input} maxLength={100} />
+        </View>
+        <View>
+          <Text style={{ fontFamily: font.m, fontSize: 12, color: color.sub2, marginBottom: 4 }}>· 이 장면에서 상대가 원하는 것 (속내)</Text>
+          <TextInput value={objective} onChangeText={setObjective} placeholder="예: 사과하고 싶지만 자존심 때문에 돌려 말함" placeholderTextColor={color.faint} style={input} maxLength={120} />
+        </View>
       </View>
       <View>
         <Text style={{ fontFamily: font.b, fontSize: 13, color: color.sub, marginBottom: 6 }}>이 장면은 어떤 상황인가요? ⭐</Text>
-        <Text style={{ fontFamily: font.r, fontSize: 12, lineHeight: 18, color: color.sub2, marginBottom: 6 }}>관계·무슨 일이 벌어지는지·감정의 흐름을 적을수록 대사가 정확해져요.</Text>
+        <Text style={{ fontFamily: font.r, fontSize: 12, lineHeight: 18, color: color.sub2, marginBottom: 6 }}>무슨 일이 벌어지는지·감정의 흐름을 적을수록 대사가 정확해져요.</Text>
         <TextInput value={situation} onChangeText={setSituation} placeholder="예: 유학을 반대하던 병든 엄마가 끝내 딸을 위해 보내주기로 하는 장면" placeholderTextColor={color.faint} style={[input, { minHeight: 100, textAlignVertical: 'top' }]} multiline maxLength={500} />
       </View>
     </View>
