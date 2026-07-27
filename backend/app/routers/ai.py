@@ -201,10 +201,10 @@ async def scene_partner(data: ScenePartnerReq, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=429, detail=f"오늘 새 상대역 생성 한도({limit}회)를 다 썼어요. 저장된 장면을 불러와 연습하거나 내일 다시 시도해주세요.")
 
     # 하이브리드: 빈 상대 자리는 AI가 채우고, 학생이 쓴 상대 대사는 그대로 사용
-    result = await run_in_threadpool(_build_scene, turns, (data.partner or "")[:100], (data.situation or "")[:500], (data.voiceId or "").strip())
+    result = await run_in_threadpool(_build_scene, turns, (data.partner or "")[:800], (data.situation or "")[:500], (data.voiceId or "").strip())
     if result.get("ok"):
         try:
-            result["sceneId"] = _save_scene(db, current_user.id, turns, result, (data.partner or "")[:100])
+            result["sceneId"] = _save_scene(db, current_user.id, turns, result, (data.partner or "")[:800])
         except Exception:
             db.rollback()
         result["limit"] = limit
