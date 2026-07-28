@@ -118,6 +118,9 @@ export const usersApi = {
   list(): Promise<User[]> {
     return apiRequest<User[]>('/api/users');
   },
+  students(): Promise<User[]> {
+    return apiRequest<User[]>('/api/users?role=student');
+  },
   update(id: string, data: Partial<User>): Promise<User> {
     return apiRequest<User>(`/api/users/${id}`, { method: 'PUT', body: JSON.stringify(toSnake(data)) });
   },
@@ -530,9 +533,9 @@ export interface QuizAdmin { id: string; category: string; question: string; opt
 export interface ReadingAdmin { id: string; title: string; sub?: string | null; minutes: number; body?: string | null }
 export interface MediaAdmin { id: string; title: string; sub?: string | null; url?: string | null; kind: 'youtube' | 'video'; duration?: string | null }
 export interface QuoteAdmin { id: string; text: string; source?: string | null; active?: boolean }
-export interface RoutineAdmin { id: string; title: string; sub?: string | null; reward: number; active?: boolean }
+export interface RoutineAdmin { id: string; title: string; sub?: string | null; reward: number; active?: boolean; studentIds?: string[] }
 export interface MissionView { id: string; type: 'video' | 'journal' | 'quiz'; title: string; sub?: string | null; reward: number }
-export interface MissionAdmin { id: string; type: 'video' | 'journal' | 'quiz'; title: string; sub?: string | null; reward: number; active?: boolean }
+export interface MissionAdmin { id: string; type: 'video' | 'journal' | 'quiz'; title: string; sub?: string | null; reward: number; active?: boolean; studentIds?: string[] }
 
 // 오늘의 미션 — 학원 공용(원장 관리). 홈이 이 목록을 렌더.
 export const missionsApi = {
@@ -574,15 +577,15 @@ export const contentAdminApi = {
   quoteCreate(b: { text: string; source?: string }): Promise<{ id: string }> { return apiRequest('/api/content/admin/quote', { method: 'POST', body: jsonBody(b) }); },
   quoteUpdate(id: string, b: { text: string; source?: string }): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/quote/${id}`, { method: 'PUT', body: jsonBody(b) }); },
   quoteDelete(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/content/admin/quote/${id}`, { method: 'DELETE' }); },
-  // 오늘의 루틴(학원 공용 템플릿)
+  // 오늘의 루틴(학원 공용 or 학생별). studentIds 비우면 공통.
   routineList(): Promise<RoutineAdmin[]> { return apiRequest('/api/routines/admin'); },
-  routineCreate(b: { title: string; sub?: string; reward: number }): Promise<{ id: string }> { return apiRequest('/api/routines/admin', { method: 'POST', body: jsonBody(b) }); },
-  routineUpdate(id: string, b: { title: string; sub?: string; reward: number }): Promise<{ ok: boolean }> { return apiRequest(`/api/routines/admin/${id}`, { method: 'PUT', body: jsonBody(b) }); },
+  routineCreate(b: { title: string; sub?: string; reward: number; studentIds?: string[] }): Promise<{ id: string }> { return apiRequest('/api/routines/admin', { method: 'POST', body: jsonBody({ title: b.title, sub: b.sub, reward: b.reward, student_ids: b.studentIds ?? null }) }); },
+  routineUpdate(id: string, b: { title: string; sub?: string; reward: number; studentIds?: string[] }): Promise<{ ok: boolean }> { return apiRequest(`/api/routines/admin/${id}`, { method: 'PUT', body: jsonBody({ title: b.title, sub: b.sub, reward: b.reward, student_ids: b.studentIds ?? null }) }); },
   routineDelete(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/routines/admin/${id}`, { method: 'DELETE' }); },
   // 오늘의 미션
   missionList(): Promise<MissionAdmin[]> { return apiRequest('/api/missions/admin'); },
-  missionCreate(b: { type: string; title: string; sub?: string; reward: number }): Promise<{ id: string }> { return apiRequest('/api/missions/admin', { method: 'POST', body: jsonBody(b) }); },
-  missionUpdate(id: string, b: { type: string; title: string; sub?: string; reward: number }): Promise<{ ok: boolean }> { return apiRequest(`/api/missions/admin/${id}`, { method: 'PUT', body: jsonBody(b) }); },
+  missionCreate(b: { type: string; title: string; sub?: string; reward: number; studentIds?: string[] }): Promise<{ id: string }> { return apiRequest('/api/missions/admin', { method: 'POST', body: jsonBody({ type: b.type, title: b.title, sub: b.sub, reward: b.reward, student_ids: b.studentIds ?? null }) }); },
+  missionUpdate(id: string, b: { type: string; title: string; sub?: string; reward: number; studentIds?: string[] }): Promise<{ ok: boolean }> { return apiRequest(`/api/missions/admin/${id}`, { method: 'PUT', body: jsonBody({ type: b.type, title: b.title, sub: b.sub, reward: b.reward, student_ids: b.studentIds ?? null }) }); },
   missionDelete(id: string): Promise<{ ok: boolean }> { return apiRequest(`/api/missions/admin/${id}`, { method: 'DELETE' }); },
 };
 

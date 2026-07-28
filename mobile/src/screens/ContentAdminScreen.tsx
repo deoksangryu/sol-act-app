@@ -6,9 +6,52 @@ import { Screen, Scroll, BackHeader } from '../components/kit';
 import { Card } from '../components/gamify';
 import { Icon } from '../components/Icon';
 import { color, font, radius, space } from '../theme/tokens';
-import { contentAdminApi, QuizAdmin, ReadingAdmin, MediaAdmin, QuoteAdmin, RoutineAdmin, MissionAdmin } from '../services/api';
+import { contentAdminApi, usersApi, QuizAdmin, ReadingAdmin, MediaAdmin, QuoteAdmin, RoutineAdmin, MissionAdmin } from '../services/api';
 import { useUploads } from '../services/UploadContext';
 import { pickMedia } from '../services/upload';
+
+// 대상 선택 — 전체(빈 배열) 또는 특정 학생 다중선택
+function TargetPicker({ studentIds, setStudentIds }: { studentIds: string[]; setStudentIds: (ids: string[]) => void }) {
+  const { data: students } = useQuery({ queryKey: ['admin', 'students'], queryFn: () => usersApi.students(), staleTime: 60000 });
+  const [specific, setSpecific] = useState(studentIds.length > 0);
+  const toggle = (id: string) => setStudentIds(studentIds.includes(id) ? studentIds.filter((x) => x !== id) : [...studentIds, id]);
+  return (
+    <View style={{ marginTop: 6 }}>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        {([['all', '전체 학생'], ['specific', '특정 학생']] as const).map(([k, label]) => {
+          const on = (k === 'all') === !specific;
+          return (
+            <Pressable key={k} onPress={() => { if (k === 'all') { setSpecific(false); setStudentIds([]); } else setSpecific(true); }}
+              style={{ borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.button, paddingHorizontal: 14, paddingVertical: 10 }}>
+              <Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.blue : color.sub }}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      {specific && (
+        <View style={{ marginTop: 8, borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, maxHeight: 240 }}>
+          <ScrollView>
+            {(students ?? []).map((s, i) => {
+              const on = studentIds.includes(s.id);
+              return (
+                <Pressable key={s.id} onPress={() => toggle(s.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 11, paddingHorizontal: 12, borderTopWidth: i ? 1 : 0, borderTopColor: color.line }}>
+                  <View style={{ width: 22, height: 22, borderRadius: 6, borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blue : color.white, alignItems: 'center', justifyContent: 'center' }}>
+                    {on && <Text style={{ color: color.white, fontSize: 13 }}>✓</Text>}
+                  </View>
+                  <Text style={{ fontFamily: font.m, fontSize: 14, color: color.ink }}>{s.name}</Text>
+                </Pressable>
+              );
+            })}
+            {(students ?? []).length === 0 && <Text style={{ fontFamily: font.m, fontSize: 13, color: color.sub2, textAlign: 'center', padding: 16 }}>학생 명단을 불러오는 중…</Text>}
+          </ScrollView>
+        </View>
+      )}
+      <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, marginTop: 6 }}>
+        {!specific ? '개별 지정이 없는 모든 학생에게 보여요' : studentIds.length ? `선택한 ${studentIds.length}명에게만 보여요` : '학생을 선택하세요 (안 하면 전체)'}
+      </Text>
+    </View>
+  );
+}
 
 type Tab = 'media' | 'reading' | 'quiz' | 'quote' | 'routine' | 'mission';
 const TABS: { key: Tab; label: string }[] = [
@@ -107,13 +150,13 @@ export function ContentAdminScreen() {
               {tab === 'routine' && ((routineQ.data ?? []).length === 0
                 ? <Empty />
                 : (routineQ.data ?? []).map((r) => (
-                    <Row key={r.id} title={r.title} sub={r.sub ?? undefined} badge={`+${r.reward}`}
+                    <Row key={r.id} title={r.title} sub={`+${r.reward}${r.sub ? ' · ' + r.sub : ''}`} badge={r.studentIds?.length ? `${r.studentIds.length}명` : '전체'}
                       onEdit={() => setEditing(r)} onDelete={() => del('루틴', () => contentAdminApi.routineDelete(r.id))} />
                   )))}
               {tab === 'mission' && ((missionQ.data ?? []).length === 0
                 ? <Empty />
                 : (missionQ.data ?? []).map((m) => (
-                    <Row key={m.id} title={m.title} sub={`${MISSION_TYPE_LABEL[m.type] ?? m.type} · +${m.reward}`}
+                    <Row key={m.id} title={m.title} sub={`${MISSION_TYPE_LABEL[m.type] ?? m.type} · +${m.reward}`} badge={m.studentIds?.length ? `${m.studentIds.length}명` : '전체'}
                       onEdit={() => setEditing(m)} onDelete={() => del('미션', () => contentAdminApi.missionDelete(m.id))} />
                   )))}
             </Card>
@@ -353,12 +396,13 @@ function RoutineForm({ item, onDone }: { item: RoutineAdmin | null; onDone: () =
   const [title, setTitle] = useState(item?.title ?? '');
   const [sub, setSub] = useState(item?.sub ?? '');
   const [reward, setReward] = useState(String(item?.reward ?? 5));
+  const [studentIds, setStudentIds] = useState<string[]>(item?.studentIds ?? []);
   const [busy, setBusy] = useState(false);
   const save = async () => {
     if (!title.trim()) { Alert.alert('루틴 이름을 입력해주세요'); return; }
     setBusy(true);
     try {
-      const payload = { title: title.trim(), sub: sub.trim(), reward: Math.max(0, Math.min(60, parseInt(reward, 10) || 5)) };
+      const payload = { title: title.trim(), sub: sub.trim(), reward: Math.max(0, Math.min(60, parseInt(reward, 10) || 5)), studentIds };
       if (item) await contentAdminApi.routineUpdate(item.id, payload); else await contentAdminApi.routineCreate(payload);
       onDone();
     } catch (e: any) { Alert.alert('저장 실패', e?.message || '저장하지 못했어요'); }
@@ -372,6 +416,8 @@ function RoutineForm({ item, onDone }: { item: RoutineAdmin | null; onDone: () =
       <TextInput value={sub} onChangeText={setSub} placeholder="예: 아침 워밍업" placeholderTextColor={color.faint} style={inputStyle} />
       <Label>보상 박수 (0~60)</Label>
       <TextInput value={reward} onChangeText={setReward} keyboardType="number-pad" style={inputStyle} />
+      <Label>대상</Label>
+      <TargetPicker studentIds={studentIds} setStudentIds={setStudentIds} />
       <SaveBtn busy={busy} onPress={save} label={item ? '수정 저장' : '저장'} />
     </View>
   );
@@ -383,12 +429,13 @@ function MissionForm({ item, onDone }: { item: MissionAdmin | null; onDone: () =
   const [title, setTitle] = useState(item?.title ?? '');
   const [sub, setSub] = useState(item?.sub ?? '');
   const [reward, setReward] = useState(String(item?.reward ?? 5));
+  const [studentIds, setStudentIds] = useState<string[]>(item?.studentIds ?? []);
   const [busy, setBusy] = useState(false);
   const save = async () => {
     if (!title.trim()) { Alert.alert('미션 제목을 입력해주세요'); return; }
     setBusy(true);
     try {
-      const payload = { type, title: title.trim(), sub: sub.trim(), reward: Math.max(0, Math.min(99, parseInt(reward, 10) || 5)) };
+      const payload = { type, title: title.trim(), sub: sub.trim(), reward: Math.max(0, Math.min(99, parseInt(reward, 10) || 5)), studentIds };
       if (item) await contentAdminApi.missionUpdate(item.id, payload); else await contentAdminApi.missionCreate(payload);
       onDone();
     } catch (e: any) { Alert.alert('저장 실패', e?.message || '저장하지 못했어요'); }
@@ -414,6 +461,8 @@ function MissionForm({ item, onDone }: { item: MissionAdmin | null; onDone: () =
       <TextInput value={sub} onChangeText={setSub} placeholder="예: 오늘 연습을 영상으로 남겨요" placeholderTextColor={color.faint} style={inputStyle} />
       <Label>표시 보상 (+N 👏)</Label>
       <TextInput value={reward} onChangeText={setReward} keyboardType="number-pad" style={inputStyle} />
+      <Label>대상</Label>
+      <TargetPicker studentIds={studentIds} setStudentIds={setStudentIds} />
       <SaveBtn busy={busy} onPress={save} label={item ? '수정 저장' : '저장'} />
     </View>
   );
