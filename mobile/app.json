@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "com.solact.academy",
-      "versionCode": 18,
+      "versionCode": 19,
       "permissions": [
         "android.permission.CAMERA"
       ],

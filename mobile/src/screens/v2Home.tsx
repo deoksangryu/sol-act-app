@@ -6,11 +6,18 @@ import { Screen } from '../components/kit';
 import { Hero, FeedbackBanner, Section, Card, ClapCheckRow, V2Row, PageHeader } from '../components/gamify';
 import { color, font, radius, space } from '../theme/tokens';
 import { useAuth } from '../AuthContext';
-import { gamificationApi, routinesApi, examsApi, sessionsApi, submissionsApi, achievementsApi, contentApi, noticeApi } from '../services/api';
+import { gamificationApi, routinesApi, examsApi, sessionsApi, submissionsApi, achievementsApi, contentApi, noticeApi, missionsApi } from '../services/api';
 import { fmtDday } from '../lib/date';
 import { useDataRefresh } from '../services/ws';
 
 const comma = (n: number) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+// 미션 종류 → 아이콘·색·이동. 완료판정은 각 화면에서 vidDone/jrnDone/quizDone로.
+const MISSION_META: Record<string, { icon: string; bg: string; fg: string; go: (nav: any) => void }> = {
+  video: { icon: 'video', bg: color.dangerBg, fg: color.danger, go: (nav) => nav.navigate('submit', { preset: 'video' }) },
+  journal: { icon: 'notebook', bg: color.successBg, fg: color.success, go: (nav) => nav.navigate('submit', { preset: 'journal' }) },
+  quiz: { icon: 'book', bg: color.blueBg, fg: color.blue, go: (nav) => nav.navigate('learn') },
+};
 
 // 초 → "N시간 M분" (히어로 값). H/분 라벨은 작은 폰트로 감싼다.
 const hourMinNode = (seconds: number) => {
@@ -76,6 +83,7 @@ export function HomeScreen() {
   const { data: badgeSet } = useQuery({ queryKey: ['achievements'], queryFn: () => achievementsApi.me(), retry: false, staleTime: 30000 });
   const { data: quiz } = useQuery({ queryKey: ['content', 'quiz'], queryFn: () => contentApi.quizToday(), retry: false, staleTime: 30000 });
   const { data: notices } = useQuery({ queryKey: ['notices'], queryFn: () => noticeApi.list(), retry: false, staleTime: 60000 });
+  const { data: missions } = useQuery({ queryKey: ['missions'], queryFn: () => missionsApi.today(), retry: false, staleTime: 30000 });
 
   // 실시간(WS): 서버에서 공지/피드백/제출/뱃지 변경 시 홈 관련 쿼리 재조회 → 요약화면도 라이브 갱신.
   useDataRefresh(['notices', 'portfolios', 'feedback', 'submission', 'badge'], () => {
@@ -232,13 +240,19 @@ export function HomeScreen() {
           </Card>
         </Section>
 
-        <Section title="오늘의 미션">
-          <Card>
-            <V2Row first icon="video" iconBg={color.dangerBg} iconColor={color.danger} title="연기 영상 1개 제출" sub="오늘 연습을 영상으로 남겨요" right={vidDone ? doneTag : <Text style={rewardTxt}>+15 👏</Text>} onPress={() => nav.navigate('submit', { preset: 'video' })} />
-            <V2Row icon="book" iconBg={color.blueBg} iconColor={color.blue} title="오늘의 상식 퀴즈" sub="연극사 · 1문제" right={quizDone ? doneTag : <Text style={rewardTxt}>+5 👏</Text>} onPress={() => nav.navigate('learn')} />
-            <V2Row icon="notebook" iconBg={color.successBg} iconColor={color.success} title="연습 일지 쓰기" sub="오늘 잘된 점 한 줄이면 충분해요" right={jrnDone ? doneTag : <Text style={rewardTxt}>+5 👏</Text>} onPress={() => nav.navigate('submit', { preset: 'journal' })} />
-          </Card>
-        </Section>
+        {(missions ?? []).length > 0 && (
+          <Section title="오늘의 미션">
+            <Card>
+              {(missions ?? []).map((m, i) => {
+                const done = m.type === 'video' ? vidDone : m.type === 'journal' ? jrnDone : quizDone;
+                const meta = MISSION_META[m.type] ?? MISSION_META.video;
+                return (
+                  <V2Row key={m.id} first={i === 0} icon={meta.icon} iconBg={meta.bg} iconColor={meta.fg} title={m.title} sub={m.sub ?? ''} right={done ? doneTag : <Text style={rewardTxt}>+{m.reward} 👏</Text>} onPress={() => meta.go(nav)} />
+                );
+              })}
+            </Card>
+          </Section>
+        )}
 
         <Section title="다가오는 일정">
           <Card>

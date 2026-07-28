@@ -6,15 +6,17 @@ import { Screen, Scroll, BackHeader } from '../components/kit';
 import { Card } from '../components/gamify';
 import { Icon } from '../components/Icon';
 import { color, font, radius, space } from '../theme/tokens';
-import { contentAdminApi, QuizAdmin, ReadingAdmin, MediaAdmin, QuoteAdmin } from '../services/api';
+import { contentAdminApi, QuizAdmin, ReadingAdmin, MediaAdmin, QuoteAdmin, RoutineAdmin, MissionAdmin } from '../services/api';
 import { useUploads } from '../services/UploadContext';
 import { pickMedia } from '../services/upload';
 
-type Tab = 'media' | 'reading' | 'quiz' | 'quote';
+type Tab = 'media' | 'reading' | 'quiz' | 'quote' | 'routine' | 'mission';
 const TABS: { key: Tab; label: string }[] = [
   { key: 'media', label: '시청각' }, { key: 'reading', label: '읽을거리' },
   { key: 'quiz', label: '상식 퀴즈' }, { key: 'quote', label: '오늘의 한 줄' },
+  { key: 'routine', label: '오늘의 루틴' }, { key: 'mission', label: '오늘의 미션' },
 ];
+const MISSION_TYPE_LABEL: Record<string, string> = { video: '영상 제출', journal: '연습 일지', quiz: '상식 퀴즈' };
 
 const inputStyle = { borderWidth: 1, borderColor: color.inputLine, borderRadius: radius.card, paddingHorizontal: 13, paddingVertical: 11, fontSize: 15, color: color.ink, fontFamily: font.m, backgroundColor: color.white } as const;
 const Label = ({ children }: { children: React.ReactNode }) => (
@@ -31,7 +33,9 @@ export function ContentAdminScreen() {
   const readingQ = useQuery({ queryKey: ['admin', 'reading'], queryFn: () => contentAdminApi.readingList(), enabled: tab === 'reading' });
   const quizQ = useQuery({ queryKey: ['admin', 'quiz'], queryFn: () => contentAdminApi.quizList(), enabled: tab === 'quiz' });
   const quoteQ = useQuery({ queryKey: ['admin', 'quote'], queryFn: () => contentAdminApi.quoteList(), enabled: tab === 'quote' });
-  const cur = tab === 'media' ? mediaQ : tab === 'reading' ? readingQ : tab === 'quiz' ? quizQ : quoteQ;
+  const routineQ = useQuery({ queryKey: ['admin', 'routine'], queryFn: () => contentAdminApi.routineList(), enabled: tab === 'routine' });
+  const missionQ = useQuery({ queryKey: ['admin', 'mission'], queryFn: () => contentAdminApi.missionList(), enabled: tab === 'mission' });
+  const cur = tab === 'media' ? mediaQ : tab === 'reading' ? readingQ : tab === 'quiz' ? quizQ : tab === 'quote' ? quoteQ : tab === 'routine' ? routineQ : missionQ;
   const invalidate = () => qc.invalidateQueries({ queryKey: ['admin', tab] });
 
   const del = (label: string, fn: () => Promise<any>) => {
@@ -100,10 +104,22 @@ export function ContentAdminScreen() {
                     <Row key={q.id} title={q.text} sub={q.source ?? undefined}
                       onEdit={() => setEditing(q)} onDelete={() => del('명대사', () => contentAdminApi.quoteDelete(q.id))} />
                   )))}
+              {tab === 'routine' && ((routineQ.data ?? []).length === 0
+                ? <Empty />
+                : (routineQ.data ?? []).map((r) => (
+                    <Row key={r.id} title={r.title} sub={r.sub ?? undefined} badge={`+${r.reward}`}
+                      onEdit={() => setEditing(r)} onDelete={() => del('루틴', () => contentAdminApi.routineDelete(r.id))} />
+                  )))}
+              {tab === 'mission' && ((missionQ.data ?? []).length === 0
+                ? <Empty />
+                : (missionQ.data ?? []).map((m) => (
+                    <Row key={m.id} title={m.title} sub={`${MISSION_TYPE_LABEL[m.type] ?? m.type} · +${m.reward}`}
+                      onEdit={() => setEditing(m)} onDelete={() => del('미션', () => contentAdminApi.missionDelete(m.id))} />
+                  )))}
             </Card>
           )}
           <Text style={{ fontFamily: font.r, fontSize: 12, color: color.sub2, textAlign: 'center', marginTop: 12 }}>
-            {tab === 'quiz' ? '등록한 순서대로 매일 1문항씩 순환해요.' : tab === 'quote' ? '등록한 명대사가 매일 1개씩 순환해요.' : tab === 'media' ? '유튜브 링크 또는 영상 파일을 올리면 학생 배움 탭에 보여요.' : '학생 배움 탭의 작품 읽을거리에 보여요.'}
+            {tab === 'quiz' ? '등록한 순서대로 매일 1문항씩 순환해요.' : tab === 'quote' ? '등록한 명대사가 매일 1개씩 순환해요.' : tab === 'media' ? '유튜브 링크 또는 영상 파일을 올리면 학생 배움 탭에 보여요.' : tab === 'routine' ? '모든 학생의 홈 "오늘의 루틴"에 공통으로 보여요. 바꾸면 즉시 반영돼요.' : tab === 'mission' ? '모든 학생의 홈 "오늘의 미션"에 보여요. 종류(영상/일지/퀴즈)가 완료 판정·이동을 정해요.' : '학생 배움 탭의 작품 읽을거리에 보여요.'}
           </Text>
         </View>
       </Scroll>
@@ -133,6 +149,8 @@ function EditForm({ tab, item, onClose, onDone }: { tab: Tab; item: any | null; 
           {tab === 'reading' && <ReadingForm item={item} onDone={onDone} />}
           {tab === 'quiz' && <QuizForm item={item} onDone={onDone} />}
           {tab === 'quote' && <QuoteForm item={item} onDone={onDone} />}
+          {tab === 'routine' && <RoutineForm item={item} onDone={onDone} />}
+          {tab === 'mission' && <MissionForm item={item} onDone={onDone} />}
         </Scroll>
       </KeyboardAvoidingView>
     </Screen>
@@ -325,6 +343,77 @@ function QuoteForm({ item, onDone }: { item: QuoteAdmin | null; onDone: () => vo
       <TextInput value={text} onChangeText={setText} placeholder={'예: "난 갈매기… 아니, 그게 아니야. 난 배우야."'} placeholderTextColor={color.faint} style={[inputStyle, { minHeight: 100, textAlignVertical: 'top' }]} multiline />
       <Label>출처(선택)</Label>
       <TextInput value={source} onChangeText={setSource} placeholder="예: 니나 · 4막" placeholderTextColor={color.faint} style={inputStyle} />
+      <SaveBtn busy={busy} onPress={save} label={item ? '수정 저장' : '저장'} />
+    </View>
+  );
+}
+
+// ── 오늘의 루틴 ──
+function RoutineForm({ item, onDone }: { item: RoutineAdmin | null; onDone: () => void }) {
+  const [title, setTitle] = useState(item?.title ?? '');
+  const [sub, setSub] = useState(item?.sub ?? '');
+  const [reward, setReward] = useState(String(item?.reward ?? 5));
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!title.trim()) { Alert.alert('루틴 이름을 입력해주세요'); return; }
+    setBusy(true);
+    try {
+      const payload = { title: title.trim(), sub: sub.trim(), reward: Math.max(0, Math.min(60, parseInt(reward, 10) || 5)) };
+      if (item) await contentAdminApi.routineUpdate(item.id, payload); else await contentAdminApi.routineCreate(payload);
+      onDone();
+    } catch (e: any) { Alert.alert('저장 실패', e?.message || '저장하지 못했어요'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Label>루틴 이름</Label>
+      <TextInput value={title} onChangeText={setTitle} placeholder="예: 발성 루틴 10분" placeholderTextColor={color.faint} style={inputStyle} />
+      <Label>설명(선택)</Label>
+      <TextInput value={sub} onChangeText={setSub} placeholder="예: 아침 워밍업" placeholderTextColor={color.faint} style={inputStyle} />
+      <Label>보상 박수 (0~60)</Label>
+      <TextInput value={reward} onChangeText={setReward} keyboardType="number-pad" style={inputStyle} />
+      <SaveBtn busy={busy} onPress={save} label={item ? '수정 저장' : '저장'} />
+    </View>
+  );
+}
+
+// ── 오늘의 미션 ──
+function MissionForm({ item, onDone }: { item: MissionAdmin | null; onDone: () => void }) {
+  const [type, setType] = useState<'video' | 'journal' | 'quiz'>(item?.type ?? 'video');
+  const [title, setTitle] = useState(item?.title ?? '');
+  const [sub, setSub] = useState(item?.sub ?? '');
+  const [reward, setReward] = useState(String(item?.reward ?? 5));
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    if (!title.trim()) { Alert.alert('미션 제목을 입력해주세요'); return; }
+    setBusy(true);
+    try {
+      const payload = { type, title: title.trim(), sub: sub.trim(), reward: Math.max(0, Math.min(99, parseInt(reward, 10) || 5)) };
+      if (item) await contentAdminApi.missionUpdate(item.id, payload); else await contentAdminApi.missionCreate(payload);
+      onDone();
+    } catch (e: any) { Alert.alert('저장 실패', e?.message || '저장하지 못했어요'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Label>종류 (완료 판정·이동을 정해요)</Label>
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        {(['video', 'journal', 'quiz'] as const).map((k) => {
+          const on = type === k;
+          const label = k === 'video' ? '🎬 영상 제출' : k === 'journal' ? '📓 연습 일지' : '🧠 상식 퀴즈';
+          return (
+            <Pressable key={k} onPress={() => setType(k)} style={{ borderWidth: 1.5, borderColor: on ? color.blue : color.inputLine, backgroundColor: on ? color.blueBg : color.white, borderRadius: radius.button, paddingHorizontal: 14, paddingVertical: 10 }}>
+              <Text style={{ fontFamily: font.b, fontSize: 13, color: on ? color.blue : color.sub }}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Label>제목</Label>
+      <TextInput value={title} onChangeText={setTitle} placeholder="예: 연기 영상 1개 제출" placeholderTextColor={color.faint} style={inputStyle} />
+      <Label>설명(선택)</Label>
+      <TextInput value={sub} onChangeText={setSub} placeholder="예: 오늘 연습을 영상으로 남겨요" placeholderTextColor={color.faint} style={inputStyle} />
+      <Label>표시 보상 (+N 👏)</Label>
+      <TextInput value={reward} onChangeText={setReward} keyboardType="number-pad" style={inputStyle} />
       <SaveBtn busy={busy} onPress={save} label={item ? '수정 저장' : '저장'} />
     </View>
   );

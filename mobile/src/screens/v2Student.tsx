@@ -10,7 +10,7 @@ import { Icon } from '../components/Icon';
 import { color, font, radius, space, shadow } from '../theme/tokens';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useAuth } from '../AuthContext';
-import { sessionsApi, contentApi, achievementsApi, dietApi, practiceJournalApi, gamificationApi, SubmissionKind } from '../services/api';
+import { sessionsApi, contentApi, achievementsApi, dietApi, practiceJournalApi, gamificationApi, mockTestApi, SubmissionKind } from '../services/api';
 import { pickMedia } from '../services/upload';
 import { useUploads } from '../services/UploadContext';
 
@@ -131,6 +131,8 @@ export function LearnScreen() {
   const { data: quiz, isLoading: quizLoading } = useQuery({ queryKey: ['content', 'quiz'], queryFn: () => contentApi.quizToday(), retry: false, staleTime: 30000 });
   const { data: readingData } = useQuery({ queryKey: ['content', 'reading'], queryFn: () => contentApi.reading(), retry: false, staleTime: 30000 });
   const { data: mediaData } = useQuery({ queryKey: ['content', 'media'], queryFn: () => contentApi.media(), retry: false, staleTime: 30000 });
+  const { data: myMock } = useQuery({ queryKey: ['mockTests', 'mine'], queryFn: () => mockTestApi.mine(), retry: false, staleTime: 30000 });
+  const hasUpcomingMock = (myMock ?? []).some((m) => m.status !== 'closed');  // 다가오는(진행 중) 모의테스트가 있을 때만 노출
 
   // 이미 오늘 푼 경우 → answered 상태 반영
   useEffect(() => {
@@ -230,11 +232,13 @@ export function LearnScreen() {
           </Card>
         </Section>
 
-        <Section title="모의테스트">
-          <Card>
-            <V2Row first icon="microphone" iconBg={color.blueBg} iconColor={color.blue} title="모의테스트 참여" sub="순번 확인 · 음원 제출 · 내 영상 보기" onPress={() => nav.navigate('mockTest')} right={<Icon name="chevron-right" size={18} color={color.faint} />} />
-          </Card>
-        </Section>
+        {hasUpcomingMock && (
+          <Section title="모의테스트">
+            <Card>
+              <V2Row first icon="microphone" iconBg={color.blueBg} iconColor={color.blue} title="모의테스트 참여" sub="순번 확인 · 음원 제출 · 내 영상 보기" onPress={() => nav.navigate('mockTest')} right={<Icon name="chevron-right" size={18} color={color.faint} />} />
+            </Card>
+          </Section>
+        )}
 
         <Section title="시청각 자료" right="이번 주 배정">
           <Card>
