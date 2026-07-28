@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import uuid
 
 from app.database import get_db
@@ -32,6 +32,31 @@ def _require_director(user: User) -> None:
         raise HTTPException(status_code=403, detail="원장만 루틴을 관리할 수 있어요.")
 
 
+_col_ensured = False
+
+
+def _ensure_col(db: Session):
+    """student_ids 컬럼 보장(신규 additive). 프로세스당 1회."""
+    global _col_ensured
+    if _col_ensured:
+        return
+    from sqlalchemy import text
+    try:
+        db.execute(text("ALTER TABLE routine_templates ADD COLUMN IF NOT EXISTS student_ids JSON"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    _col_ensured = True
+
+
+def _pick(items, sid: str):
+    """개별 지정이 있으면 그 학생의 개별 항목, 없으면 공통(student_ids 빈/none) 항목."""
+    individual = [it for it in items if it.student_ids and sid in it.student_ids]
+    if individual:
+        return individual
+    return [it for it in items if not it.student_ids]
+
+
 def _seed_template(db: Session):
     """공용 루틴이 비어 있으면 기본 3항목을 최초 1회 시드(고정 PK로 동시요청 안전)."""
     if db.query(RoutineTemplate).count() == 0:
@@ -46,8 +71,10 @@ def _seed_template(db: Session):
 @router.get("/today")
 def today(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     sid = current_user.id
+    _ensure_col(db)
     _seed_template(db)
-    items = db.query(RoutineTemplate).filter(RoutineTemplate.active == True).order_by(RoutineTemplate.sort.asc(), RoutineTemplate.id.asc()).all()  # noqa: E712
+    allitems = db.query(RoutineTemplate).filter(RoutineTemplate.active == True).order_by(RoutineTemplate.sort.asc(), RoutineTemplate.id.asc()).all()  # noqa: E712
+    items = _pick(allitems, sid)  # 개별 지정 있으면 개별, 없으면 공통
     done_ids = {r[0] for r in db.query(RoutineCompletion.item_id).filter(RoutineCompletion.student_id == sid, RoutineCompletion.date == today_kst()).all()}
     out = [{"id": it.id, "title": it.title, "sub": it.sub, "reward": it.reward, "done": it.id in done_ids} for it in items]
     return {"items": out, "done_count": sum(1 for x in out if x["done"]), "total": len(out)}
@@ -56,8 +83,9 @@ def today(db: Session = Depends(get_db), current_user: User = Depends(get_curren
 @router.post("/{item_id}/check")
 def check(item_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     sid = current_user.id
+    _ensure_col(db)
     it = db.query(RoutineTemplate).filter(RoutineTemplate.id == item_id, RoutineTemplate.active == True).first()  # noqa: E712
-    if not it:
+    if not it or (it.student_ids and sid not in it.student_ids):  # 남에게 지정된 항목은 체크 불가
         raise HTTPException(status_code=404, detail="루틴을 찾을 수 없어요")
     today_d = today_kst()
     db.query(User).filter(User.id == sid).with_for_update().first()  # 행 잠금: 동시 탭 중복 지급 방지
@@ -78,6 +106,7 @@ class RoutineIn(BaseModel):
     title: str
     sub: Optional[str] = ""
     reward: int = 5
+    student_ids: Optional[List[str]] = None   # 비움/null=공통(전체)
 
 
 def _apply(it: RoutineTemplate, body: RoutineIn):
@@ -86,14 +115,18 @@ def _apply(it: RoutineTemplate, body: RoutineIn):
     it.title = body.title.strip()
     it.sub = (body.sub or "").strip() or None
     it.reward = max(0, min(60, int(body.reward or 5)))
+    ids = [s for s in (body.student_ids or []) if s]
+    it.student_ids = ids or None   # 빈 배열=공통
 
 
 @router.get("/admin")
 def admin_list(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_director(current_user)
+    _ensure_col(db)
     _seed_template(db)
     rows = db.query(RoutineTemplate).order_by(RoutineTemplate.sort.asc(), RoutineTemplate.id.asc()).all()
-    return [{"id": r.id, "title": r.title, "sub": r.sub, "reward": r.reward, "active": r.active} for r in rows]
+    return [{"id": r.id, "title": r.title, "sub": r.sub, "reward": r.reward, "active": r.active,
+             "studentIds": r.student_ids or []} for r in rows]
 
 
 @router.post("/admin")

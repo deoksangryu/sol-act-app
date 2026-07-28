@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import uuid
 
 from app.database import get_db
@@ -29,6 +29,30 @@ def _require_director(user: User) -> None:
         raise HTTPException(status_code=403, detail="원장만 미션을 관리할 수 있어요.")
 
 
+_col_ensured = False
+
+
+def _ensure_col(db: Session):
+    global _col_ensured
+    if _col_ensured:
+        return
+    from sqlalchemy import text
+    try:
+        db.execute(text("ALTER TABLE missions ADD COLUMN IF NOT EXISTS student_ids JSON"))
+        db.commit()
+    except Exception:
+        db.rollback()
+    _col_ensured = True
+
+
+def _pick(items, sid: str):
+    """개별 지정이 있으면 그 학생의 개별 항목, 없으면 공통(student_ids 빈/none)."""
+    individual = [it for it in items if it.student_ids and sid in it.student_ids]
+    if individual:
+        return individual
+    return [it for it in items if not it.student_ids]
+
+
 def _seed(db: Session):
     if db.query(Mission).count() == 0:
         for i, d in enumerate(DEFAULTS):
@@ -41,8 +65,10 @@ def _seed(db: Session):
 
 @router.get("/today")
 def today(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    _ensure_col(db)
     _seed(db)
-    rows = db.query(Mission).filter(Mission.active == True).order_by(Mission.sort.asc(), Mission.id.asc()).all()  # noqa: E712
+    allrows = db.query(Mission).filter(Mission.active == True).order_by(Mission.sort.asc(), Mission.id.asc()).all()  # noqa: E712
+    rows = _pick(allrows, current_user.id)  # 개별 지정 있으면 개별, 없으면 공통
     return [{"id": r.id, "type": r.type, "title": r.title, "sub": r.sub, "reward": r.reward} for r in rows]
 
 
@@ -52,6 +78,7 @@ class MissionIn(BaseModel):
     title: str
     sub: Optional[str] = ""
     reward: int = 5
+    student_ids: Optional[List[str]] = None   # 비움/null=공통(전체)
 
 
 def _apply(m: Mission, body: MissionIn):
@@ -64,14 +91,18 @@ def _apply(m: Mission, body: MissionIn):
     m.title = body.title.strip()
     m.sub = (body.sub or "").strip() or None
     m.reward = max(0, min(99, int(body.reward or 5)))
+    ids = [s for s in (body.student_ids or []) if s]
+    m.student_ids = ids or None
 
 
 @router.get("/admin")
 def admin_list(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     _require_director(current_user)
+    _ensure_col(db)
     _seed(db)
     rows = db.query(Mission).order_by(Mission.sort.asc(), Mission.id.asc()).all()
-    return [{"id": r.id, "type": r.type, "title": r.title, "sub": r.sub, "reward": r.reward, "active": r.active} for r in rows]
+    return [{"id": r.id, "type": r.type, "title": r.title, "sub": r.sub, "reward": r.reward, "active": r.active,
+             "studentIds": r.student_ids or []} for r in rows]
 
 
 @router.post("/admin")

@@ -3,7 +3,7 @@
 type이 완료판정·이동 대상을 결정: video(영상 제출) / journal(연습 일지) / quiz(상식 퀴즈).
 보상값(reward)은 표시용 힌트 — 실제 점수는 각 도메인 행동이 지급한다.
 """
-from sqlalchemy import Column, String, Integer, Boolean
+from sqlalchemy import Column, String, Integer, Boolean, JSON
 from app.database import Base
 
 
@@ -17,3 +17,4 @@ class Mission(Base):
     reward = Column(Integer, default=5)         # 표시용 (+N 👏)
     sort = Column(Integer, default=0)
     active = Column(Boolean, default=True, nullable=False)
+    student_ids = Column(JSON, nullable=True)   # 비움/null=공통(전체), 지정=그 학생들만

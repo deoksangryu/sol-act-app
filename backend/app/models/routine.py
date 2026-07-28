@@ -2,7 +2,7 @@
 
 기존 plans/plan_items 무접촉. 학생 최초 GET 때 기본 3항목 lazy-seed.
 """
-from sqlalchemy import Column, String, Integer, Boolean, Date, ForeignKey
+from sqlalchemy import Column, String, Integer, Boolean, Date, ForeignKey, JSON
 from app.database import Base
 
 
@@ -38,3 +38,4 @@ class RoutineTemplate(Base):
     reward = Column(Integer, default=5)
     sort = Column(Integer, default=0)
     active = Column(Boolean, default=True, nullable=False)
+    student_ids = Column(JSON, nullable=True)   # 비움/null=공통(전체), 지정=그 학생들만
