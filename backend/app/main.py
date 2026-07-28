@@ -14,7 +14,8 @@ from app.routers import (
     auth, users, assignments, diet, classes, chat, qna, notices, notifications,
     lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
     ws, upload, admin, push, praise_stickers, music, badges, practice, plans, gamification,
-    submissions, achievements, sessions, exams, content, routines, dashboard, exchange, mock_tests, ai
+    submissions, achievements, sessions, exams, content, routines, dashboard, exchange, mock_tests, ai,
+    missions
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -148,6 +149,7 @@ app.include_router(sessions.router, prefix="/api/sessions", tags=["Practice Sess
 app.include_router(exams.router, prefix="/api/exams", tags=["Exam Schedule"], dependencies=GATE)
 app.include_router(content.router, prefix="/api/content", tags=["Learn Content"], dependencies=GATE)
 app.include_router(routines.router, prefix="/api/routines", tags=["Routines"], dependencies=GATE)
+app.include_router(missions.router, prefix="/api/missions", tags=["Missions"], dependencies=GATE)
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"], dependencies=GATE)
 app.include_router(exchange.router, prefix="/api/exchange", tags=["Exchange"], dependencies=GATE)
 app.include_router(mock_tests.router, prefix="/api/mock-tests", tags=["Mock Tests"], dependencies=GATE)

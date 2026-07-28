@@ -25,7 +25,8 @@ from .achievement import UserBadge
 from .practice_session import PracticeSession
 from .exam import ExamSchedule
 from .content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, InterviewQuestion, Quote
-from .routine import RoutineItem, RoutineCompletion
+from .routine import RoutineItem, RoutineCompletion, RoutineTemplate
+from .mission import Mission
 from .exchange import ExchangeItem, ExchangeOrder
 from .mock_test import MockTest, MockTestEntry, MockTestVideo
 from .scene import SceneRehearsal, AppSetting, InterviewRevision
@@ -75,6 +76,8 @@ __all__ = [
     "InterviewQuestion",
     "RoutineItem",
     "RoutineCompletion",
+    "RoutineTemplate",
+    "Mission",
     "ExchangeItem",
     "ExchangeOrder",
     "MockTest",
