@@ -89,10 +89,17 @@ export function ScenePartnerScreen() {
   };
 
   useEffect(() => { voicesApi.list().then(setVoices).catch(() => {}); }, []);
-  const stopPreview = () => { if (previewRef.current) { try { previewRef.current.remove(); } catch {} previewRef.current = null; } setPreviewId(null); setPreviewLoading(null); };
+  // 오디오 완전 정지: pause 후 remove(즉시 무음). remove만 하면 소리가 이어지던 문제 방지.
+  const _kill = (ref: React.MutableRefObject<AudioPlayer | null>) => {
+    const p = ref.current; ref.current = null;
+    if (p) { try { p.pause(); } catch {} try { p.remove(); } catch {} }
+  };
+  // 한 번에 하나만 — 미리듣기·상대 대사·TTS를 전부 정지
+  const stopAudio = () => { try { Speech.stop(); } catch {} _kill(playerRef); _kill(previewRef); };
+  const stopPreview = () => { _kill(previewRef); setPreviewId(null); setPreviewLoading(null); };
   const playPreview = (v: SceneVoice) => {
     const wasPlaying = previewId === v.id;
-    stopPreview();
+    stopAudio(); setPreviewId(null); setPreviewLoading(null);  // 다른 재생 중이면 그것부터 멈춤
     if (wasPlaying) return;
     try {
       setPreviewLoading(v.id);   // 원격 오디오 로딩 중 표시(몇 초 걸릴 수 있음)
@@ -109,10 +116,8 @@ export function ScenePartnerScreen() {
   const clearTick = () => { if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; } };
   const stopAll = () => {
     runRef.current = false; clearTick();
-    try { Speech.stop(); } catch {}
-    if (playerRef.current) { try { playerRef.current.remove(); } catch {} playerRef.current = null; }
-    if (previewRef.current) { try { previewRef.current.remove(); } catch {} previewRef.current = null; }
-    setPreviewId(null);
+    stopAudio();
+    setPreviewId(null); setPreviewLoading(null);
   };
 
   const startMyTimer = (sec: number) => {
@@ -127,17 +132,19 @@ export function ScenePartnerScreen() {
   };
 
   const playPartner = (t: SceneTurn) => {
+    stopAudio();  // 이전 재생(미리듣기·직전 대사) 완전 정지 → 겹침 방지
     const url = absUrl(t.audioUrl);
     if (url) {
       try {
         const player = createAudioPlayer({ uri: url, headers: { 'ngrok-skip-browser-warning': 'true' } });
         playerRef.current = player;
-        const sub = player.addListener('playbackStatusUpdate', (s: any) => { if (s?.didJustFinish) { try { sub.remove(); } catch {} advance(); } });
+        // 이 재생이 아직 유효(멈춤·교체 안 됨)할 때만 다음으로 진행
+        const sub = player.addListener('playbackStatusUpdate', (s: any) => { if (s?.didJustFinish) { try { sub.remove(); } catch {} if (runRef.current && playerRef.current === player) advance(); } });
         player.play();
         return;
       } catch { /* 폴백 */ }
     }
-    Speech.speak(t.text || '', { language: 'ko-KR', onDone: () => advance(), onError: () => advance() });
+    Speech.speak(t.text || '', { language: 'ko-KR', onDone: () => { if (runRef.current) advance(); }, onError: () => { if (runRef.current) advance(); } });
   };
 
   const runStep = () => {
@@ -154,7 +161,7 @@ export function ScenePartnerScreen() {
   const advance = () => {
     clearTick();
     try { Speech.stop(); } catch {}
-    if (playerRef.current) { try { playerRef.current.remove(); } catch {} playerRef.current = null; }
+    _kill(playerRef);
     idxRef.current += 1; runStep();
   };
 
@@ -398,24 +405,24 @@ export function ScenePartnerScreen() {
       {(result || []).map((t, i) => {
         const active = i === cursor;
         if (t.speaker === '나') return (
-          <View key={i} style={{ backgroundColor: color.white, borderWidth: active ? 2 : 1, borderColor: active ? color.blue : color.line, borderRadius: radius.card, padding: 14, overflow: 'hidden' }}>
-            <Text style={{ fontFamily: font.b, fontSize: 11.5, color: active ? color.blue : color.sub2, marginBottom: 4 }}>나 {active && phase === 'mine' ? `· ${remain.toFixed(1)}초 남음` : ''}</Text>
+          <Pressable key={i} onPress={running && active ? advance : undefined} style={{ backgroundColor: color.white, borderWidth: active ? 2 : 1, borderColor: active ? color.blue : color.line, borderRadius: radius.card, padding: 14, overflow: 'hidden' }}>
+            <Text style={{ fontFamily: font.b, fontSize: 11.5, color: active ? color.blue : color.sub2, marginBottom: 4 }}>나 {active && phase === 'mine' ? `· ${remain.toFixed(1)}초 남음 · 탭하면 바로 넘어가기` : ''}</Text>
             <Text style={{ fontFamily: font.m, fontSize: 15.5, lineHeight: 24, color: color.ink }}>{t.text}</Text>
             {active && phase === 'mine' && total > 0 && (
               <View style={{ height: 4, backgroundColor: color.inputLine, borderRadius: 2, marginTop: 10, overflow: 'hidden' }}>
                 <View style={{ height: 4, width: `${Math.max(0, Math.min(100, (remain / total) * 100))}%`, backgroundColor: color.blue }} />
               </View>
             )}
-          </View>
+          </Pressable>
         );
         return (
-          <View key={i} style={{ backgroundColor: color.amberBg, borderWidth: active ? 2 : 1, borderColor: active ? color.amber : color.requestLine, borderRadius: radius.card, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Pressable key={i} onPress={running && active ? advance : undefined} style={{ backgroundColor: color.amberBg, borderWidth: active ? 2 : 1, borderColor: active ? color.amber : color.requestLine, borderRadius: radius.card, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <View style={{ width: 34, height: 34, borderRadius: 17, backgroundColor: color.amber, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 15, color: color.white }}>🎭</Text></View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontFamily: font.b, fontSize: 11.5, color: color.warn, marginBottom: 2 }}>상대 {active && phase === 'partner' ? '· 말하는 중…' : ''}</Text>
+              <Text style={{ fontFamily: font.b, fontSize: 11.5, color: color.warn, marginBottom: 2 }}>상대 {active && phase === 'partner' ? '· 말하는 중… (탭하면 넘어가기)' : ''}</Text>
               <Text style={{ fontFamily: font.m, fontSize: reveal ? 15 : 13, lineHeight: 22, color: reveal ? color.ink : color.faint }}>{reveal ? t.text : '(듣고 반응하세요)'}</Text>
             </View>
-          </View>
+          </Pressable>
         );
       })}
 
