@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # AI (둘 중 하나만 넣으면 됨 — OpenAI 우선, 없으면 Gemini)
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o-mini"   # 저렴·충분. 원하면 gpt-4o 등으로 변경
+    # OpenAI TTS(gpt-4o-mini-tts) 폴백 — 기본 OFF(비용 보호). ElevenLabs 실패 시 OpenAI로 합성하지 않고
+    # None 반환 → 앱이 온디바이스 음성으로 폴백. 켜려면 .env에 OPENAI_TTS_FALLBACK=true.
+    OPENAI_TTS_FALLBACK: bool = False
     GEMINI_API_KEY: str = ""
     # TTS: ElevenLabs(한국어 캐릭터 보이스 우수) 우선, 없으면 OpenAI TTS 폴백
     ELEVENLABS_API_KEY: str = ""

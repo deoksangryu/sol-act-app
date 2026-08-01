@@ -378,9 +378,9 @@ def synthesize_tts(text: str, voice_id: str = "", gender: str = "중성", emotio
         audio = _elevenlabs_tts(text, vid, el_key, emotion)
         if audio:
             return audio
-        # ElevenLabs 실패 → OpenAI 폴백
+        # ElevenLabs 실패 → (기본) 여기서 종료. 앱이 온디바이스 음성으로 폴백(OpenAI TTS 비용 방지).
     openai_key = (getattr(settings, "OPENAI_API_KEY", "") or "").strip()
-    if openai_key:
+    if openai_key and getattr(settings, "OPENAI_TTS_FALLBACK", False):  # 기본 OFF — 비용 보호
         try:
             from openai import OpenAI
             client = OpenAI(api_key=openai_key, timeout=20.0, max_retries=1)
