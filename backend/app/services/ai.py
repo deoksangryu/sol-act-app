@@ -156,11 +156,11 @@ def _scene_user_prompt(turns, partner_hint: str, situation: str = "") -> str:
     who = (ctx + "\n") if ctx else "\n"
     if empty == 0:
         fill_instr = '채울 빈 자리는 없다. partner는 빈 배열 []로 두고, 상대 인물에 맞는 voice_id·gender·age만 반환하라.'
-        json_fmt = '{"partner": [], "gender": "남|여|중성", "age": "young|middle|old", "voice_id": "위 목록의 id"}'
+        json_fmt = '{"partner": [], "emotions": ["감정", ...], "gender": "남|여|중성", "age": "young|middle|old", "voice_id": "위 목록의 id"}'
     else:
         fill_instr = ('[상대 대사 #1]부터 순서대로 그 빈 자리들만 채워라. 이미 "상대: ..."로 적힌 대사는 학생이 직접 쓴 것이니 '
                       '절대 바꾸지 말고 맥락으로만 활용하라. partner 배열 길이 = 빈 자리 개수와 정확히 일치.')
-        json_fmt = '{"partner": ["#1 자리 대사", ...], "gender": "남|여|중성", "age": "young|middle|old", "voice_id": "위 목록의 id"}'
+        json_fmt = '{"partner": ["#1 자리 대사", ...], "emotions": ["감정", ...], "gender": "남|여|중성", "age": "young|middle|old", "voice_id": "위 목록의 id"}'
     return (
         "아래는 학생이 연기할 장면이다. '나:'=학생 고정 대사, '상대: ...'=학생이 직접 쓴 상대 대사(고정), "
         "[상대 대사 #n]=네가 채워야 할 빈 자리다. 장면 전체 맥락(상황·관계·감정 흐름)을 파악해, "
@@ -170,7 +170,12 @@ def _scene_user_prompt(turns, partner_hint: str, situation: str = "") -> str:
         f"{seq}\n\n"
         f"상대 인물에 가장 어울리는 목소리를 아래 목록에서 하나 골라 voice_id로 반환하라(성별·나이·성격 특성 고려):\n"
         f"{catalog_prompt()}\n\n"
-        f"{fill_instr} 반드시 아래 JSON만 출력하라:\n{json_fmt}\n"
+        f"{fill_instr}\n"
+        "emotions=모든 '상대 대사'의 감정을 등장 순서대로(빈 자리+이미 쓰인 대사 전부 포함) 배열로 반환하라. "
+        "각 대사의 속마음·상황에 맞는 감정을 다음 중 하나로: "
+        "sad, angry, happy, excited, nervous, calm, whispers, crying, sarcastic, fearful, tired, pleading, cold, shouting, neutral. "
+        "감정이 특별히 두드러지지 않으면 neutral. emotions 길이 = 상대 대사 총 개수와 정확히 일치.\n"
+        f"반드시 아래 JSON만 출력하라:\n{json_fmt}\n"
         "gender=상대 성별(남/여/중성). age=나이대(young=10~30대 / middle=40~50대 / old=60대 이상). voice_id는 반드시 목록의 id."
     )
 
@@ -191,17 +196,19 @@ def generate_scene_partner(turns, partner_hint: str = "", situation: str = "") -
     if not slots:
         return {"ok": True, "turns": [{"speaker": "나", "text": (t.get("text") or "").strip()} for t in turns]}
 
-    def _apply(partner_list) -> list:
+    def _apply(partner_list, emotions=None) -> list:
         pl = [str(x).strip() for x in (partner_list or [])]
-        out, si = [], 0
+        em = [str(x).strip() for x in (emotions or [])]
+        out, si, ei = [], 0, 0
         for t in turns:
             if t.get("speaker") == "상대":
                 given = (t.get("text") or "").strip()
-                if given:
-                    out.append({"speaker": "상대", "text": given})       # 학생이 직접 쓴 대사 유지
-                else:
-                    out.append({"speaker": "상대", "text": pl[si] if si < len(pl) and pl[si] else "…"})
+                txt = given if given else (pl[si] if si < len(pl) and pl[si] else "…")  # 학생 대사 유지 / AI 채움
+                if not given:
                     si += 1
+                emo = em[ei] if ei < len(em) else ""   # 대사별 감정(v3 태그용) — em은 상대 대사 순서
+                ei += 1
+                out.append({"speaker": "상대", "text": txt, "emotion": emo})
             else:
                 out.append({"speaker": "나", "text": (t.get("text") or "").strip()})
         return out
@@ -225,12 +232,12 @@ def generate_scene_partner(turns, partner_hint: str = "", situation: str = "") -
             partner = data.get("partner") or data.get("lines") or []
             if isinstance(partner, str):
                 partner = [partner]
-            if not partner:
-                return _scene_fallback(turns)
-            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower(), "voice_id": str(data.get("voice_id") or "").strip()}
+            if partner:
+                return {"ok": True, "turns": _apply(partner, data.get("emotions")), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower(), "voice_id": str(data.get("voice_id") or "").strip()}
+            # partner가 비면 아래 Gemini 폴백으로
         except Exception as e:
             log.warning(f"generate_scene_partner(openai) failed: {e}")
-            return _scene_fallback(turns)
+            # OpenAI 실패(크레딧 소진 등) → 아래 Gemini 폴백으로(키 있으면)
 
     if gemini_key:
         try:
@@ -247,7 +254,7 @@ def generate_scene_partner(turns, partner_hint: str = "", situation: str = "") -
                 partner = [partner]
             if not partner:
                 return _scene_fallback(turns)
-            return {"ok": True, "turns": _apply(partner), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower(), "voice_id": str(data.get("voice_id") or "").strip()}
+            return {"ok": True, "turns": _apply(partner, data.get("emotions")), "voice_gender": str(data.get("gender") or "중성").strip(), "voice_age": str(data.get("age") or "middle").strip().lower(), "voice_id": str(data.get("voice_id") or "").strip()}
         except Exception as e:
             log.warning(f"generate_scene_partner(gemini) failed: {e}")
             return _scene_fallback(turns)
@@ -312,25 +319,53 @@ def pick_voice(gender: str, age: str, preferred_id: str = "") -> str:
     return random.choice(matches) if matches else _FALLBACK_VOICE
 
 
-def _elevenlabs_tts(text: str, voice_id: str, api_key: str):
+# v3 오디오 감정 태그(대사 앞에 [sad] 등). GPT가 대사별로 골라 보내면 v3가 그 감정으로 읽는다.
+_V3_EMOTIONS = {
+    "sad", "angry", "happy", "excited", "nervous", "calm", "whispers", "whispering",
+    "crying", "sarcastic", "fearful", "scared", "tired", "pleading", "cold", "shouting",
+    "laughing", "sighs", "cheerful", "serious", "gentle", "cheeky", "mischievous",
+}
+# OpenAI TTS 폴백용 한국어 지시(대략)
+_EMOTION_KO = {
+    "sad": "슬프고 가라앉은", "angry": "화나고 격앙된", "happy": "밝고 기쁜", "excited": "들뜨고 흥분된",
+    "nervous": "긴장되고 떨리는", "calm": "차분하고 담담한", "whispers": "속삭이듯 작은", "crying": "울먹이는",
+    "sarcastic": "비꼬는", "fearful": "겁먹은", "tired": "지치고 힘없는", "pleading": "애원하는",
+    "cold": "냉정하고 차가운", "shouting": "소리치는",
+}
+
+
+def _emotion_tag(emotion: str) -> str:
+    e = (emotion or "").strip().lower().strip("[]")
+    return f"[{e}]" if e in _V3_EMOTIONS else ""
+
+
+def _elevenlabs_tts(text: str, voice_id: str, api_key: str, emotion: str = ""):
+    """v3(감정 태그) 우선, 실패 시 v2(태그 없이) 폴백."""
     import logging, requests
-    try:
-        r = requests.post(
-            f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
-            headers={"xi-api-key": api_key, "Content-Type": "application/json"},
-            json={"text": text[:800], "model_id": "eleven_multilingual_v2"},
-            timeout=45,
-        )
-        if r.status_code == 200 and r.content[:1] != b"{":
-            return r.content
-        logging.getLogger(__name__).warning(f"elevenlabs tts {r.status_code}: {r.text[:120]}")
-    except Exception as e:
-        logging.getLogger(__name__).warning(f"elevenlabs tts error: {e}")
+    log = logging.getLogger(__name__)
+    tag = _emotion_tag(emotion)
+    attempts = [
+        ("eleven_v3", (f"{tag} {text}".strip() if tag else text)),   # v3: 감정 태그 적용
+        ("eleven_multilingual_v2", text),                             # v2 폴백: 태그 없이 원문
+    ]
+    for model, body_text in attempts:
+        try:
+            r = requests.post(
+                f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
+                headers={"xi-api-key": api_key, "Content-Type": "application/json"},
+                json={"text": body_text[:800], "model_id": model},
+                timeout=45,
+            )
+            if r.status_code == 200 and r.content[:1] != b"{":
+                return r.content
+            log.warning(f"elevenlabs tts {model} {r.status_code}: {r.text[:120]}")
+        except Exception as e:
+            log.warning(f"elevenlabs tts {model} error: {e}")
     return None
 
 
-def synthesize_tts(text: str, voice_id: str = "", gender: str = "중성"):
-    """상대 대사를 지정 voice_id(카탈로그)로 합성 → mp3 bytes. ElevenLabs 우선/OpenAI 폴백(gender)/None."""
+def synthesize_tts(text: str, voice_id: str = "", gender: str = "중성", emotion: str = ""):
+    """상대 대사를 지정 voice_id로 합성 → mp3 bytes. ElevenLabs v3(감정)/v2 → OpenAI(instructions) 폴백/None."""
     from app.config import settings
     import logging
     log = logging.getLogger(__name__)
@@ -340,7 +375,7 @@ def synthesize_tts(text: str, voice_id: str = "", gender: str = "중성"):
     vid = voice_id if voice_id in _CATALOG_IDS else _FALLBACK_VOICE
     el_key = (getattr(settings, "ELEVENLABS_API_KEY", "") or "").strip()
     if el_key:
-        audio = _elevenlabs_tts(text, vid, el_key)
+        audio = _elevenlabs_tts(text, vid, el_key, emotion)
         if audio:
             return audio
         # ElevenLabs 실패 → OpenAI 폴백
@@ -349,10 +384,12 @@ def synthesize_tts(text: str, voice_id: str = "", gender: str = "중성"):
         try:
             from openai import OpenAI
             client = OpenAI(api_key=openai_key, timeout=20.0, max_retries=1)
-            resp = client.audio.speech.create(
-                model="gpt-4o-mini-tts", voice=_OPENAI_VOICE.get(_norm_gender(gender), "alloy"),
-                input=text[:600], response_format="mp3",
-            )
+            ko = _EMOTION_KO.get((emotion or "").strip().lower().strip("[]"), "")
+            kwargs = {"model": "gpt-4o-mini-tts", "voice": _OPENAI_VOICE.get(_norm_gender(gender), "alloy"),
+                      "input": text[:600], "response_format": "mp3"}
+            if ko:
+                kwargs["instructions"] = f"{ko} 목소리로 자연스럽게 연기하듯 읽어줘."
+            resp = client.audio.speech.create(**kwargs)
             return resp.read()
         except Exception as e:
             log.warning(f"openai tts failed: {e}")

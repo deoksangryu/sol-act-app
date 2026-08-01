@@ -95,7 +95,7 @@ def _build_scene(turns: List[Dict[str, Any]], partner_hint: str, situation: str 
     tts_dir = UPLOAD_DIR / "tts"
     for t in out_turns:
         if t.get("speaker") == "상대" and (t.get("text") or "").strip():
-            audio = ai.synthesize_tts(t["text"], vid, gender)
+            audio = ai.synthesize_tts(t["text"], vid, gender, t.get("emotion", ""))  # v3 감정 태그 적용
             if audio:
                 try:
                     tts_dir.mkdir(parents=True, exist_ok=True)
