@@ -16,7 +16,7 @@ from app.models.submission import Submission
 from app.models.practice_session import PracticeSession
 from app.models.achievement import UserBadge
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_user
+from app.services.notification_service import notify_user, get_teacher_student_ids
 
 router = APIRouter()
 
@@ -69,6 +69,8 @@ def my_badges(db: Session = Depends(get_db), current_user: User = Depends(get_cu
 def student_badges(student_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if current_user.role not in (UserRole.TEACHER, UserRole.DIRECTOR):
         raise HTTPException(status_code=403, detail="강사/원장 전용")
+    if current_user.role == UserRole.TEACHER and student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생만 볼 수 있어요.")
     return _badges_for(db, student_id)
 
 
@@ -82,6 +84,8 @@ async def grant_badge(body: GrantBody, db: Session = Depends(get_db), current_us
     """강사수여(성장상 등) — 수동 뱃지만. 자동 뱃지는 발급 불가."""
     if current_user.role not in (UserRole.TEACHER, UserRole.DIRECTOR):
         raise HTTPException(status_code=403, detail="강사/원장 전용")
+    if current_user.role == UserRole.TEACHER and body.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생에게만 수여할 수 있어요.")
     if body.code not in MANUAL_CODES:
         raise HTTPException(status_code=400, detail="자동 뱃지는 수여할 수 없어요")
     exists = db.query(UserBadge).filter(UserBadge.student_id == body.student_id, UserBadge.badge_code == body.code).first()

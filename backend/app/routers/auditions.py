@@ -16,6 +16,12 @@ import uuid
 router = APIRouter()
 
 
+def _require_staff(current_user: User):
+    """오디션 생성·수정 등 관리 작업은 교사·원장만. 학생 권한상승·스팸 차단."""
+    if current_user.role == UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="교사·원장만 가능한 작업입니다.")
+
+
 def audition_to_response(a: Audition) -> dict:
     return {
         "id": a.id,
@@ -94,6 +100,7 @@ async def create_audition(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    _require_staff(current_user)
     audition = Audition(
         id=f"aud{uuid.uuid4().hex[:7]}",
         title=data.title,
@@ -174,6 +181,7 @@ async def add_checklist(
     if not a:
         raise HTTPException(status_code=404, detail="Audition not found")
 
+    _require_staff(current_user)
     checklist = AuditionChecklist(
         id=f"achk{uuid.uuid4().hex[:7]}",
         audition_id=audition_id,
@@ -207,6 +215,7 @@ async def update_checklist(
     if not c:
         raise HTTPException(status_code=404, detail="Checklist item not found")
 
+    _require_staff(current_user)
     for field, value in update_data.model_dump(exclude_unset=True).items():
         setattr(c, field, value)
 
@@ -236,6 +245,7 @@ async def delete_checklist(
     if not c:
         raise HTTPException(status_code=404, detail="Checklist item not found")
 
+    _require_staff(current_user)
     a = db.query(Audition).filter(Audition.id == audition_id).first()
     db.delete(c)
     db.commit()
@@ -258,6 +268,7 @@ def generate_tips(
     if not a:
         raise HTTPException(status_code=404, detail="Audition not found")
 
+    _require_staff(current_user)
     tips = generate_audition_tips(a.title, a.description, a.audition_type.value)
     return {"tips": tips}
 

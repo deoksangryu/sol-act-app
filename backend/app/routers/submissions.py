@@ -157,6 +157,8 @@ async def send_feedback(sub_id: str, body: FeedbackBody, db: Session = Depends(g
     sub = db.query(Submission).filter(Submission.id == sub_id).first()
     if not sub:
         raise HTTPException(status_code=404, detail="제출물을 찾을 수 없어요")
+    if current_user.role == UserRole.TEACHER and sub.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 제출물만 첨삭할 수 있어요.")
     if sub.first_feedback_at is None:
         sub.first_feedback_at = datetime.utcnow()
     sub.feedback = body.feedback

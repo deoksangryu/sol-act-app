@@ -8,7 +8,7 @@ from app.models.lesson import Lesson, LessonStatus, LessonType, Subject
 from app.models.user import User, UserRole
 from app.schemas.class_info import ClassInfoCreate, ClassInfoUpdate, ClassInfoResponse
 from app.utils.auth import get_current_user
-from app.services.notification_service import notify_user, notify_users, emit_data_changed
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, validate_class_access
 from app.models.notification import NotificationType
 from app.utils.timezone import today_kst
 from datetime import date, timedelta
@@ -128,9 +128,11 @@ def list_classes(
     if student_id:
         query = query.filter(ClassInfo.students.any(User.id == student_id))
     classes = query.all()
-    # Teacher: only see their own classes
+    # 소속 스코프: 교사=담당반, 학생=수강반, 원장=전체(teacher_id 필터만 적용)
     if current_user.role == UserRole.TEACHER:
         classes = [c for c in classes if current_user.id in (c.subject_teachers or {}).values()]
+    elif current_user.role == UserRole.STUDENT:
+        classes = [c for c in classes if any(s.id == current_user.id for s in c.students)]
     elif teacher_id:
         classes = [c for c in classes if teacher_id in (c.subject_teachers or {}).values()]
     return [class_to_response(c) for c in classes]
@@ -141,6 +143,9 @@ def get_class(class_id: str, db: Session = Depends(get_db), current_user: User =
     cls = db.query(ClassInfo).filter(ClassInfo.id == class_id).first()
     if not cls:
         raise HTTPException(status_code=404, detail="Class not found")
+    # 소속(교사=담당, 학생=수강) 또는 원장만 열람 — 미소속 학생의 로스터 조회 차단
+    if not validate_class_access(db, class_id, current_user):
+        raise HTTPException(status_code=403, detail="접근 권한이 없습니다.")
     return class_to_response(cls)
 
 
