@@ -10,6 +10,7 @@ import { UploadProvider } from './src/services/UploadContext';
 import { UploadIndicator } from './src/components/UploadIndicator';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { DevRoleProvider, DevRoleSwitcher } from './src/DevRole';
+import { UpdateGate } from './src/components/UpdateGate';
 
 const queryClient = new QueryClient({
   // refetchOnWindowFocus: RN에선 focusManager+AppState로 '포그라운드 복귀'가 곧 focus.
@@ -44,6 +45,7 @@ export default function App() {
               </NavigationContainer>
               <UploadIndicator />
               <DevRoleSwitcher />
+              <UpdateGate />
               <StatusBar style="dark" />
             </UploadProvider>
           </DevRoleProvider>

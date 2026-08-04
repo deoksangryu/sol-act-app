@@ -22,7 +22,7 @@ from app.utils.timezone import kst_day_start_utc
 
 router = APIRouter()
 
-KIND_LABEL = {"recording": "녹음", "video": "영상", "journal": "일지", "diet": "식단", "interview": "면접"}
+KIND_LABEL = {"recording": "녹음", "video": "영상", "journal": "일지", "diet": "식단", "interview": "면접", "analysis": "작품분석"}
 SUBMIT_REWARD = 15
 
 

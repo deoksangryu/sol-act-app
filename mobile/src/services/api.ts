@@ -469,7 +469,7 @@ export const gamificationApi = {
 };
 
 // === Submissions (통합 인박스 + 리드타임) — v2 ===
-export type SubmissionKind = 'recording' | 'video' | 'journal' | 'diet' | 'interview';
+export type SubmissionKind = 'recording' | 'video' | 'journal' | 'diet' | 'interview' | 'analysis';
 export interface InboxOpen { id: string; student: string; studentId?: string; kind: SubmissionKind; title: string; note?: string | null; ago: string; createdAt?: string }
 export interface InboxDone { id: string; student: string; studentId?: string; kind: SubmissionKind; title: string; lead: string }
 export interface Inbox { count: number; open: InboxOpen[]; doneToday: InboxDone[] }
@@ -673,6 +673,56 @@ export const mockTestApi = {
   // 학생
   mine(): Promise<MyMockTest[]> { return apiRequest('/api/mock-tests/student/mine'); },
   myVideos(id: string): Promise<MockTestVideoView[]> { return apiRequest(`/api/mock-tests/${id}/my-videos`); },
+};
+
+// === 작품분석(Work Analysis) — GOTE 구조 분석 → 제출 → 강사 첨삭 → 개정 ===
+// payload는 자유형 JSON(camelCase 키). jsonBody의 toSnake가 payload 키를 망가뜨리므로 raw로 전송한다.
+export type AnalysisType = 'monologue' | 'play' | 'musical';
+export type AnalysisStatus = 'draft' | 'submitted' | 'reviewed';
+export interface AnalysisSummary {
+  id: string; type: AnalysisType; typeLabel: string; title: string;
+  author?: string | null; character?: string | null; scene?: string | null;
+  targetSchool?: string | null; currentVersion: number; status: AnalysisStatus;
+  createdAt?: string | null; updatedAt?: string | null;
+}
+export interface AnalysisFieldCommentView { id: string; fieldKey: string; content: string; createdAt?: string | null }
+export interface AnalysisFeedbackView { rubric: Record<string, number>; good?: string | null; fix?: string | null; next?: string | null; createdAt?: string | null }
+export interface AnalysisVersionView {
+  id: string; versionNo: number; payload: Record<string, any>; charCount: number;
+  status: AnalysisStatus; submittedAt?: string | null; createdAt?: string | null;
+  feedback?: AnalysisFeedbackView | null; comments?: AnalysisFieldCommentView[];
+}
+export interface AnalysisDetail extends AnalysisSummary { studentId?: string; versions: AnalysisVersionView[] }
+export interface AnalysisMeta { title?: string; author?: string; character?: string; scene?: string; targetSchool?: string }
+
+// payload 키 보존을 위해 toSnake를 우회하는 raw 본문(백엔드 Pydantic은 camelCase 필드로 매칭).
+function rawBody(data: unknown): string { return JSON.stringify(data); }
+
+export const workAnalysisApi = {
+  create(input: { type: AnalysisType; title: string; payload?: Record<string, any> } & AnalysisMeta): Promise<{ id: string; versionId: string; versionNo: number }> {
+    return apiRequest('/api/analyses', { method: 'POST', body: rawBody(input) });
+  },
+  saveVersion(id: string, payload: Record<string, any>, meta?: AnalysisMeta): Promise<{ ok: boolean; charCount: number }> {
+    return apiRequest(`/api/analyses/${id}/version`, { method: 'PUT', body: rawBody({ payload, ...(meta || {}) }) });
+  },
+  submit(id: string): Promise<{ ok: boolean; versionNo?: number; already?: boolean }> {
+    return apiRequest(`/api/analyses/${id}/submit`, { method: 'POST' });
+  },
+  mine(): Promise<AnalysisSummary[]> { return apiRequest('/api/analyses/mine'); },
+  detail(id: string): Promise<AnalysisDetail> { return apiRequest(`/api/analyses/${id}`); },
+  revise(id: string): Promise<{ ok: boolean; versionId: string; versionNo: number }> {
+    return apiRequest(`/api/analyses/${id}/revise`, { method: 'POST' });
+  },
+  // 강사·원장
+  feedback(versionId: string, body: { rubric?: Record<string, number>; good?: string; fix?: string; next?: string }): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/analyses/version/${versionId}/feedback`, { method: 'POST', body: rawBody(body) });
+  },
+  addComment(versionId: string, fieldKey: string, content: string): Promise<AnalysisFieldCommentView> {
+    return apiRequest(`/api/analyses/version/${versionId}/comment`, { method: 'POST', body: rawBody({ fieldKey, content }) });
+  },
+  deleteComment(commentId: string): Promise<{ ok: boolean }> {
+    return apiRequest(`/api/analyses/comment/${commentId}`, { method: 'DELETE' });
+  },
 };
 
 // === Dashboard (원장/강사 현황) — v2 ===

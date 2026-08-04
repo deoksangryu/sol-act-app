@@ -20,6 +20,10 @@ import { MockTestScreen } from '../screens/MockTestScreen';
 import { MockTestVideosScreen } from '../screens/MockTestVideosScreen';
 import { MockTestAdminScreen } from '../screens/MockTestAdminScreen';
 import { MockTestDetailScreen } from '../screens/MockTestDetailScreen';
+import { WorkAnalysisScreen } from '../screens/WorkAnalysisScreen';
+import { WorkAnalysisWizardScreen } from '../screens/WorkAnalysisWizardScreen';
+import { WorkAnalysisFeedbackScreen } from '../screens/WorkAnalysisFeedbackScreen';
+import { WorkAnalysisReviewScreen } from '../screens/WorkAnalysisReviewScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -60,6 +64,11 @@ export function MainStack() {
       <Stack.Screen name="mockTestVideos" component={MockTestVideosScreen} />
       <Stack.Screen name="mockTestAdmin" component={MockTestAdminScreen} />
       <Stack.Screen name="mockTestDetail" component={MockTestDetailScreen} />
+      {/* 작품분석 — 학생: 목록/위저드/받은첨삭 / 교사·원장: 첨삭 작성 */}
+      <Stack.Screen name="workAnalysis" component={WorkAnalysisScreen} />
+      <Stack.Screen name="workAnalysisWizard" component={WorkAnalysisWizardScreen} />
+      <Stack.Screen name="workAnalysisFeedback" component={WorkAnalysisFeedbackScreen} />
+      <Stack.Screen name="workAnalysisReview" component={WorkAnalysisReviewScreen} />
     </Stack.Navigator>
   );
 }

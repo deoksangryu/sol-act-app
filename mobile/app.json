@@ -9,9 +9,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.solact.academy",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "infoPlist": {
         "UIBackgroundModes": [
+          "audio",
           "audio"
         ],
         "ITSAppUsesNonExemptEncryption": false
@@ -19,9 +20,14 @@
     },
     "android": {
       "package": "com.solact.academy",
-      "versionCode": 21,
+      "versionCode": 23,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
       "adaptiveIcon": {
         "backgroundColor": "#FBBF24",
@@ -55,6 +61,18 @@
       "@react-native-community/datetimepicker",
       "./plugins/withReleaseSigning",
       "./plugins/withR8"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "02fd7559-3491-4715-917a-665ee38f8823"
+      }
+    },
+    "owner": "sol-act",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/02fd7559-3491-4715-917a-665ee38f8823"
+    }
   }
 }

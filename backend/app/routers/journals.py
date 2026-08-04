@@ -85,7 +85,7 @@ def list_journals(
             l.id for l in db.query(Lesson.id).filter(
                 or_(
                     Lesson.class_id.in_(my_class_ids),
-                    and_(Lesson.is_private == True, Lesson.teacher_id == current_user.id),
+                    Lesson.teacher_id == current_user.id,  # 지정 담당교사인 수업(반·비공개 공통) — lessons.py 목록과 동일
                 )
             ).all()
         ]
@@ -132,8 +132,8 @@ def get_journal(journal_id: str, db: Session = Depends(get_db), current_user: Us
     if current_user.role == UserRole.TEACHER and j.lesson:
         my_class_ids = get_teacher_class_ids(db, current_user.id)
         is_class_teacher = j.lesson.class_id in my_class_ids
-        is_private_teacher = j.lesson.is_private and j.lesson.teacher_id == current_user.id
-        if not (is_class_teacher or is_private_teacher):
+        is_lesson_teacher = j.lesson.teacher_id == current_user.id  # 지정 담당교사(반·비공개 공통)
+        if not (is_class_teacher or is_lesson_teacher):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
     return journal_to_response(j)
 
@@ -156,7 +156,10 @@ async def create_journal(
 
     # Validate user has access to this lesson
     if lesson.class_id:
-        if not validate_class_access(db, lesson.class_id, current_user):
+        # 반 과목담당(subject_teachers)이거나, 이 수업의 지정 담당교사(lesson.teacher_id)면 허용.
+        # 수업 목록/상세(lessons.py)는 이미 teacher_id를 인정하므로 여기서도 맞춰 "수업은 보이는데 일지만 막히는" 불일치 방지.
+        is_lesson_teacher = current_user.role in (UserRole.TEACHER, UserRole.DIRECTOR) and lesson.teacher_id == current_user.id
+        if not (validate_class_access(db, lesson.class_id, current_user) or is_lesson_teacher):
             raise HTTPException(status_code=403, detail="Not a member of this lesson's class")
     elif lesson.is_private:
         if current_user.role == UserRole.STUDENT and current_user.id not in (lesson.private_student_ids or []):
@@ -222,8 +225,8 @@ async def update_journal(
     if current_user.role == UserRole.TEACHER and current_user.id != j.author_id and j.lesson:
         my_class_ids = get_teacher_class_ids(db, current_user.id)
         is_class = j.lesson.class_id in my_class_ids
-        is_priv = j.lesson.is_private and j.lesson.teacher_id == current_user.id
-        if not (is_class or is_priv):
+        is_lesson_teacher = j.lesson.teacher_id == current_user.id  # 지정 담당교사(반·비공개 공통)
+        if not (is_class or is_lesson_teacher):
             raise HTTPException(status_code=403, detail="담당 수업의 일지만 수정할 수 있어요")
 
     for field, value in update_data.model_dump(exclude_unset=True).items():

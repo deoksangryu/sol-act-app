@@ -232,6 +232,14 @@ export function LearnScreen() {
           </Card>
         </Section>
 
+        <Section title="작품분석">
+          <Card style={{ padding: 20 }}>
+            <Text style={{ fontFamily: font.b, fontSize: 15.5, lineHeight: 24, color: color.ink, marginBottom: 6 }}>📝 작품·독백을 구조로 파고들어요</Text>
+            <Text style={{ fontFamily: font.m, fontSize: 13.5, lineHeight: 22, color: color.sub, marginBottom: 16 }}>목표·상대·장애물을 채우면 연기의 근거가 잡히고, 선생님이 첨삭해 드려요. 한예종 글쓰기·구술과 면접 대비에 좋아요.</Text>
+            <Pressable onPress={() => nav.navigate('workAnalysis')} style={{ backgroundColor: color.blue, borderRadius: radius.button, paddingVertical: 14, alignItems: 'center' }}><Text style={{ fontFamily: font.b, fontSize: 14.5, color: color.white }}>✍️ 작품 분석하기</Text></Pressable>
+          </Card>
+        </Section>
+
         {hasUpcomingMock && (
           <Section title="모의테스트">
             <Card>

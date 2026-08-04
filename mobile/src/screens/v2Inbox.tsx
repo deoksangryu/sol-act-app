@@ -10,13 +10,14 @@ import { submissionsApi, portfolioApi, type SubmissionKind } from '../services/a
 import { useDataRefresh } from '../services/ws';
 import { useAuth } from '../AuthContext';
 
-type SubType = '녹음' | '일지' | '면접' | '식단' | '영상';
+type SubType = '녹음' | '일지' | '면접' | '식단' | '영상' | '작품분석';
 const TYPE_TONE: Record<SubType, { bg: string; fg: string }> = {
   녹음: { bg: color.purpleBg, fg: color.purple },
   영상: { bg: color.dangerBg, fg: color.danger },
   일지: { bg: color.successBg, fg: color.success },
   면접: { bg: color.blueBg, fg: color.blue },
   식단: { bg: color.amberBg, fg: color.amber },
+  작품분석: { bg: color.blueBg, fg: color.blue },
 };
 function TypeTag({ t }: { t: SubType }) {
   const c = TYPE_TONE[t];
@@ -27,7 +28,7 @@ function TypeTag({ t }: { t: SubType }) {
   );
 }
 
-interface InboxItem { id: string; student: string; studentId?: string; work: string; ago: string; type: SubType }
+interface InboxItem { id: string; student: string; studentId?: string; work: string; ago: string; type: SubType; ref?: string | null }
 interface DoneItem { id?: string; student: string; work: string; type: SubType; lead: string }
 
 // 제출 kind(영문) → 화면 태그(SubType) 매핑
@@ -37,6 +38,7 @@ const KIND_TAG: Record<SubmissionKind, SubType> = {
   journal: '일지',
   diet: '식단',
   interview: '면접',
+  analysis: '작품분석',
 };
 
 // v2 선생님 통합 인박스 — "비우는 화면". 실데이터(GET /api/submissions/inbox).
@@ -60,6 +62,7 @@ export function InboxScreen() {
     work: o.title,
     ago: o.ago,
     type: KIND_TAG[o.kind] ?? '녹음',
+    ref: o.note,
   }));
   const done: DoneItem[] = (data?.doneToday ?? []).map((d) => ({
     id: d.id,
@@ -75,7 +78,8 @@ export function InboxScreen() {
   const process = (item: InboxItem) => {
     // 리뷰 화면으로 이동 — student_id가 있으면 그 학생 영상만 필터(백엔드 restart 후 반영),
     // 없으면(구버전 백엔드) 전체 피드로 이동해 날짜별 목록에서 바로 찾는다.
-    if (item.type === '식단') nav.navigate('diet');
+    if (item.type === '작품분석') nav.navigate('workAnalysisReview', { analysisId: item.ref });
+    else if (item.type === '식단') nav.navigate('diet');
     else nav.navigate('videos', item.studentId ? { studentId: item.studentId } : {});
   };
 

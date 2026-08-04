@@ -30,6 +30,7 @@ from .mission import Mission
 from .exchange import ExchangeItem, ExchangeOrder
 from .mock_test import MockTest, MockTestEntry, MockTestVideo
 from .scene import SceneRehearsal, AppSetting, InterviewRevision
+from .analysis import WorkAnalysis, AnalysisVersion, AnalysisFeedback, AnalysisFieldComment
 
 __all__ = [
     "User",
@@ -86,4 +87,8 @@ __all__ = [
     "SceneRehearsal",
     "AppSetting",
     "InterviewRevision",
+    "WorkAnalysis",
+    "AnalysisVersion",
+    "AnalysisFeedback",
+    "AnalysisFieldComment",
 ]

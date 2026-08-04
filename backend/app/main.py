@@ -15,7 +15,7 @@ from app.routers import (
     lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
     ws, upload, admin, push, praise_stickers, music, badges, practice, plans, gamification,
     submissions, achievements, sessions, exams, content, routines, dashboard, exchange, mock_tests, ai,
-    missions
+    missions, analysis, app_config
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -118,6 +118,7 @@ app.include_router(notifications.router, prefix="/api/notifications", tags=["Not
 app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin (localhost only)"])
 app.include_router(push.router, prefix="/api/push", tags=["Push Notifications"])
+app.include_router(app_config.router, prefix="/api/app", tags=["App Config"])  # 버전 게이트(공개, 로그인 전에도 조회)
 
 # 차단 대상(실제 서비스 기능): 미배정 학생은 403 "반배정 대기 중입니다".
 app.include_router(assignments.router, prefix="/api/assignments", tags=["Assignments"], dependencies=GATE)
@@ -153,6 +154,7 @@ app.include_router(missions.router, prefix="/api/missions", tags=["Missions"], d
 app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"], dependencies=GATE)
 app.include_router(exchange.router, prefix="/api/exchange", tags=["Exchange"], dependencies=GATE)
 app.include_router(mock_tests.router, prefix="/api/mock-tests", tags=["Mock Tests"], dependencies=GATE)
+app.include_router(analysis.router, prefix="/api/analyses", tags=["Work Analysis"], dependencies=GATE)
 app.include_router(ai.router, prefix="/api/ai", tags=["AI Tools"], dependencies=GATE)
 
 # Static file serving for uploads — with security headers + Range support
