@@ -1,0 +1,81 @@
+{
+  "expo": {
+    "name": "SOL-ACT",
+    "slug": "sol-act",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.solact.academy",
+      "buildNumber": "2",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "audio",
+          "audio"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.solact.academy",
+      "versionCode": 23,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#FBBF24",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "프로필 사진과 과제·영상·식단 업로드를 위해 사진 접근이 필요합니다.",
+          "cameraPermission": "연기 영상을 촬영해 제출하기 위해 카메라 접근이 필요합니다.",
+          "microphonePermission": "연기 영상의 소리를 녹음하기 위해 마이크 접근이 필요합니다."
+        }
+      ],
+      "expo-video",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "연기 녹음과 답변 녹음을 위해 마이크 접근이 필요합니다."
+        }
+      ],
+      "expo-asset",
+      "@react-native-community/datetimepicker",
+      "./plugins/withReleaseSigning",
+      "./plugins/withR8"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "02fd7559-3491-4715-917a-665ee38f8823"
+      }
+    },
+    "owner": "sol-act",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/02fd7559-3491-4715-917a-665ee38f8823",
+      "requestHeaders": {
+        "expo-channel-name": "production"
+      }
+    }
+  }
+}

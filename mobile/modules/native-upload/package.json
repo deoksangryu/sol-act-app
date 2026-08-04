@@ -1,0 +1,7 @@
+{
+  "name": "native-upload",
+  "version": "1.0.0",
+  "description": "SOL-ACT 진짜 백그라운드 영상 업로드(압축·청크·resume) — Expo 로컬 네이티브 모듈",
+  "main": "index.ts",
+  "private": true
+}

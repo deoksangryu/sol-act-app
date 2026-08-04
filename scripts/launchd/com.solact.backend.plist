@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.solact.backend</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/deryu/sol-manager/sol-act-app/scripts/run-backend.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/deryu/sol-manager/sol-act-app/backend</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <!-- 로그인 시 자동 시작 -->
+    <key>RunAtLoad</key>
+    <true/>
+    <!-- 죽으면 자동 재시작(크래시·수동 kill 포함) -->
+    <key>KeepAlive</key>
+    <true/>
+    <!-- 재시작 최소 간격(초) — 실패 시 폭주 방지 -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/deryu/sol-manager/sol-act-app/backend/logs/launchd-backend.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/deryu/sol-manager/sol-act-app/backend/logs/launchd-backend.log</string>
+</dict>
+</plist>

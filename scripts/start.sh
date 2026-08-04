@@ -53,7 +53,10 @@ fi
 echo -e "  ${CYAN}  파이썬: $($PY --version 2>&1)${NC}"
 # 로그는 "파일로만" 기록 (터미널 스크롤백 누적으로 인한 슬로우다운 방지)
 # --no-access-log: 요청마다 찍히는 로그 제거 / --reload 제거: 프로덕션
-$PY -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --no-access-log --log-level warning >> "../$LOG_FILE" 2>&1 &
+# --limit-concurrency 256: 백프레셔 — 동시요청 폭주 시 서버가 녹지 않고 503으로 방어(50동접 목표에 넉넉,
+#   업로드+읽기+WS 합산 여유). --timeout-keep-alive 75: 대용량 청크 업로드 중 연결 조기 종료 방지.
+$PY -m uvicorn app.main:app --host 0.0.0.0 --port $BACKEND_PORT --no-access-log --log-level warning \
+    --limit-concurrency 256 --timeout-keep-alive 75 >> "../$LOG_FILE" 2>&1 &
 BACKEND_PID=$!
 cd ..
 sleep 2

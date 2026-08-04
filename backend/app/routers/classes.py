@@ -10,6 +10,7 @@ from app.schemas.class_info import ClassInfoCreate, ClassInfoUpdate, ClassInfoRe
 from app.utils.auth import get_current_user
 from app.services.notification_service import notify_user, notify_users, emit_data_changed
 from app.models.notification import NotificationType
+from app.utils.timezone import today_kst
 from datetime import date, timedelta
 import uuid
 
@@ -37,7 +38,7 @@ def generate_lessons_for_class(cls: ClassInfo, db: Session) -> int:
     if not isinstance(schedule, list) or not schedule:
         return 0
 
-    today = date.today()
+    today = today_kst()
 
     # 미래 정규 수업 정리(중복 방지). 오늘 이전/오늘은 건드리지 않음.
     db.query(Lesson).filter(
@@ -221,7 +222,7 @@ async def update_class(
     # schedule이 변경된 경우 미래 예정 수업 재생성
     generated = 0
     if "schedule" in update_dict:
-        today = date.today()
+        today = today_kst()
         db.query(Lesson).filter(
             Lesson.class_id == class_id,
             Lesson.date >= today,

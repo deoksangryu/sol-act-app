@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 from app.routers import (
     auth, users, assignments, diet, classes, chat, qna, notices, notifications,
     lessons, journals, attendance, evaluations, portfolios, auditions, private_lessons,
-    ws, upload, admin, push, praise_stickers, music, badges, practice, plans
+    ws, upload, admin, push, praise_stickers, music, badges, practice, plans, gamification,
+    submissions, achievements, sessions, exams, content, routines, dashboard, exchange, mock_tests, ai,
+    missions, analysis, app_config
 )
 
 # DB 테이블 생성 (개발 환경용, 프로덕션에서는 Alembic 사용)
@@ -116,6 +118,7 @@ app.include_router(notifications.router, prefix="/api/notifications", tags=["Not
 app.include_router(ws.router, prefix="/ws", tags=["WebSocket"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin (localhost only)"])
 app.include_router(push.router, prefix="/api/push", tags=["Push Notifications"])
+app.include_router(app_config.router, prefix="/api/app", tags=["App Config"])  # 버전 게이트(공개, 로그인 전에도 조회)
 
 # 차단 대상(실제 서비스 기능): 미배정 학생은 403 "반배정 대기 중입니다".
 app.include_router(assignments.router, prefix="/api/assignments", tags=["Assignments"], dependencies=GATE)
@@ -139,6 +142,20 @@ app.include_router(music.router, prefix="/api/music", tags=["Music"])
 app.include_router(badges.router, prefix="/api", tags=["Badges"], dependencies=GATE)
 app.include_router(practice.router, prefix="/api/practice", tags=["제시대사 Practice"], dependencies=GATE)
 app.include_router(plans.router, prefix="/api/plans", tags=["Plans"], dependencies=GATE)
+app.include_router(gamification.router, prefix="/api/gamification", tags=["Gamification"], dependencies=GATE)
+# v2 신규(전부 additive·신규 테이블). 강사/원장 엔드포인트는 라우터 내부에서 role 체크.
+app.include_router(submissions.router, prefix="/api/submissions", tags=["Submissions"], dependencies=GATE)
+app.include_router(achievements.router, prefix="/api/achievements", tags=["Achievements"], dependencies=GATE)
+app.include_router(sessions.router, prefix="/api/sessions", tags=["Practice Sessions"], dependencies=GATE)
+app.include_router(exams.router, prefix="/api/exams", tags=["Exam Schedule"], dependencies=GATE)
+app.include_router(content.router, prefix="/api/content", tags=["Learn Content"], dependencies=GATE)
+app.include_router(routines.router, prefix="/api/routines", tags=["Routines"], dependencies=GATE)
+app.include_router(missions.router, prefix="/api/missions", tags=["Missions"], dependencies=GATE)
+app.include_router(dashboard.router, prefix="/api/dashboard", tags=["Dashboard"], dependencies=GATE)
+app.include_router(exchange.router, prefix="/api/exchange", tags=["Exchange"], dependencies=GATE)
+app.include_router(mock_tests.router, prefix="/api/mock-tests", tags=["Mock Tests"], dependencies=GATE)
+app.include_router(analysis.router, prefix="/api/analyses", tags=["Work Analysis"], dependencies=GATE)
+app.include_router(ai.router, prefix="/api/ai", tags=["AI Tools"], dependencies=GATE)
 
 # Static file serving for uploads — with security headers + Range support
 # Serves from external SSD if available, falls back to local directory
@@ -170,6 +187,24 @@ class SecureStaticFiles(StaticFiles):
 
 from starlette.responses import Response as StarletteFileResponse
 
+_RANGE_CHUNK = 512 * 1024  # 512KB — Range 스트리밍 청크(전량 메모리 적재 방지)
+
+
+def _file_range_iter(file_path: str, start: int, length: int):
+    """파일의 [start, start+length) 바이트를 청크로 내보내는 동기 제너레이터.
+    Starlette StreamingResponse가 동기 제너레이터를 threadpool(iterate_in_threadpool)에서
+    돌리므로, 이 blocking read가 단일 이벤트루프를 막지 않고 메모리도 청크 크기로 제한된다.
+    (기존엔 async 미들웨어에서 f.read(구간전체)를 루프 위에서 직접 실행 → 큰 영상 시 루프 블로킹+RSS 급증.)"""
+    with open(file_path, "rb") as f:
+        f.seek(start)
+        remaining = length
+        while remaining > 0:
+            data = f.read(min(_RANGE_CHUNK, remaining))
+            if not data:
+                break
+            remaining -= len(data)
+            yield data
+
 
 def _serve_file_ranged(file_path: str, request: Request, extra_headers: dict):
     """Serve a file with HTTP Range (206) support.
@@ -178,7 +213,7 @@ def _serve_file_ranged(file_path: str, request: Request, extra_headers: dict):
     Falls back to a normal 200 FileResponse when there is no Range header.
     """
     import mimetypes
-    from starlette.responses import Response, FileResponse as SFileResponse
+    from starlette.responses import Response, StreamingResponse, FileResponse as SFileResponse
     media_type = mimetypes.guess_type(file_path)[0] or "application/octet-stream"
     base = {"Accept-Ranges": "bytes", **extra_headers}
 
@@ -195,12 +230,10 @@ def _serve_file_ranged(file_path: str, request: Request, extra_headers: dict):
         end = min(end, file_size - 1)
         if start > end:
             return Response(status_code=416, headers={**base, "Content-Range": f"bytes */{file_size}"})
-        with open(file_path, "rb") as f:
-            f.seek(start)
-            data = f.read(end - start + 1)
-        return Response(
-            content=data, status_code=206, media_type=media_type,
-            headers={**base, "Content-Range": f"bytes {start}-{end}/{file_size}", "Content-Length": str(len(data))},
+        length = end - start + 1
+        return StreamingResponse(
+            _file_range_iter(file_path, start, length), status_code=206, media_type=media_type,
+            headers={**base, "Content-Range": f"bytes {start}-{end}/{file_size}", "Content-Length": str(length)},
         )
 
     resp = SFileResponse(file_path, media_type=media_type)
@@ -225,16 +258,24 @@ async def serve_uploads(request: Request, call_next):
         "cache-control": "public, max-age=31536000, immutable",
     }
 
+    def _safe(base_dir: str):
+        """경로 우회 가드(music 핸들러와 동일): 해석된 파일이 base_dir 안에 있고 실제 파일일 때만 반환."""
+        base = os.path.realpath(base_dir)
+        f = os.path.realpath(os.path.join(base, rel))
+        if (f == base or f.startswith(base + os.sep)) and os.path.isfile(f):
+            return f
+        return None
+
     # Try external SSD first
     name = settings.EXTERNAL_DRIVE_NAME
     if name:
-        ext_file = os.path.join(f"/Volumes/{name}/sol-act-uploads", rel)
-        if os.path.isfile(ext_file):
+        ext_file = _safe(f"/Volumes/{name}/sol-act-uploads")
+        if ext_file:
             return _serve_file_ranged(ext_file, request, cache_headers)
 
     # Fall back to local
-    local_file = os.path.join("backend/uploads", rel)
-    if os.path.isfile(local_file):
+    local_file = _safe("backend/uploads")
+    if local_file:
         return _serve_file_ranged(local_file, request, cache_headers)
 
     return JSONResponse(status_code=404, content={"detail": "Not found"})
@@ -252,7 +293,7 @@ async def serve_music_files(request: Request, call_next):
         return await call_next(request)
 
     import mimetypes
-    from starlette.responses import Response, FileResponse as SFileResponse
+    from starlette.responses import Response, StreamingResponse, FileResponse as SFileResponse
 
     rel = path[len("/music-files/"):]  # already percent-decoded by Starlette
     name = settings.EXTERNAL_DRIVE_NAME
@@ -285,12 +326,10 @@ async def serve_music_files(request: Request, call_next):
         end = min(end, file_size - 1)
         if start > end:
             return Response(status_code=416, headers={**common, "Content-Range": f"bytes */{file_size}"})
-        with open(music_file, "rb") as f:
-            f.seek(start)
-            data = f.read(end - start + 1)
-        return Response(
-            content=data, status_code=206, media_type=media_type,
-            headers={**common, "Content-Range": f"bytes {start}-{end}/{file_size}", "Content-Length": str(len(data))},
+        length = end - start + 1
+        return StreamingResponse(
+            _file_range_iter(music_file, start, length), status_code=206, media_type=media_type,
+            headers={**common, "Content-Range": f"bytes {start}-{end}/{file_size}", "Content-Length": str(length)},
         )
 
     resp = SFileResponse(music_file, media_type=media_type)
@@ -310,6 +349,10 @@ def admin_dashboard():
 async def startup_scheduler():
     from app.services.scheduler import start_scheduler
     asyncio.create_task(start_scheduler())
+    # 재시작 시 SSD에 남은 고아 청크(.chunks_*) 회수 — 이벤트루프 안 막게 threadpool로.
+    from fastapi.concurrency import run_in_threadpool
+    from app.routers.upload import sweep_orphan_chunk_dirs
+    asyncio.create_task(run_in_threadpool(sweep_orphan_chunk_dirs))
 
 
 @app.on_event("startup")

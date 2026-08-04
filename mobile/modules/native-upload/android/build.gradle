@@ -1,0 +1,32 @@
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.kotlin.android'
+
+group = 'expo.modules.nativeupload'
+version = '1.0.0'
+
+def expoModulesCorePlugin = new File(project(":expo-modules-core").projectDir.absolutePath, "ExpoModulesCorePlugin.gradle")
+apply from: expoModulesCorePlugin
+applyKotlinExpoModulesCorePlugin()
+useCoreDependencies()
+useDefaultAndroidSdkVersions()
+useExpoPublishing()
+
+android {
+  namespace "expo.modules.nativeupload"
+  defaultConfig {
+    minSdkVersion 24
+  }
+  lintOptions {
+    abortOnError false
+  }
+}
+
+dependencies {
+  // 신뢰성 있는 영상 압축(오디오 passthrough·720p) — 수제 MediaCodec 대체
+  def media3Version = "1.4.1"
+  implementation "androidx.media3:media3-transformer:$media3Version"
+  implementation "androidx.media3:media3-effect:$media3Version"
+  implementation "androidx.media3:media3-common:$media3Version"
+  // 청크 업로드 (RN 번들에 이미 있으나 명시)
+  implementation "com.squareup.okhttp3:okhttp:4.12.0"
+}

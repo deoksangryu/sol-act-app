@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from app.models.audition import Audition, AuditionStatus
 from app.models.user import User, UserRole
+from app.utils.timezone import today_kst, kst_now
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +32,7 @@ async def check_registration_deadlines() -> None:
     """Check for upcoming registration deadlines and send notifications."""
     db = SessionLocal()
     try:
-        today = date.today()
+        today = today_kst()  # KST 달력 기준 '오늘'(서버 TZ 무관)
         auditions = (
             db.query(Audition)
             .filter(Audition.status == AuditionStatus.UPCOMING)
@@ -109,7 +110,7 @@ async def check_plan_reminders() -> None:
         from app.models.notification import Notification
         from app.services.notification_service import notify_users
 
-        kst_today = (datetime.utcnow() + timedelta(hours=9)).date()
+        kst_today = today_kst()
         recent_cutoff = datetime.utcnow() - timedelta(hours=20)
         msg = "📝 오늘의 학습 계획을 세워볼까요? 하루 할 일을 적고 체크해봐요."
 
@@ -158,7 +159,7 @@ def complete_past_lessons() -> int:
 
     db = SessionLocal()
     try:
-        now = datetime.now()
+        now = kst_now()  # KST 벽시계 기준(서버 TZ 무관) — l.date/end_time도 KST 입력이므로 일관
         today = now.date()
         cur_hm = now.strftime("%H:%M")
         lessons = db.query(Lesson).filter(Lesson.status == LessonStatus.SCHEDULED).all()
@@ -183,13 +184,52 @@ def complete_past_lessons() -> int:
         db.close()
 
 
+# 업로드 미완료(고아) 통지 기준: portfolios.py _upload_status(UPLOAD_TIMEOUT=30분)와 동일.
+_UPLOAD_STUCK_AFTER = timedelta(minutes=30)
+
+
+async def notify_stuck_uploads() -> None:
+    """record-first라 레코드는 생겼으나 백그라운드 업로드가 끝내 착지하지 못해 url이 영영 비면,
+    소유자에게 1회 통지한다. 알림은 DB에 남으므로 재접속 시 벨에서 '멈춘 업로드'를 인지·재시도 가능.
+    포트폴리오 커버영상(video_url='')만 대상 — 레코드가 '업로드 개시 시점'에 생성돼 의미가 명확한 케이스.
+    멱등: 동일 메시지가 이미 있으면 재통지 안 함(딱 1회)."""
+    db = SessionLocal()
+    try:
+        from app.models.portfolio import Portfolio
+        from app.models.notification import Notification
+        from app.services.notification_service import notify_user
+
+        cutoff = datetime.utcnow() - _UPLOAD_STUCK_AFTER
+        stuck = db.query(Portfolio).filter(
+            Portfolio.video_url == "",
+            Portfolio.created_at < cutoff,
+        ).all()
+        for p in stuck:
+            if p.videos:  # 자식 영상이 하나라도 있으면 실제론 업로드됨 → 건너뜀
+                continue
+            msg = f"⚠️ '{p.title}' 영상 업로드가 완료되지 않았어요. 다시 올려주세요."
+            already = db.query(Notification.id).filter(
+                Notification.user_id == p.student_id, Notification.message == msg,
+            ).first() is not None
+            if already:
+                continue
+            await notify_user(db, p.student_id, msg, entity="portfolios")
+            logger.info(f"Stuck upload notified: portfolio {p.id} -> {p.student_id}")
+    except Exception as e:
+        logger.error(f"Stuck upload notify failed: {e}")
+        db.rollback()
+    finally:
+        db.close()
+
+
 async def start_scheduler() -> None:
     """Start the scheduler loop (runs at startup, then every hour)."""
-    logger.info("Scheduler started (audition reminders + lesson auto-complete)")
+    logger.info("Scheduler started (audition reminders + lesson auto-complete + stuck-upload notify)")
     ticks = 0
     while True:
         try:
             complete_past_lessons()
+            await notify_stuck_uploads()  # 매 시간 — 멈춘 업로드를 소유자에게 1회 통지
             # 가입마감 알림은 하루 1회로 충분 (스케줄러는 1시간 주기라 24틱마다)
             if ticks % 24 == 0:
                 await check_registration_deadlines()

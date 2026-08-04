@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.solact.ngrok</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/ngrok</string>
+        <string>http</string>
+        <string>8000</string>
+        <string>--domain=sol-act-server.ngrok.app</string>
+        <string>--inspect=false</string>
+        <string>--log=stdout</string>
+    </array>
+
+    <!-- ngrok authtoken 설정(~/Library/Application Support/ngrok/ngrok.yml)을 찾도록 HOME 지정 -->
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>HOME</key>
+        <string>/Users/deryu</string>
+        <key>PATH</key>
+        <string>/opt/homebrew/bin:/usr/bin:/bin</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/deryu/sol-manager/sol-act-app/backend/logs/launchd-ngrok.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/deryu/sol-manager/sol-act-app/backend/logs/launchd-ngrok.log</string>
+</dict>
+</plist>

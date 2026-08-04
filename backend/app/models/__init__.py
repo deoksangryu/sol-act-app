@@ -19,6 +19,18 @@ from .praise_sticker import PraiseSticker
 from .music import Track, MusicDownloadRequest
 from .practice import PracticeScript, PracticeDraw, PracticeRequest
 from .plan import Plan, PlanItem
+from .gamification import PointLedger, Streak, UserActivity
+from .submission import Submission
+from .achievement import UserBadge
+from .practice_session import PracticeSession
+from .exam import ExamSchedule
+from .content import QuizQuestion, QuizAnswer, ReadingContent, MediaResource, InterviewQuestion, Quote
+from .routine import RoutineItem, RoutineCompletion, RoutineTemplate
+from .mission import Mission
+from .exchange import ExchangeItem, ExchangeOrder
+from .mock_test import MockTest, MockTestEntry, MockTestVideo
+from .scene import SceneRehearsal, AppSetting, InterviewRevision
+from .analysis import WorkAnalysis, AnalysisVersion, AnalysisFeedback, AnalysisFieldComment
 
 __all__ = [
     "User",
@@ -50,4 +62,33 @@ __all__ = [
     "PracticeRequest",
     "Plan",
     "PlanItem",
+    "PointLedger",
+    "Streak",
+    "UserActivity",
+    "Submission",
+    "UserBadge",
+    "PracticeSession",
+    "ExamSchedule",
+    "QuizQuestion",
+    "QuizAnswer",
+    "ReadingContent",
+    "MediaResource",
+    "Quote",
+    "InterviewQuestion",
+    "RoutineItem",
+    "RoutineCompletion",
+    "RoutineTemplate",
+    "Mission",
+    "ExchangeItem",
+    "ExchangeOrder",
+    "MockTest",
+    "MockTestEntry",
+    "MockTestVideo",
+    "SceneRehearsal",
+    "AppSetting",
+    "InterviewRevision",
+    "WorkAnalysis",
+    "AnalysisVersion",
+    "AnalysisFeedback",
+    "AnalysisFieldComment",
 ]

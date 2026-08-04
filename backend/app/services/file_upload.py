@@ -1,6 +1,7 @@
 from pathlib import Path
 from fastapi import UploadFile, HTTPException
 import os
+import re
 import uuid
 import subprocess
 import shutil
@@ -12,6 +13,17 @@ from typing import Optional, Tuple
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def safe_segment(name: str, fallback: str = "misc") -> str:
+    """경로 우회 방지: 사용자 입력(subfolder·filename)에서 디렉토리 성분·위험문자를 제거해
+    UPLOAD_DIR 밖으로 못 벗어나게 한다. basename만 취하고 [A-Za-z0-9._-] 외는 '_'로, 선행 '.'은 제거."""
+    base = os.path.basename((name or "").replace("\\", "/").strip())
+    base = re.sub(r"[^A-Za-z0-9._-]", "_", base).lstrip(".")
+    # '..' 잔재 제거(예: 'a..b'는 허용, 순수 '..'/'...'류만 차단)
+    if not base or set(base) <= {".", "_"}:
+        return fallback
+    return base[:150]
 
 # Local fallback path (always available)
 _LOCAL_UPLOAD_DIR = Path("backend/uploads")
@@ -36,7 +48,7 @@ UPLOAD_DIR = _resolve_upload_dir()
 ALLOWED_VIDEO = {".mp4", ".mov", ".webm"}
 ALLOWED_DOCS = {".pdf", ".jpg", ".jpeg", ".png", ".heic", ".webp", ".gif", ".mp3", ".m4a", ".wav", ".doc", ".docx"}
 ALLOWED_ALL = ALLOWED_VIDEO | ALLOWED_DOCS
-MAX_VIDEO_SIZE = 10 * 1024 * 1024 * 1024  # 10GB (effectively no limit — server compresses after upload)
+MAX_VIDEO_SIZE = 1 * 1024 * 1024 * 1024  # 1GB — 클라 압축 후 ~12MB라 넉넉하되, 무제한(10GB) 디스크필 남용 차단
 MAX_DOC_SIZE = 50 * 1024 * 1024  # 50MB
 
 
@@ -88,7 +100,10 @@ async def save_file(
     """
     validate_file(file)
 
-    unique_name = f"{uuid.uuid4().hex[:12]}_{file.filename}"
+    # 경로 우회 방지: subfolder·filename은 사용자/클라 입력이므로 단일 안전 세그먼트로 정규화.
+    subfolder = safe_segment(subfolder, "assignments")
+    safe_name = safe_segment(file.filename, "file")
+    unique_name = f"{uuid.uuid4().hex[:12]}_{safe_name}"
     target_dir = UPLOAD_DIR / subfolder / user_id if user_id else UPLOAD_DIR / subfolder
     target_dir.mkdir(parents=True, exist_ok=True)
     target_path = target_dir / unique_name
@@ -318,7 +333,9 @@ def extract_thumbnail(video_path: str) -> Optional[str]:
         str(thumb_path),
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, timeout=30)
+        # 동시 ffmpeg 프로세스 상한(압축과 공유) — 다수 동시 업로드 시 CPU 폭주 방지.
+        with _compression_semaphore:
+            result = subprocess.run(cmd, capture_output=True, timeout=30)
         if result.returncode == 0 and thumb_path.exists():
             # Convert absolute path to URL
             rel = str(thumb_path).replace(str(UPLOAD_DIR), "").lstrip("/")
@@ -448,6 +465,11 @@ def _update_video_urls_in_db(old_path: str, new_path: str) -> None:
             from app.models.assignment import Assignment
             updated += db.query(Assignment).filter(Assignment.submission_file_url == old_url).update(
                 {Assignment.submission_file_url: new_url}
+            )
+            # Update mock_test_videos (원장이 올린 모의테스트 영상도 .mov→.mp4 재멕싱 시 URL 갱신)
+            from app.models.mock_test import MockTestVideo
+            updated += db.query(MockTestVideo).filter(MockTestVideo.video_url == old_url).update(
+                {MockTestVideo.video_url: new_url}
             )
             # Update lesson_journal media_urls (JSON array of strings or {url, name} objects)
             import json

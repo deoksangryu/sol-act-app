@@ -99,6 +99,8 @@ async def create_diet_log(
 
     if current_user.role == UserRole.STUDENT and data.student_id != current_user.id:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if current_user.role == UserRole.TEACHER and data.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 식단만 기록할 수 있어요")
 
     log = DietLog(
         id=f"diet{uuid.uuid4().hex[:7]}",
@@ -207,6 +209,7 @@ def list_weight_logs(
     current_user: User = Depends(get_current_user)
 ):
     from datetime import date, timedelta
+    from app.utils.timezone import today_kst
     query = db.query(WeightLog)
 
     if current_user.role == UserRole.STUDENT:
@@ -221,7 +224,7 @@ def list_weight_logs(
         if student_id:
             query = query.filter(WeightLog.student_id == student_id)
 
-    cutoff = date.today() - timedelta(days=days)
+    cutoff = today_kst() - timedelta(days=days)
     query = query.filter(WeightLog.date >= cutoff)
     logs = query.order_by(WeightLog.date.asc()).all()
     return logs

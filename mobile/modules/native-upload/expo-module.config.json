@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["NativeUploadModule"],
+    "appDelegateSubscribers": ["NativeUploadAppDelegate"]
+  },
+  "android": {
+    "modules": ["expo.modules.nativeupload.NativeUploadModule"]
+  }
+}

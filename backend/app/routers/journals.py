@@ -12,7 +12,7 @@ from app.schemas.lesson_journal import (
 )
 from app.utils.auth import get_current_user
 from app.services.ai import generate_journal_feedback
-from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_class_student_ids, get_teacher_class_ids, validate_class_access
+from app.services.notification_service import notify_user, notify_users, emit_data_changed, get_class_student_ids, get_teacher_class_ids, get_teacher_ids_for_student, validate_class_access
 import uuid
 
 router = APIRouter()
@@ -85,7 +85,7 @@ def list_journals(
             l.id for l in db.query(Lesson.id).filter(
                 or_(
                     Lesson.class_id.in_(my_class_ids),
-                    and_(Lesson.is_private == True, Lesson.teacher_id == current_user.id),
+                    Lesson.teacher_id == current_user.id,  # 지정 담당교사인 수업(반·비공개 공통) — lessons.py 목록과 동일
                 )
             ).all()
         ]
@@ -132,8 +132,8 @@ def get_journal(journal_id: str, db: Session = Depends(get_db), current_user: Us
     if current_user.role == UserRole.TEACHER and j.lesson:
         my_class_ids = get_teacher_class_ids(db, current_user.id)
         is_class_teacher = j.lesson.class_id in my_class_ids
-        is_private_teacher = j.lesson.is_private and j.lesson.teacher_id == current_user.id
-        if not (is_class_teacher or is_private_teacher):
+        is_lesson_teacher = j.lesson.teacher_id == current_user.id  # 지정 담당교사(반·비공개 공통)
+        if not (is_class_teacher or is_lesson_teacher):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
     return journal_to_response(j)
 
@@ -156,7 +156,10 @@ async def create_journal(
 
     # Validate user has access to this lesson
     if lesson.class_id:
-        if not validate_class_access(db, lesson.class_id, current_user):
+        # 반 과목담당(subject_teachers)이거나, 이 수업의 지정 담당교사(lesson.teacher_id)면 허용.
+        # 수업 목록/상세(lessons.py)는 이미 teacher_id를 인정하므로 여기서도 맞춰 "수업은 보이는데 일지만 막히는" 불일치 방지.
+        is_lesson_teacher = current_user.role in (UserRole.TEACHER, UserRole.DIRECTOR) and lesson.teacher_id == current_user.id
+        if not (validate_class_access(db, lesson.class_id, current_user) or is_lesson_teacher):
             raise HTTPException(status_code=403, detail="Not a member of this lesson's class")
     elif lesson.is_private:
         if current_user.role == UserRole.STUDENT and current_user.id not in (lesson.private_student_ids or []):
@@ -184,20 +187,15 @@ async def create_journal(
         .first()
     )
 
-    # Notify the other party about the new journal
-    if lesson.teacher_id and lesson.teacher_id != current_user.id:
-        await notify_user(
-            db, lesson.teacher_id,
-            f"{current_user.name}님이 수업일지를 작성했습니다.",
-            entity="journals",
-        )
-    elif lesson.class_id:
-        student_ids = get_class_student_ids(db, lesson.class_id)
-        student_ids = [sid for sid in student_ids if sid != current_user.id]
-        if student_ids:
+    # 알림 규칙:
+    #  · 학생 일지(공개 대상=담당교사+원장) → 담당교사 전원 + 원장 전원에게 알림.
+    #  · 교사 일지는 비공개(선생님·관리자만 열람) → 학생에게 알리지 않음(열람 불가한 항목 누설 방지).
+    if journal.journal_type == JournalType.STUDENT:
+        staff_ids = [uid for uid in get_teacher_ids_for_student(db, current_user.id) if uid != current_user.id]
+        if staff_ids:
             await notify_users(
-                db, student_ids,
-                "선생님이 수업일지를 작성했습니다.",
+                db, staff_ids,
+                f"{current_user.name}님이 수업일지를 작성했습니다.",
                 entity="journals",
             )
 
@@ -227,8 +225,8 @@ async def update_journal(
     if current_user.role == UserRole.TEACHER and current_user.id != j.author_id and j.lesson:
         my_class_ids = get_teacher_class_ids(db, current_user.id)
         is_class = j.lesson.class_id in my_class_ids
-        is_priv = j.lesson.is_private and j.lesson.teacher_id == current_user.id
-        if not (is_class or is_priv):
+        is_lesson_teacher = j.lesson.teacher_id == current_user.id  # 지정 담당교사(반·비공개 공통)
+        if not (is_class or is_lesson_teacher):
             raise HTTPException(status_code=403, detail="담당 수업의 일지만 수정할 수 있어요")
 
     for field, value in update_data.model_dump(exclude_unset=True).items():
@@ -237,15 +235,11 @@ async def update_journal(
     db.commit()
     db.refresh(j)
 
-    lesson = db.query(Lesson).filter(Lesson.id == j.lesson_id).first()
-    if lesson:
-        if lesson.teacher_id and lesson.teacher_id != current_user.id:
-            await emit_data_changed([lesson.teacher_id], "journals")
-        elif lesson.class_id:
-            student_ids = get_class_student_ids(db, lesson.class_id)
-            student_ids = [sid for sid in student_ids if sid != current_user.id]
-            if student_ids:
-                await emit_data_changed(student_ids, "journals")
+    # 실시간 갱신: 학생 일지는 담당교사+원장 전원이 다시 불러오도록. 교사(비공개) 일지는 학생 대상 아님.
+    if j.journal_type == JournalType.STUDENT:
+        staff_ids = [uid for uid in get_teacher_ids_for_student(db, j.author_id) if uid != current_user.id]
+        if staff_ids:
+            await emit_data_changed(staff_ids, "journals")
 
     return journal_to_response(j)
 
