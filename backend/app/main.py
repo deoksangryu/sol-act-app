@@ -257,7 +257,9 @@ def _verify_upload(rel: str, token: str) -> bool:
     return bool(token) and _hmac.compare_digest(token, _sign_upload(rel))
 
 
-_UPLOADS_URL_RE = _re.compile(rb'/uploads/([A-Za-z0-9_./\-]+)')
+# 파일명에 콜론(타임스탬프 16:35:04)·공백·한글 등이 있을 수 있어, 안전문자 화이트리스트 대신
+# JSON 문자열/쿼리 구분자(" ? \)만 제외하고 전부 경로로 캡처(=끊김 없이 정확히 서명).
+_UPLOADS_URL_RE = _re.compile(rb'/uploads/([^"?\\]+)')
 
 
 def _sign_upload_match(m):
