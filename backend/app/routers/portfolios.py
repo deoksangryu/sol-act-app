@@ -174,6 +174,8 @@ async def update_practice_journal(
         raise HTTPException(status_code=404, detail="Practice journal not found")
     if journal.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if current_user.role == UserRole.TEACHER and journal.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 일지만 수정할 수 있어요.")
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(journal, field, value)
@@ -193,6 +195,8 @@ async def delete_practice_journal(
         raise HTTPException(status_code=404, detail="Practice journal not found")
     if journal.student_id != current_user.id and current_user.role not in [UserRole.TEACHER, UserRole.DIRECTOR]:
         raise HTTPException(status_code=403, detail="Insufficient permissions")
+    if current_user.role == UserRole.TEACHER and journal.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 일지만 삭제할 수 있어요.")
 
     db.delete(journal)
     db.commit()

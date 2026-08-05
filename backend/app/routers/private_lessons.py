@@ -159,8 +159,11 @@ async def delete_request(
     req = db.query(PrivateLessonRequest).filter(PrivateLessonRequest.id == request_id).first()
     if not req:
         raise HTTPException(status_code=404, detail="Request not found")
-    if req.student_id != current_user.id and current_user.role == UserRole.STUDENT:
-        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    # 요청 학생 본인, 지목된 담당교사, 또는 원장만 삭제 가능(교사가 남의 요청 삭제 차단)
+    is_owner = req.student_id == current_user.id
+    is_target_teacher = current_user.role == UserRole.TEACHER and req.teacher_id == current_user.id
+    if not (is_owner or is_target_teacher or current_user.role == UserRole.DIRECTOR):
+        raise HTTPException(status_code=403, detail="접근 권한이 없어요.")
 
     teacher_id = req.teacher_id
     db.delete(req)

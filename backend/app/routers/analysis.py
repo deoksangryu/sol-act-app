@@ -18,7 +18,7 @@ from app.models.analysis import WorkAnalysis, AnalysisVersion, AnalysisFeedback,
 from app.models.submission import Submission
 from app.utils.auth import get_current_user
 from app.services.notification_service import (
-    notify_users, notify_user, get_teacher_ids_for_student,
+    notify_users, notify_user, get_teacher_ids_for_student, get_teacher_student_ids,
 )
 
 router = APIRouter()
@@ -52,6 +52,12 @@ def _count_chars(payload: Dict[str, Any]) -> int:
 def _require_staff(user: User) -> None:
     if user.role not in (UserRole.TEACHER, UserRole.DIRECTOR):
         raise HTTPException(status_code=403, detail="강사/원장 전용")
+
+
+def _staff_scope_student(db: Session, user: User, student_id: str) -> None:
+    """교사는 담당 학생만 다룰 수 있음(원장은 전체). 반 밖 학생 열람·첨삭 차단."""
+    if user.role == UserRole.TEACHER and student_id not in get_teacher_student_ids(db, user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 작품분석만 다룰 수 있어요.")
 
 
 def _ver_dict(v: AnalysisVersion, with_feedback: bool = True) -> Dict[str, Any]:
@@ -217,10 +223,9 @@ def get_analysis(analysis_id: str, db: Session = Depends(get_db), current_user: 
     ).filter(WorkAnalysis.id == analysis_id).first()
     if not a:
         raise HTTPException(status_code=404, detail="분석을 찾을 수 없어요")
-    is_owner = a.student_id == current_user.id
-    is_staff = current_user.role in (UserRole.TEACHER, UserRole.DIRECTOR)
-    if not (is_owner or is_staff):
-        raise HTTPException(status_code=403, detail="접근 권한이 없어요")
+    if a.student_id != current_user.id:
+        _require_staff(current_user)
+        _staff_scope_student(db, current_user, a.student_id)
     d = _analysis_dict(a, with_versions=True)
     d["studentId"] = a.student_id
     return d
@@ -266,6 +271,8 @@ async def submit_feedback(version_id: str, body: FeedbackBody, db: Session = Dep
     if not v:
         raise HTTPException(status_code=404, detail="버전을 찾을 수 없어요")
     a = db.query(WorkAnalysis).filter(WorkAnalysis.id == v.analysis_id).first()
+    if a:
+        _staff_scope_student(db, current_user, a.student_id)
     fb = v.feedback
     if fb is None:
         fb = AnalysisFeedback(id=_uid("af"), version_id=v.id, author_id=current_user.id)
@@ -306,6 +313,9 @@ def add_comment(version_id: str, body: CommentBody, db: Session = Depends(get_db
     v = db.query(AnalysisVersion).filter(AnalysisVersion.id == version_id).first()
     if not v:
         raise HTTPException(status_code=404, detail="버전을 찾을 수 없어요")
+    a = db.query(WorkAnalysis).filter(WorkAnalysis.id == v.analysis_id).first()
+    if a:
+        _staff_scope_student(db, current_user, a.student_id)
     if not (body.content or "").strip():
         raise HTTPException(status_code=400, detail="코멘트를 입력해주세요")
     c = AnalysisFieldComment(

@@ -216,6 +216,8 @@ async def update_evaluation(
     )
     if not e:
         raise HTTPException(status_code=404, detail="Evaluation not found")
+    if current_user.role == UserRole.TEACHER and e.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 평가만 수정할 수 있어요.")
 
     update_dict = update_data.model_dump(exclude_unset=True)
     scores = update_dict.pop("scores", None)
@@ -246,9 +248,14 @@ def generate_ai_summary(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # ai-summary는 교사·원장만(학생 권한상승·AI비용 남용·타인평가 덮어쓰기 차단) — 조회 전에 학생 차단
+    if current_user.role == UserRole.STUDENT:
+        raise HTTPException(status_code=403, detail="교사·원장만 가능한 작업입니다.")
     e = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Evaluation not found")
+    if current_user.role == UserRole.TEACHER and e.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 평가만 처리할 수 있어요.")
 
     import json
     eval_data = json.dumps({
@@ -278,6 +285,8 @@ async def delete_evaluation(
     e = db.query(Evaluation).filter(Evaluation.id == evaluation_id).first()
     if not e:
         raise HTTPException(status_code=404, detail="Evaluation not found")
+    if current_user.role == UserRole.TEACHER and e.student_id not in get_teacher_student_ids(db, current_user.id):
+        raise HTTPException(status_code=403, detail="담당 학생의 평가만 삭제할 수 있어요.")
 
     student_id = e.student_id
     period = e.period

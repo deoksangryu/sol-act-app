@@ -242,14 +242,59 @@ def _serve_file_ranged(file_path: str, request: Request, extra_headers: dict):
     return resp
 
 
+# ── /uploads/ 서명 토큰(무인증 공개 접근 차단) ──
+# 서버가 응답에 실어 보내는 /uploads/ URL에만 HMAC 토큰(?t=)을 붙이고, 서빙 시 검증한다.
+# 경로 기반 안정 서명(만료 없음)이라 캐싱을 깨지 않고, SECRET_KEY 없이는 위조 불가.
+import hmac as _hmac, hashlib as _hashlib, re as _re
+from starlette.responses import Response
+
+
+def _sign_upload(rel: str) -> str:
+    return _hmac.new(settings.SECRET_KEY.encode(), ("uploads:" + rel).encode(), _hashlib.sha256).hexdigest()[:24]
+
+
+def _verify_upload(rel: str, token: str) -> bool:
+    return bool(token) and _hmac.compare_digest(token, _sign_upload(rel))
+
+
+# 파일명에 콜론(타임스탬프 16:35:04)·공백·한글 등이 있을 수 있어, 안전문자 화이트리스트 대신
+# JSON 문자열/쿼리 구분자(" ? \)만 제외하고 전부 경로로 캡처(=끊김 없이 정확히 서명).
+_UPLOADS_URL_RE = _re.compile(rb'/uploads/([^"?\\]+)')
+
+
+def _sign_upload_match(m):
+    rel = m.group(1).decode("utf-8", "ignore")
+    return b'/uploads/' + m.group(1) + b'?t=' + _sign_upload(rel).encode()
+
+
+async def _sign_uploads_in_response(request: Request, call_next):
+    """비-/uploads/ 응답: JSON 본문의 /uploads/ URL에 서명 토큰을 부착(중앙 처리)."""
+    response = await call_next(request)
+    ctype = response.headers.get("content-type", "")
+    if not ctype.startswith("application/json") or not hasattr(response, "body_iterator"):
+        return response
+    body = b"".join([chunk async for chunk in response.body_iterator])
+    try:
+        new_body = _UPLOADS_URL_RE.sub(_sign_upload_match, body)
+    except Exception:
+        new_body = body  # 실패 시 원본 유지(응답 절대 안 깨지게)
+    headers = dict(response.headers)
+    headers["content-length"] = str(len(new_body))
+    return Response(content=new_body, status_code=response.status_code, headers=headers)
+
+
 @app.middleware("http")
 async def serve_uploads(request: Request, call_next):
     """Serve /uploads/ files from external SSD first, then local (Range-enabled)."""
     path = request.url.path
     if not path.startswith("/uploads/"):
-        return await call_next(request)
+        # 비-uploads 요청: JSON 응답의 /uploads/ URL에 서명 토큰 부착
+        return await _sign_uploads_in_response(request, call_next)
 
     rel = path[len("/uploads/"):]  # strip prefix
+    # 서명 토큰 검증 — 서버가 발급한(서명된) URL만 서빙(무인증 공개 다운로드 차단)
+    if not _verify_upload(rel, request.query_params.get("t", "")):
+        return JSONResponse(status_code=403, content={"detail": "Forbidden"})
 
     # Cache headers for static uploads (images/videos don't change after upload).
     # NOTE: no restrictive CSP here — it can interfere with media playback.
